@@ -1,6 +1,6 @@
 // Types cho Hệ thống Quản lý Điều vận và Đội xe (QL_Điều Vận)
 
-export type UserRole = 'Requester' | 'Approver' | 'Dispatcher' | 'Driver' | 'Admin';
+export type UserRole = 'Requester' | 'Dispatcher' | 'Driver' | 'Admin';
 
 export interface User {
   id: number;
@@ -58,11 +58,15 @@ export interface Vehicle {
   maintenanceStatus: MaintenanceStatus;
   lastMaintenanceOdo: number;
   lastMaintenanceDate: string;
+  assignedDriverId?: number;
+  assignedDriverName?: string;
+  assignedDriverPhone?: string;
 }
 
 export interface Driver {
   id: number;
   accountId: number;
+  employeeCode?: string;
   fullName: string;
   phone: string;
   licenseNumber: string;

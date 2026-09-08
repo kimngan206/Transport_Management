@@ -505,7 +505,7 @@ function exportReportAlert() {
           </div>
           <div>
             <h3 class="chart-title">Phân Bổ Sản Lượng Mủ Theo Tuyến Đường Quy Chuẩn</h3>
-            <span class="chart-subtitle">Khối lượng mủ vận chuyển thực tế từ các nông trường đội về trạm cân và nhà máy</span>
+            <span class="chart-subtitle">Khối lượng mủ vận chuyển thực tế từ các Đội về trạm cân và nhà máy</span>
           </div>
         </div>
       </div>

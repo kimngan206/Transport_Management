@@ -124,7 +124,7 @@ export const useBookingStore = defineStore('booking', () => {
     saveState();
     return {
       success: true,
-      message: `Đã tạo thành công yêu cầu ${requestCode}! Chờ cấp quản lý phê duyệt.`,
+      message: `Đã tạo thành công yêu cầu ${requestCode}! Đã chuyển đến Bộ phận Điều phối để duyệt và xếp xe.`,
       data: newReq,
     };
   }

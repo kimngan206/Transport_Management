@@ -128,7 +128,7 @@ const showSection = computed(() => {
     return {
       dashboard: true,
       booking: true,
-      approval: true,
+      approval: false,
       dispatch: true,
       fleet: true,
       routes: true,
@@ -144,7 +144,7 @@ const showSection = computed(() => {
     return {
       dashboard: true,
       booking: true,
-      approval: true,
+      approval: false,
       dispatch: true,
       fleet: true,
       routes: true,
@@ -160,21 +160,6 @@ const showSection = computed(() => {
       dashboard: false,
       booking: true,
       approval: false,
-      dispatch: false,
-      fleet: false,
-      routes: false,
-      operations: false,
-      maintenance: false,
-      reports: false,
-      system: false,
-    };
-  }
-
-  if (role === 'Approver') {
-    return {
-      dashboard: false,
-      booking: false,
-      approval: true,
       dispatch: false,
       fleet: false,
       routes: false,
@@ -377,15 +362,14 @@ const showSection = computed(() => {
             Nghiệp Vụ Điều Độ
           </div>
 
-          <!-- 1. ĐẶT XE & PHÊ DUYỆT -->
-          <div v-if="showSection.booking || showSection.approval" class="menu-group">
-            <button class="group-btn" @click="toggleGroup('booking')" :title="'Đặt Xe Công Tác & Mủ'">
+          <!-- 1. ĐẶT XE ĐI LẠI & MỦ -->
+          <div v-if="showSection.booking" class="menu-group">
+            <button class="group-btn" @click="toggleGroup('booking')" :title="'Đặt Xe Đi Lại & Chở Mủ'">
               <span class="group-btn-title">
                 <CalendarCheck :size="17" class="nav-icon" />
-                <span>{{ !showSection.booking && showSection.approval ? 'Phê Duyệt Đặt Xe' : 'Đặt Xe Công Tác & Mủ' }}</span>
+                <span>Đặt Xe Đi Lại & Chở Mủ</span>
               </span>
               <div class="group-btn-right">
-                <span v-if="pendingCount > 0 && showSection.approval" class="mini-badge badge-amber">{{ pendingCount }}</span>
                 <ChevronDown v-if="openGroups.booking" :size="13" />
                 <ChevronRight v-else :size="13" />
               </div>
@@ -393,22 +377,11 @@ const showSection = computed(() => {
 
             <div v-show="openGroups.booking" class="sub-links-list">
               <router-link
-                v-if="showSection.booking"
                 to="/booking"
                 class="sub-nav-link"
                 :class="{ active: route.path === '/booking' }"
               >
-                <span>Đặt xe</span>
-              </router-link>
-
-              <router-link
-                v-if="showSection.approval"
-                to="/approval"
-                class="sub-nav-link"
-                :class="{ active: route.path === '/approval' }"
-              >
-                <span>Phê duyệt đặt xe</span>
-                <span v-if="pendingCount > 0" class="mini-badge badge-amber">{{ pendingCount }}</span>
+                <span>Tạo yêu cầu & Theo dõi</span>
               </router-link>
             </div>
           </div>
@@ -421,7 +394,8 @@ const showSection = computed(() => {
                 <span>Điều Phối Chuyến</span>
               </span>
               <div class="group-btn-right">
-                <span v-if="approvedCount > 0" class="mini-badge badge-blue">{{ approvedCount }}</span>
+                <span v-if="pendingCount > 0" class="mini-badge badge-amber" title="Có yêu cầu xe mới cần duyệt">{{ pendingCount }}</span>
+                <span v-else-if="approvedCount > 0" class="mini-badge badge-blue" title="Yêu cầu chờ gán xe">{{ approvedCount }}</span>
                 <ChevronDown v-if="openGroups.dispatch" :size="13" />
                 <ChevronRight v-else :size="13" />
               </div>
@@ -432,7 +406,8 @@ const showSection = computed(() => {
                 <span>Bản đồ & Lộ trình xe</span>
               </router-link>
               <router-link to="/dispatch?view=board" class="sub-nav-link" :class="{ active: route.path === '/dispatch' && route.query.view === 'board' }">
-                <span>Bảng điều phối thẻ</span>
+                <span>Duyệt & Ghép thẻ xe</span>
+                <span v-if="pendingCount > 0" class="mini-badge badge-amber">{{ pendingCount }}</span>
               </router-link>
             </div>
           </div>
@@ -451,16 +426,16 @@ const showSection = computed(() => {
             </button>
 
             <div v-show="openGroups.fleet" class="sub-links-list">
-              <router-link to="/fleet?tab=vehicles" class="sub-nav-link" :class="{ active: route.path === '/fleet' && (!route.query.tab || route.query.tab === 'vehicles') }">
-                <span>Danh sách phương tiện</span>
-              </router-link>
-
               <router-link to="/fleet/types" class="sub-nav-link" :class="{ active: route.path === '/fleet/types' }">
                 <span>Danh sách loại xe</span>
               </router-link>
 
               <router-link to="/fleet?tab=drivers" class="sub-nav-link" :class="{ active: route.path === '/fleet' && route.query.tab === 'drivers' }">
                 <span>Danh sách tài xế</span>
+              </router-link>
+
+              <router-link to="/fleet?tab=vehicles" class="sub-nav-link" :class="{ active: route.path === '/fleet' && (!route.query.tab || route.query.tab === 'vehicles') }">
+                <span>Danh sách phương tiện</span>
               </router-link>
             </div>
           </div>
@@ -484,7 +459,7 @@ const showSection = computed(() => {
               </router-link>
 
               <router-link to="/hubs" class="sub-nav-link" :class="{ active: route.path === '/hubs' }">
-                <span>Điểm trạm & Nông trường</span>
+                <span>Điểm trạm & Đội</span>
               </router-link>
             </div>
           </div>

@@ -8,9 +8,10 @@ export const useAuthStore = defineStore('auth', () => {
   const users = ref<User[]>(mockStorage.getUsers());
   const currentUserId = ref<number>(mockStorage.getCurrentUserId());
 
-  // Đảm bảo users có đủ toàn bộ user từ initialUsers (chống stale cache)
+  // Đảm bảo users đồng bộ với initialUsers (loại bỏ user đã xóa và cập nhật thông tin)
+  users.value = users.value.filter((u) => initialUsers.some((iu) => iu.id === u.id));
   for (const iu of initialUsers) {
-    const existing = users.value.find(u => u.id === iu.id);
+    const existing = users.value.find((u) => u.id === iu.id);
     if (!existing) {
       users.value.push({ ...iu });
     } else {
@@ -20,14 +21,25 @@ export const useAuthStore = defineStore('auth', () => {
       existing.departmentName = iu.departmentName;
     }
   }
+  mockStorage.saveUsers(users.value);
+
+  // Nếu user hiện tại không tồn tại trong danh sách, đặt lại về Dispatcher (id: 3)
+  if (!users.value.some((u) => u.id === currentUserId.value)) {
+    currentUserId.value = 3;
+    mockStorage.saveCurrentUserId(3);
+  }
 
   const currentUser = computed<User>(() => {
     return users.value.find((u) => u.id === currentUserId.value) || users.value[0];
   });
 
   const activeRole = ref<UserRole>(
-    mockStorage.getActiveRole<UserRole>(currentUser.value.roles[0] || 'Requester')
+    mockStorage.getActiveRole<UserRole>(currentUser.value.roles[0] || 'Dispatcher')
   );
+  if ((activeRole.value as string) === 'Approver') {
+    activeRole.value = 'Dispatcher';
+    mockStorage.saveActiveRole('Dispatcher');
+  }
 
   function switchUser(userId: number) {
     const target = users.value.find((u) => u.id === userId);

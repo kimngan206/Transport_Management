@@ -28,7 +28,6 @@ function handleResetData() {
 // Bảng màu sắc chuyên ngành: Xanh rừng cao su, Đất đỏ bazan, Bồn téc inox, Than kỹ thuật
 const roleColors: Record<UserRole, { bg: string; text: string; border: string; roleLabel: string }> = {
   Requester: { bg: '#f0fdf4', text: '#166534', border: '#bbf7d0', roleLabel: 'Tổ Trưởng Nông Trường' },
-  Approver: { bg: '#ecfdf5', text: '#065f46', border: '#a7f3d0', roleLabel: 'P.GĐ Kỹ Thuật / Trưởng NT' },
   Dispatcher: { bg: '#eff6ff', text: '#1e40af', border: '#bfdbfe', roleLabel: 'Điều Độ Đội Xe Mủ' },
   Driver: { bg: '#fefce8', text: '#854d0e', border: '#fef08a', roleLabel: 'Tài Xế Xe Bồn Mủ' },
   Admin: { bg: '#fff1f2', text: '#9f1239', border: '#fecdd3', roleLabel: 'Quản Trị Cơ Giới' },

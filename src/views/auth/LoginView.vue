@@ -5,7 +5,6 @@ import { useAuthStore } from '@/stores/auth';
 import type { UserRole } from '@/types';
 import {
   Sprout,
-  ShieldCheck,
   Layers,
   Truck,
   Settings,
@@ -48,23 +47,12 @@ const roleProfiles: RoleProfile[] = [
     targetRoute: '/booking',
   },
   {
-    userId: 2,
-    role: 'Approver',
-    roleTitle: 'Người Phê Duyệt (Approver)',
-    jobTitle: 'Phó Giám Đốc Kỹ Thuật Nông Nghiệp',
-    category: 'MANAGEMENT',
-    duty: 'Phê duyệt điều động xe, kiểm soát kế hoạch thu gom mủ và điều chuyển trang thiết bị cơ giới nông trường',
-    badgeColor: { bg: '#ecfdf5', text: '#065f46', border: '#a7f3d0' },
-    icon: ShieldCheck,
-    targetRoute: '/approval',
-  },
-  {
     userId: 3,
     role: 'Dispatcher',
     roleTitle: 'Điều Phối Viên (Dispatcher)',
     jobTitle: 'Trưởng Bộ Phận Điều Độ & Vận Tải',
     category: 'MANAGEMENT',
-    duty: 'Ghép chuyến xe bồn, tối ưu cung đường Nông trường → Trạm cân → Nhà máy chế biến, gán tài xế',
+    duty: 'Duyệt yêu cầu xe trực tiếp, ghép chuyến xe bồn, tối ưu cung đường Nông trường → Trạm cân → Nhà máy, gán tài xế',
     badgeColor: { bg: '#eff6ff', text: '#1e40af', border: '#bfdbfe' },
     icon: Layers,
     targetRoute: '/dispatch',
@@ -305,7 +293,7 @@ function handleSelectRole(profile: RoleProfile) {
         <!-- Footer Card -->
         <div class="selector-card-footer">
           <div class="footer-note">
-            Đầy đủ <strong>8 nhân sự</strong> trực thuộc các bộ phận: <strong>Tổ trưởng Nông trường → P.Giám đốc Kỹ thuật → Điều độ xe bồn → Đội ngũ tài xế xe tải, xe bồn, xe bán tải & thợ máy xúc → Quản trị hệ thống</strong>
+            Đầy đủ <strong>7 nhân sự</strong> trực thuộc các bộ phận: <strong>Tổ trưởng Nông trường (Đặt xe) → Điều độ xe bồn (Duyệt & Ghép xe) → Đội ngũ tài xế xe tải, xe bồn, xe bán tải & thợ máy xúc → Quản trị hệ thống</strong>
           </div>
         </div>
       </div>

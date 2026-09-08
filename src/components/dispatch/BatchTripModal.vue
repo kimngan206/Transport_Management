@@ -33,8 +33,10 @@ const driverId = ref<number | ''>('');
 const notes = ref<string>('Điều động xe chở mủ kết hợp nhiều trạm');
 const errorMsg = ref<string>('');
 
-// Danh sách yêu cầu khả dụng để gán (APPROVED)
-const availableRequests = computed(() => bookingStore.approvedRequests);
+// Danh sách yêu cầu khả dụng để gán (bao gồm cả PENDING và APPROVED theo cơ chế duyệt trực tiếp ở Dispatcher)
+const availableRequests = computed(() =>
+  bookingStore.requests.filter((r) => r.status === 'APPROVED' || r.status === 'PENDING')
+);
 
 const currentSelectedRequests = computed(() => {
   return bookingStore.requests.filter((r) => selectedRequestIds.value.includes(r.id));
@@ -167,6 +169,19 @@ function handleDispatch() {
     return;
   }
 
+  // Tự động phê duyệt các yêu cầu PENDING khi được Dispatcher chọn điều phối trực tiếp
+  for (const reqId of selectedRequestIds.value) {
+    const req = bookingStore.requests.find((r) => r.id === reqId);
+    if (req && req.status === 'PENDING') {
+      bookingStore.approveRequest(
+        req.id,
+        authStore.currentUser.id,
+        authStore.currentUser.fullName,
+        'Điều phối viên duyệt & gán xe trực tiếp'
+      );
+    }
+  }
+
   const res = dispatchStore.dispatchTrip({
     vehicleId: Number(vehicleId.value),
     driverId: Number(driverId.value),
@@ -235,6 +250,8 @@ function handleDispatch() {
               <div class="req-info">
                 <div class="req-title-row">
                   <span class="req-code"><strong>{{ r.requestCode }}</strong></span>
+                  <span v-if="r.status === 'PENDING'" class="badge-pending-tag">Chờ duyệt</span>
+                  <span v-else class="badge-approved-tag">Đã duyệt</span>
                   <span class="req-type-tag">{{ getVehicleTypeLabel(r.vehicleType) }}</span>
                   <span class="req-time">{{ r.startTime.slice(11) }} - {{ r.endTime.slice(11) }}</span>
                 </div>
@@ -410,6 +427,22 @@ function handleDispatch() {
   border-radius: 4px;
   font-size: 0.6875rem;
   font-weight: 600;
+}
+.badge-pending-tag {
+  background: #fef3c7;
+  color: #b45309;
+  font-size: 0.625rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.badge-approved-tag {
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 0.625rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
 }
 .req-route-row {
   display: flex;

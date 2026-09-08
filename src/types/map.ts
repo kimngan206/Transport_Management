@@ -14,6 +14,12 @@ export interface HubLocation {
   address: string;
 }
 
+export interface RouteStop {
+  hubId: string;
+  hub: HubLocation;
+  distanceKm: number;
+}
+
 export interface RoutePath {
   id: number;
   code: string;
@@ -22,6 +28,10 @@ export interface RoutePath {
   to: HubLocation;
   distanceKm: number;
   waypoints: [number, number][];
+  destinations?: HubLocation[];
+  stops?: RouteStop[];
+  isRoundTrip?: boolean;
+  description?: string;
 }
 
 export interface VehicleMapState {

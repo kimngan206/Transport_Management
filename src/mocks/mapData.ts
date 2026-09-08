@@ -58,7 +58,7 @@ export const ECOTECH_ROUTES: RoutePath[] = [
   {
     id: 1,
     code: 'TC1-D1-TC1',
-    name: 'Trạm cân 1 ➔ Nông trường Đội 1',
+    name: 'Trạm cân 1 ➔ Đội 1',
     from: findHubByCode('TC1'),
     to: findHubByCode('D1'),
     distanceKm: 26.0,
@@ -72,7 +72,7 @@ export const ECOTECH_ROUTES: RoutePath[] = [
   {
     id: 2,
     code: 'TC1-D2-TC1',
-    name: 'Trạm cân 1 ➔ Nông trường Đội 2',
+    name: 'Trạm cân 1 ➔ Đội 2',
     from: findHubByCode('TC1'),
     to: findHubByCode('D2'),
     distanceKm: 34.0,
@@ -86,7 +86,7 @@ export const ECOTECH_ROUTES: RoutePath[] = [
   {
     id: 3,
     code: 'NM-D3-NM',
-    name: 'Nhà máy chế biến ➔ Nông trường Đội 3',
+    name: 'Nhà máy chế biến ➔ Đội 3',
     from: findHubByCode('NM'),
     to: findHubByCode('D3'),
     distanceKm: 42.0,

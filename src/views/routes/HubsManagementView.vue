@@ -38,9 +38,7 @@ import {
   type DistrictItem,
   type WardItem,
 } from '@/services/vietnamLocations';
-
-// Declare Leaflet global
-declare const L: any;
+import L, { safeInitMap, createTileLayer } from '@/utils/leaflet';
 
 const dialog = useDialogStore();
 const hubsList = ref<HubLocation[]>([...getFreshHubs()]);
@@ -67,12 +65,6 @@ const filteredHubs = computed(() => {
     return matchType && matchQuery;
   });
 });
-
-// Thống kê theo loại trạm
-const weighCount = computed(() => hubsList.value.filter((h) => h.type === 'weigh_station').length);
-const farmCount = computed(() => hubsList.value.filter((h) => h.type === 'farm').length);
-const factoryCount = computed(() => hubsList.value.filter((h) => h.type === 'factory').length);
-const officeCount = computed(() => hubsList.value.filter((h) => h.type === 'office').length);
 
 // Modal Thêm / Sửa
 const showModal = ref(false);
@@ -427,9 +419,16 @@ const mapInstance = ref<any>(null);
 let hubMarkers: any[] = [];
 
 function initMap() {
-  if (!mapContainer.value || typeof L === 'undefined') return;
+  if (!mapContainer.value) return;
 
-  mapInstance.value = L.map(mapContainer.value, {
+  if (mapInstance.value) {
+    try {
+      mapInstance.value.remove();
+    } catch (e) {}
+    mapInstance.value = null;
+  }
+
+  mapInstance.value = safeInitMap(mapContainer.value, {
     center: [11.5400, 106.6200],
     zoom: 12,
     zoomControl: false,
@@ -437,10 +436,7 @@ function initMap() {
 
   L.control.zoom({ position: 'bottomright' }).addTo(mapInstance.value);
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; OpenStreetMap | ECOTECH 2A Hubs',
-  }).addTo(mapInstance.value);
+  createTileLayer('osm').addTo(mapInstance.value);
 
   renderHubsOnMap();
 }
@@ -518,13 +514,9 @@ function handleStorageEvent(e: StorageEvent) {
 onMounted(() => {
   refreshHubs();
   window.addEventListener('storage', handleStorageEvent);
-  const checkLeaflet = setInterval(() => {
-    if (typeof L !== 'undefined') {
-      clearInterval(checkLeaflet);
-      initMap();
-    }
-  }, 200);
-  setTimeout(() => clearInterval(checkLeaflet), 5000);
+  nextTick(() => {
+    initMap();
+  });
 });
 
 onUnmounted(() => {
@@ -540,7 +532,7 @@ onUnmounted(() => {
   <div class="hubs-page">
     <div class="page-header">
       <div>
-        <h1 class="page-title">Danh Mục Điểm Trạm & Nông Trường (Hubs)</h1>
+        <h1 class="page-title">Danh Mục Điểm Trạm & Đội Sản Xuất (Hubs)</h1>
         <p class="page-subtitle">
           Quản lý các điểm trạm cân, vườn cây cao su, nhà máy chế biến và văn phòng kèm tọa độ GPS cố định để kết nối tuyến đường quy chuẩn
         </p>
@@ -552,75 +544,12 @@ onUnmounted(() => {
       </button>
     </div>
 
-    <!-- 1. Thẻ thống kê & Bộ lọc nhanh -->
-    <div class="metrics-grid mb-4">
-      <div
-        class="metric-card"
-        :class="{ active: selectedTypeFilter === 'ALL' }"
-        @click="selectedTypeFilter = 'ALL'"
-      >
-        <div class="metric-icon bg-slate"><MapPin :size="20" /></div>
-        <div class="metric-info">
-          <span class="metric-val">{{ hubsList.length }}</span>
-          <span class="metric-lbl">Tất cả điểm nút</span>
-        </div>
-      </div>
-
-      <div
-        class="metric-card"
-        :class="{ active: selectedTypeFilter === 'weigh_station' }"
-        @click="selectedTypeFilter = 'weigh_station'"
-      >
-        <div class="metric-icon bg-blue"><Scale :size="20" /></div>
-        <div class="metric-info">
-          <span class="metric-val text-blue">{{ weighCount }}</span>
-          <span class="metric-lbl">Trạm cân mủ tươi</span>
-        </div>
-      </div>
-
-      <div
-        class="metric-card"
-        :class="{ active: selectedTypeFilter === 'farm' }"
-        @click="selectedTypeFilter = 'farm'"
-      >
-        <div class="metric-icon bg-green"><Trees :size="20" /></div>
-        <div class="metric-info">
-          <span class="metric-val text-green">{{ farmCount }}</span>
-          <span class="metric-lbl">Nông trường / Đội SX</span>
-        </div>
-      </div>
-
-      <div
-        class="metric-card"
-        :class="{ active: selectedTypeFilter === 'factory' }"
-        @click="selectedTypeFilter = 'factory'"
-      >
-        <div class="metric-icon bg-orange"><Factory :size="20" /></div>
-        <div class="metric-info">
-          <span class="metric-val text-orange">{{ factoryCount }}</span>
-          <span class="metric-lbl">Nhà máy chế biến</span>
-        </div>
-      </div>
-
-      <div
-        class="metric-card"
-        :class="{ active: selectedTypeFilter === 'office' }"
-        @click="selectedTypeFilter = 'office'"
-      >
-        <div class="metric-icon bg-purple"><Building2 :size="20" /></div>
-        <div class="metric-info">
-          <span class="metric-val text-purple">{{ officeCount }}</span>
-          <span class="metric-lbl">Văn phòng / Trụ sở</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- 2. Bản đồ trực quan vị trí GPS của các trạm -->
+    <!-- Bản đồ trực quan vị trí GPS của các trạm -->
     <div class="card mb-4 p-0 overflow-hidden">
       <div class="map-card-header">
         <div class="map-card-title">
           <Compass :size="16" class="text-primary" />
-          <span>Sơ Đồ Tọa Độ GPS Toàn Bộ Điểm Trạm Nông Trường (Bình Phước)</span>
+          <span>Sơ Đồ Tọa Độ GPS Toàn Bộ Điểm Trạm & Đội (Bình Phước)</span>
         </div>
         <button class="btn btn-secondary btn-sm" @click="resetMapView" title="Về toàn cảnh">
           <RefreshCw :size="14" />
@@ -684,7 +613,7 @@ onUnmounted(() => {
                       hub.type === 'weigh_station'
                         ? 'Trạm Cân'
                         : hub.type === 'farm'
-                        ? 'Nông Trường'
+                        ? 'Đội'
                         : hub.type === 'factory'
                         ? 'Nhà Máy'
                         : 'Văn Phòng'
@@ -758,7 +687,7 @@ onUnmounted(() => {
               <label class="form-label">Loại điểm trạm <span class="required">*</span></label>
               <select v-model="formType" class="form-select">
                 <option value="weigh_station">Trạm cân tiếp nhận mủ tươi</option>
-                <option value="farm">Nông trường / Đội khai thác cao su</option>
+                <option value="farm">Đội khai thác cao su</option>
                 <option value="factory">Nhà máy chế biến mủ</option>
                 <option value="office">Văn phòng / Trung tâm hành chính</option>
               </select>
@@ -976,70 +905,6 @@ onUnmounted(() => {
   font-size: 0.8125rem;
   color: var(--text-secondary);
 }
-
-/* Metrics Grid */
-.metrics-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 12px;
-}
-
-.metric-card {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 14px 18px;
-  background: #ffffff;
-  border-radius: 10px;
-  border: 1px solid #e2e8f0;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.metric-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-  border-color: #cbd5e1;
-}
-
-.metric-card.active {
-  border-color: #16a34a;
-  background: #f0fdf4;
-  box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.2);
-}
-
-.metric-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.bg-slate { background: #f1f5f9; color: #475569; }
-.bg-blue { background: #e0f2fe; color: #0284c7; }
-.bg-green { background: #dcfce7; color: #16a34a; }
-.bg-orange { background: #ffedd5; color: #ea580c; }
-.bg-purple { background: #ede9fe; color: #7c3aed; }
-
-.metric-info {
-  display: flex;
-  flex-direction: column;
-}
-.metric-val {
-  font-size: 1.25rem;
-  font-weight: 800;
-  color: #0f172a;
-}
-.metric-lbl {
-  font-size: 0.75rem;
-  color: #64748b;
-  font-weight: 600;
-}
-.text-blue { color: #0284c7; }
-.text-green { color: #16a34a; }
-.text-orange { color: #ea580c; }
-.text-purple { color: #7c3aed; }
 
 /* Map card */
 .map-card-header {

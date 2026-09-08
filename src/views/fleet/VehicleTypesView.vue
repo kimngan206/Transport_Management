@@ -8,11 +8,6 @@ import {
   Search,
   Edit2,
   Trash2,
-  Power,
-  Layers,
-  Wrench,
-  Car,
-  Fuel,
 } from 'lucide-vue-next';
 
 import { useDialogStore } from '@/stores/dialog';
@@ -44,15 +39,6 @@ const formIsActive = ref(true);
 
 // Thống kê nhanh
 const totalCategories = computed(() => fleetStore.vehicleCategories.length);
-const latexTransportCount = computed(
-  () => fleetStore.vehicleCategories.filter((c) => c.group === 'Vận tải mủ').length
-);
-const machineryCount = computed(
-  () => fleetStore.vehicleCategories.filter((c) => c.group === 'Cơ giới nông trường').length
-);
-const techWorkCount = computed(
-  () => fleetStore.vehicleCategories.filter((c) => c.group === 'Công tác & Kỹ thuật').length
-);
 
 // Đếm số xe thực tế trong đội xe tương ứng với từng loại xe
 function countVehiclesForCategory(category: VehicleCategory): number {
@@ -179,17 +165,7 @@ function saveCategory() {
   );
 }
 
-function toggleStatus(category: VehicleCategory) {
-  const willBeActive = !category.isActive;
-  fleetStore.updateVehicleCategory({
-    ...category,
-    isActive: willBeActive,
-  });
-  dialog.showSuccess(
-    `Đã ${willBeActive ? 'kích hoạt áp dụng' : 'tạm ngưng áp dụng'} loại xe [${category.name}]!`,
-    'Cập Nhật Trạng Thái'
-  );
-}
+
 
 function deleteCategory(category: VehicleCategory) {
   const count = countVehiclesForCategory(category);
@@ -228,53 +204,6 @@ function deleteCategory(category: VehicleCategory) {
         <Plus :size="16" />
         <span>Thêm Loại Xe Mới</span>
       </button>
-    </div>
-
-    <!-- 4 Thẻ KPI Phân Loại Phương Tiện -->
-    <div class="kpi-grid">
-      <div class="kpi-card">
-        <div class="kpi-icon-box icon-green">
-          <Truck :size="22" />
-        </div>
-        <div class="kpi-info">
-          <span class="kpi-label">VẬN TẢI MỦ CAO SU</span>
-          <strong class="kpi-value">{{ latexTransportCount }}</strong>
-          <span class="kpi-desc">Xe tải thùng bạt & Xe bồn téc inox</span>
-        </div>
-      </div>
-
-      <div class="kpi-card">
-        <div class="kpi-icon-box icon-amber">
-          <Wrench :size="22" />
-        </div>
-        <div class="kpi-info">
-          <span class="kpi-label">CƠ GIỚI NÔNG TRƯỜNG</span>
-          <strong class="kpi-value">{{ machineryCount }}</strong>
-          <span class="kpi-desc">Máy xúc đào mương & Máy kéo rơ-moóc</span>
-        </div>
-      </div>
-
-      <div class="kpi-card">
-        <div class="kpi-icon-box icon-blue">
-          <Car :size="22" />
-        </div>
-        <div class="kpi-info">
-          <span class="kpi-label">CÔNG TÁC & KỸ THUẬT</span>
-          <strong class="kpi-value">{{ techWorkCount }}</strong>
-          <span class="kpi-desc">Xe bán tải 4x4 kiểm tra ca ép mủ</span>
-        </div>
-      </div>
-
-      <div class="kpi-card">
-        <div class="kpi-icon-box icon-purple">
-          <Layers :size="22" />
-        </div>
-        <div class="kpi-info">
-          <span class="kpi-label">TỔNG DANH MỤC</span>
-          <strong class="kpi-value">{{ totalCategories }}</strong>
-          <span class="kpi-desc">Quy chuẩn định mức NLP & NLC</span>
-        </div>
-      </div>
     </div>
 
     <!-- Khung Danh Sách & Bộ Lọc -->
@@ -320,9 +249,6 @@ function deleteCategory(category: VehicleCategory) {
               <th>Mã Loại</th>
               <th>Tên Loại Phương Tiện</th>
               <th>Nhóm Phân Loại</th>
-              <th>Hệ Thống</th>
-              <th>Tải Trọng / Sức Chứa</th>
-              <th>Định Mức Nhiên Liệu</th>
               <th>Xe Trong Đội</th>
               <th>Trạng Thái</th>
               <th>Mô Tả</th>
@@ -331,7 +257,7 @@ function deleteCategory(category: VehicleCategory) {
           </thead>
           <tbody>
             <tr v-if="filteredCategories.length === 0">
-              <td colspan="10" class="text-center py-5 text-muted">
+              <td colspan="7" class="text-center py-5 text-muted">
                 Không tìm thấy loại xe nào phù hợp với bộ lọc tìm kiếm.
               </td>
             </tr>
@@ -356,37 +282,6 @@ function deleteCategory(category: VehicleCategory) {
                 </span>
               </td>
               <td>
-                <span class="type-pill-sm">{{ cat.vehicleTypeCode }}</span>
-              </td>
-              <td>
-                <div class="capacity-box">
-                  <span v-if="cat.standardCapacityTons" class="font-bold text-success">
-                    {{ cat.standardCapacityTons }} Tấn
-                  </span>
-                  <span v-if="cat.standardSeats" class="text-info text-xs">
-                    {{ cat.standardSeats }} chỗ ngồi
-                  </span>
-                </div>
-              </td>
-              <td>
-                <div class="quota-box">
-                  <div v-if="cat.fuelQuotaType === 'L_PER_HOUR'">
-                    <span class="quota-val">{{ cat.defaultQuotaEmpty }} L/giờ</span>
-                    <span class="quota-lbl">Giờ máy</span>
-                  </div>
-                  <div v-else class="quota-two-rows">
-                    <div>
-                      <span class="text-xs text-muted">NLP:</span>
-                      <strong>{{ cat.defaultQuotaEmpty }} L/km</strong>
-                    </div>
-                    <div v-if="cat.defaultQuotaLoaded">
-                      <span class="text-xs text-muted">NLC:</span>
-                      <strong>{{ cat.defaultQuotaLoaded }} L/t.km</strong>
-                    </div>
-                  </div>
-                </div>
-              </td>
-              <td>
                 <span
                   class="fleet-count-badge"
                   :class="countVehiclesForCategory(cat) > 0 ? 'has-vehicles' : 'no-vehicles'"
@@ -407,14 +302,6 @@ function deleteCategory(category: VehicleCategory) {
                 <div class="actions-group">
                   <button class="btn-action btn-edit" @click="openEditModal(cat)" title="Chỉnh sửa loại xe">
                     <Edit2 :size="14" />
-                  </button>
-                  <button
-                    class="btn-action"
-                    :class="cat.isActive ? 'btn-toggle-off' : 'btn-toggle-on'"
-                    @click="toggleStatus(cat)"
-                    :title="cat.isActive ? 'Tạm ngưng loại xe này' : 'Kích hoạt loại xe này'"
-                  >
-                    <Power :size="14" />
                   </button>
                   <button class="btn-action btn-delete" @click="deleteCategory(cat)" title="Xóa loại xe">
                     <Trash2 :size="14" />
@@ -469,57 +356,6 @@ function deleteCategory(category: VehicleCategory) {
               placeholder="Ví dụ: Xe tải chở mủ cao su 5 tấn..."
               class="form-input"
             />
-          </div>
-
-          <div class="form-grid-3">
-            <div class="form-item">
-              <label class="form-label">Phân Loại Hệ Thống</label>
-              <select v-model="formVehicleType" class="form-select">
-                <option value="Truck">Truck (Xe tải / bồn)</option>
-                <option value="Pickup">Pickup (Xe bán tải)</option>
-                <option value="Excavator">Excavator (Máy xúc / cơ giới)</option>
-              </select>
-            </div>
-
-            <div class="form-item">
-              <label class="form-label">Tải Trọng Thiết Kế (Tấn)</label>
-              <input v-model.number="formCapacityTons" type="number" step="0.5" class="form-input" />
-            </div>
-
-            <div class="form-item">
-              <label class="form-label">Số Chỗ Ngồi (Nếu có)</label>
-              <input v-model.number="formSeats" type="number" placeholder="5 chỗ..." class="form-input" />
-            </div>
-          </div>
-
-          <div class="form-group-box">
-            <h5 class="box-title">
-              <Fuel :size="15" />
-              <span>Quy Chuẩn Định Mức Nhiên Liệu Xăng Dầu</span>
-            </h5>
-
-            <div class="form-grid-3">
-              <div class="form-item">
-                <label class="form-label">Đơn Vị Định Mức</label>
-                <select v-model="formFuelQuotaType" class="form-select">
-                  <option value="L_PER_TON_KM">Lít / Tấn.km (Đường bộ)</option>
-                  <option value="L_PER_KM">Lít / km (Xe công tác)</option>
-                  <option value="L_PER_HOUR">Lít / Giờ máy (Cơ giới)</option>
-                </select>
-              </div>
-
-              <div class="form-item">
-                <label class="form-label">
-                  {{ formFuelQuotaType === 'L_PER_HOUR' ? 'Định Mức Giờ Máy (L/h)' : 'NLP Không Tải (L/km)' }}
-                </label>
-                <input v-model.number="formDefaultQuotaEmpty" type="number" step="0.01" class="form-input" />
-              </div>
-
-              <div v-if="formFuelQuotaType !== 'L_PER_HOUR'" class="form-item">
-                <label class="form-label">NLC Có Tải (L/tấn.km)</label>
-                <input v-model.number="formDefaultQuotaLoaded" type="number" step="0.001" class="form-input" />
-              </div>
-            </div>
           </div>
 
           <div class="form-item">

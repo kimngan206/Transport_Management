@@ -14,6 +14,7 @@ import {
   History,
   Fuel,
   Info,
+  Edit2,
 } from 'lucide-vue-next';
 
 const props = defineProps<{
@@ -23,6 +24,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'close'): void;
   (e: 'openMaintenance', vehicleId: number): void;
+  (e: 'edit', vehicle: Vehicle): void;
 }>();
 
 const router = useRouter();
@@ -254,6 +256,15 @@ function handleGoToMaintenanceTypes() {
                 <span class="spec-val font-bold">{{ vehicle.model }}</span>
               </div>
               <div class="spec-row">
+                <span class="spec-label">Tài xế trực thuộc</span>
+                <div class="spec-val font-bold text-primary">
+                  <span>{{ vehicle.assignedDriverName || 'Chưa phân công tài xế' }}</span>
+                  <span v-if="vehicle.assignedDriverPhone" class="text-xs text-muted block font-normal">
+                    SĐT: {{ vehicle.assignedDriverPhone }}
+                  </span>
+                </div>
+              </div>
+              <div class="spec-row">
                 <span class="spec-label">Sức chứa / Tải trọng</span>
                 <span class="spec-val">
                   {{ vehicle.capacityTons }} Tấn
@@ -322,14 +333,22 @@ function handleGoToMaintenanceTypes() {
       </div>
 
       <!-- Modal Footer -->
-      <div class="modal-footer">
-        <button class="btn btn-secondary" @click="emit('close')">
-          Đóng
-        </button>
-        <button class="btn btn-primary" @click="handleGoToMaintenance">
-          <Wrench :size="15" />
-          <span>Chuyển Sang Module Bảo Dưỡng</span>
-        </button>
+      <div class="modal-footer flex-between">
+        <div>
+          <button class="btn btn-secondary" @click="emit('close')">
+            Đóng
+          </button>
+        </div>
+        <div class="flex-actions">
+          <button class="btn btn-outline" @click="emit('edit', vehicle)">
+            <Edit2 :size="14" />
+            <span>Sửa Thông Số</span>
+          </button>
+          <button class="btn btn-primary" @click="handleGoToMaintenance">
+            <Wrench :size="15" />
+            <span>Chuyển Sang Module Bảo Dưỡng</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>

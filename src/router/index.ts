@@ -2,7 +2,6 @@ import { createRouter, createWebHistory } from 'vue-router';
 import LoginView from '@/views/auth/LoginView.vue';
 import DashboardView from '@/views/dashboard/DashboardView.vue';
 import BookingListView from '@/views/booking/BookingListView.vue';
-import ApprovalListView from '@/views/approval/ApprovalListView.vue';
 import DispatchBoardView from '@/views/dispatch/DispatchBoardView.vue';
 import DriverScheduleView from '@/views/driver/DriverScheduleView.vue';
 import FleetListView from '@/views/fleet/FleetListView.vue';
@@ -36,8 +35,7 @@ const router = createRouter({
     {
       path: '/approval',
       name: 'approval',
-      component: ApprovalListView,
-      meta: { title: 'Phê Duyệt Đặt Xe - QL_Điều Vận' },
+      redirect: '/dispatch?view=board',
     },
     {
       path: '/dispatch',
@@ -129,16 +127,11 @@ router.beforeEach((to) => {
   }
 
   // Phân quyền điều hướng:
-  // - Approver chỉ được phê duyệt, ẩn dashboard và booking
-  // - Requester chỉ được đặt xe, ẩn dashboard và approval
-  // - Dispatcher điều phối chuyến, ẩn đặt xe
+  // - Requester chỉ được đặt xe, ẩn dashboard
+  // - Dispatcher điều phối chuyến, quản lý xe và tài xế
   try {
     const authStore = useAuthStore();
-    if (authStore.activeRole === 'Approver') {
-      if (to.path === '/' || to.path === '/booking' || to.path === '/reports') {
-        return '/approval';
-      }
-    } else if (authStore.activeRole === 'Requester') {
+    if (authStore.activeRole === 'Requester') {
       if (to.path === '/' || to.path === '/approval') {
         return '/booking';
       }

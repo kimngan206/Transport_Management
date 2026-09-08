@@ -440,6 +440,10 @@ h1, h2, h3, h4, h5, h6 {
   max-width: 860px;
 }
 
+.modal-content.modal-xl {
+  max-width: 1080px;
+}
+
 @keyframes modal-enter {
   from {
     opacity: 0;

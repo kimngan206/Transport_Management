@@ -21,7 +21,7 @@ const dialog = useDialogStore();
 const vehicleType = ref<VehicleType>('Truck');
 const standardRouteId = ref<number | ''>(1);
 const fromLocation = ref<string>('Trạm cân 1');
-const toLocation = ref<string>('Nông trường Đội 1');
+const toLocation = ref<string>('Đội 1');
 const purpose = ref<string>('Vận chuyển mủ cao su ca thu hoạch ngày lẻ');
 const estimatedWeightKg = ref<number>(2500);
 const passengersCount = ref<number>(3);
@@ -160,7 +160,7 @@ function handleSubmit() {
   } else {
     emit('created');
     emit('close');
-    dialog.showSuccess('Yêu cầu đặt xe của bạn đã được gửi thành công đến người quản lý để phê duyệt.', 'Đặt Xe Thành Công');
+    dialog.showSuccess('Yêu cầu đặt xe của bạn đã được gửi trực tiếp đến Bộ phận Điều phối để duyệt và xếp xe vận chuyển.', 'Đặt Xe Thành Công');
   }
 }
 </script>
@@ -218,7 +218,7 @@ function handleSubmit() {
 
           <div class="form-group">
             <label class="form-label">Điểm đến <span class="required">*</span></label>
-            <input v-model="toLocation" type="text" class="form-input" placeholder="Ví dụ: Nông trường Đội 1" />
+            <input v-model="toLocation" type="text" class="form-input" placeholder="Ví dụ: Đội 1" />
           </div>
         </div>
 

@@ -157,6 +157,19 @@ export const useFleetStore = defineStore('fleet', () => {
     saveState();
   }
 
+  function updateVehicle(vehicle: Vehicle) {
+    const idx = vehicles.value.findIndex((v) => v.id === vehicle.id);
+    if (idx !== -1) {
+      vehicles.value[idx] = { ...vehicle };
+      saveState();
+    }
+  }
+
+  function deleteVehicle(id: number) {
+    vehicles.value = vehicles.value.filter((v) => v.id !== id);
+    saveState();
+  }
+
   function addVehicleCategory(category: Omit<VehicleCategory, 'id'>) {
     const newCat: VehicleCategory = {
       ...category,
@@ -185,6 +198,19 @@ export const useFleetStore = defineStore('fleet', () => {
       id: Date.now(),
     };
     drivers.value.push(newDriver);
+    saveState();
+  }
+
+  function updateDriver(driver: Driver) {
+    const idx = drivers.value.findIndex((d) => d.id === driver.id);
+    if (idx !== -1) {
+      drivers.value[idx] = { ...driver };
+      saveState();
+    }
+  }
+
+  function deleteDriver(id: number) {
+    drivers.value = drivers.value.filter((d) => d.id !== id);
     saveState();
   }
 
@@ -237,7 +263,11 @@ export const useFleetStore = defineStore('fleet', () => {
     recordMaintenance,
     addRoute,
     addVehicle,
+    updateVehicle,
+    deleteVehicle,
     addDriver,
+    updateDriver,
+    deleteDriver,
     addVehicleCategory,
     updateVehicleCategory,
     deleteVehicleCategory,

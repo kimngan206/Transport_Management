@@ -45,7 +45,7 @@ export const STORAGE_KEYS = {
   DATA_VERSION: 'qldv_data_version',
 } as const;
 
-const CURRENT_DATA_VERSION = 'v3.2_reports_charts_data';
+const CURRENT_DATA_VERSION = 'v3.7_standardize_doi_naming';
 
 // ==========================================
 // 1. COOKIE STORAGE HELPERS (Chỉ lưu session/role ngắn, < 100 bytes)
@@ -455,10 +455,26 @@ export const mockStorage = {
   // HUBS
   getHubs<T = HubLocation>(defaultHubs?: T[]): T[] {
     const fallback = (defaultHubs && defaultHubs.length > 0 ? defaultHubs : (initialEcotechHubs as unknown as T[]));
-    const hubs = getFromStorage<T[]>(STORAGE_KEYS.HUBS, fallback);
+    let hubs = getFromStorage<T[]>(STORAGE_KEYS.HUBS, fallback);
     if (!Array.isArray(hubs) || hubs.length === 0) {
       saveToStorage(STORAGE_KEYS.HUBS, fallback);
       return [...fallback];
+    }
+    // Tự động chuẩn hóa nếu dữ liệu lưu cũ còn từ 'Nông Trường Đội' hoặc 'NT Đội'
+    let modified = false;
+    hubs = hubs.map((h: any) => {
+      if (h && typeof h.name === 'string' && (h.name.includes('Nông Trường Đội') || h.name.includes('Nông trường Đội'))) {
+        h.name = h.name.replace(/Nông\s*Trường\s*Đội/gi, 'Đội');
+        modified = true;
+      }
+      if (h && typeof h.shortName === 'string' && (h.shortName.includes('NT Đội') || h.shortName.includes('Nông Trường Đội'))) {
+        h.shortName = h.shortName.replace(/NT\s*Đội/gi, 'Đội').replace(/Nông\s*Trường\s*Đội/gi, 'Đội');
+        modified = true;
+      }
+      return h;
+    });
+    if (modified) {
+      saveToStorage(STORAGE_KEYS.HUBS, hubs);
     }
     return hubs;
   },

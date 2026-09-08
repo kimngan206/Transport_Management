@@ -17,10 +17,9 @@ import {
   ChevronRight,
   ShieldCheck,
   X,
+  Trash2,
 } from 'lucide-vue-next';
-
-// Declare Leaflet global loaded from CDN
-declare const L: any;
+import L, { safeInitMap, createTileLayer } from '@/utils/leaflet';
 
 const props = defineProps<{
   initialSelectedRouteCode?: string;
@@ -95,103 +94,197 @@ let hubMarkers: any[] = [];
 let resizeObserver: ResizeObserver | null = null;
 
 //=============================================================================
-// 2. MODAL CÀI ĐẶT TUYẾN ĐƯỜNG MỚI VỚI GPS
+// 2. MODAL CÀI ĐẶT TUYẾN ĐƯỜNG MỚI VỚI GPS (1 ĐIỂM ĐI -> NHIỀU ĐIỂM ĐẾN)
 //=============================================================================
-const showAddModal = ref(false);
-const newFromHubId = ref<string>(ECOTECH_HUBS[0].id);
-const newToHubId = ref<string>(ECOTECH_HUBS[1].id);
-const newRouteCode = ref('');
-const newRouteName = ref('');
-const newDistanceKm = ref<number>(26.0);
-const newDescription = ref('');
-const newIsRoundTrip = ref(true);
-
-function onFromToHubChange() {
-  const fromHub = ECOTECH_HUBS.find((h) => h.id === newFromHubId.value);
-  const toHub = ECOTECH_HUBS.find((h) => h.id === newToHubId.value);
-  if (!fromHub || !toHub) return;
-
-  const codeSuffix = newIsRoundTrip.value ? `-${fromHub.code}` : '';
-  newRouteCode.value = `${fromHub.code}-${toHub.code}${codeSuffix}`;
-  newRouteName.value = `${fromHub.shortName} ➔ ${toHub.shortName}${newIsRoundTrip.value ? ` ➔ ${fromHub.shortName}` : ''}`;
-
-  // Tính cự ly ước tính theo GPS (km)
-  const calcKm = calculateHaversineKm(fromHub.lat, fromHub.lng, toHub.lat, toHub.lng);
-  newDistanceKm.value = newIsRoundTrip.value ? Number((calcKm * 2).toFixed(1)) : calcKm;
+interface DestItem {
+  hubId: string;
+  distanceKm: number;
 }
 
-watch([newFromHubId, newToHubId, newIsRoundTrip], () => {
-  onFromToHubChange();
-});
+const showAddModal = ref(false);
+const newFromHubId = ref<string>(ECOTECH_HUBS[0]?.id || '');
+const newDestinations = ref<DestItem[]>([
+  { hubId: ECOTECH_HUBS[1]?.id || '', distanceKm: 26.0 },
+]);
+const newIsRoundTrip = ref(false);
+const newRouteCode = ref('');
+const newRouteName = ref('');
+const newTotalDistanceKm = ref<number>(26.0);
+const newDescription = ref('');
+
+function getHubShort(hubId: string): string {
+  const h = ECOTECH_HUBS.find((item) => item.id === hubId);
+  return h ? h.shortName : 'Điểm trước';
+}
+
+function addDestination() {
+  const chosenIds = [newFromHubId.value, ...newDestinations.value.map((d) => d.hubId)];
+  const nextHub = ECOTECH_HUBS.find((h) => !chosenIds.includes(h.id)) || ECOTECH_HUBS[newDestinations.value.length % ECOTECH_HUBS.length];
+
+  const prevHubId = newDestinations.value.length > 0 ? newDestinations.value[newDestinations.value.length - 1].hubId : newFromHubId.value;
+  const prevHub = ECOTECH_HUBS.find((h) => h.id === prevHubId) || ECOTECH_HUBS[0];
+  const estKm = calculateHaversineKm(prevHub.lat, prevHub.lng, nextHub.lat, nextHub.lng);
+
+  newDestinations.value.push({
+    hubId: nextHub.id,
+    distanceKm: estKm,
+  });
+
+  recalculateRouteInfo();
+}
+
+function removeDestination(index: number) {
+  if (newDestinations.value.length <= 1) {
+    dialog.showWarning('Tuyến đường phải có ít nhất 1 điểm đến!', 'Không Thể Xóa', 'Đã hiểu');
+    return;
+  }
+  newDestinations.value.splice(index, 1);
+  recalculateRouteInfo();
+}
+
+function recalculateRouteInfo() {
+  const fromHub = ECOTECH_HUBS.find((h) => h.id === newFromHubId.value) || ECOTECH_HUBS[0];
+  const destHubs = newDestinations.value.map((d) => ECOTECH_HUBS.find((h) => h.id === d.hubId) || ECOTECH_HUBS[0]);
+
+  let runningHub = fromHub;
+  let totalKm = 0;
+  newDestinations.value.forEach((d) => {
+    const currHub = ECOTECH_HUBS.find((h) => h.id === d.hubId);
+    if (currHub) {
+      const legKm = calculateHaversineKm(runningHub.lat, runningHub.lng, currHub.lat, currHub.lng);
+      d.distanceKm = legKm;
+      totalKm += legKm;
+      runningHub = currHub;
+    }
+  });
+
+  if (newIsRoundTrip.value && destHubs.length > 0) {
+    const lastHub = destHubs[destHubs.length - 1];
+    const returnKm = calculateHaversineKm(lastHub.lat, lastHub.lng, fromHub.lat, fromHub.lng);
+    totalKm += returnKm;
+  }
+
+  newTotalDistanceKm.value = Number(totalKm.toFixed(1));
+
+  const destCodes = destHubs.map((h) => h.code).join('-');
+  const returnCode = newIsRoundTrip.value ? `-${fromHub.code}` : '';
+  newRouteCode.value = `${fromHub.code}-${destCodes}${returnCode}`;
+
+  const destNames = destHubs.map((h) => h.shortName).join(' ➔ ');
+  const returnName = newIsRoundTrip.value ? ` ➔ ${fromHub.shortName}` : '';
+  newRouteName.value = `${fromHub.shortName} ➔ ${destNames}${returnName}`;
+}
+
+function onLegDistanceChange() {
+  const fromHub = ECOTECH_HUBS.find((h) => h.id === newFromHubId.value) || ECOTECH_HUBS[0];
+  const destHubs = newDestinations.value.map((d) => ECOTECH_HUBS.find((h) => h.id === d.hubId) || ECOTECH_HUBS[0]);
+
+  let sum = newDestinations.value.reduce((acc, cur) => acc + (Number(cur.distanceKm) || 0), 0);
+  if (newIsRoundTrip.value && destHubs.length > 0) {
+    const lastHub = destHubs[destHubs.length - 1];
+    sum += calculateHaversineKm(lastHub.lat, lastHub.lng, fromHub.lat, fromHub.lng);
+  }
+  newTotalDistanceKm.value = Number(sum.toFixed(1));
+}
 
 function openAddRouteModal() {
   newFromHubId.value = ECOTECH_HUBS[0].id;
-  newToHubId.value = ECOTECH_HUBS[1].id;
-  newIsRoundTrip.value = true;
-  newDescription.value = 'Tuyến quy chuẩn chở mủ nông trường về trạm tiếp nhận';
-  onFromToHubChange();
+  newDestinations.value = [
+    { hubId: ECOTECH_HUBS[1]?.id || '', distanceKm: 26.0 },
+  ];
+  newIsRoundTrip.value = false;
+  newDescription.value = 'Tuyến quy chuẩn vận tải mủ cao su đa điểm đến';
+  recalculateRouteInfo();
   showAddModal.value = true;
 }
 
 function handleSaveNewRoute() {
-  if (!newRouteCode.value || !newRouteName.value) {
-    dialog.showWarning('Vui lòng nhập đầy đủ mã tuyến đường và tên tuyến quy chuẩn!', 'Thiếu Thông Tin Tuyến', 'Kiểm tra lại');
+  if (!newRouteCode.value.trim() || !newRouteName.value.trim()) {
+    dialog.showWarning('Vui lòng nhập đầy đủ mã tuyến và tên tuyến quy chuẩn!', 'Thiếu Thông Tin Tuyến', 'Kiểm tra lại');
     return;
   }
 
   const fromHub = ECOTECH_HUBS.find((h) => h.id === newFromHubId.value) || ECOTECH_HUBS[0];
-  const toHub = ECOTECH_HUBS.find((h) => h.id === newToHubId.value) || ECOTECH_HUBS[1];
+  const destHubs = newDestinations.value.map((d) => ECOTECH_HUBS.find((h) => h.id === d.hubId) || ECOTECH_HUBS[0]);
+  const lastDestHub = destHubs[destHubs.length - 1] || fromHub;
 
-  // Tạo các mốc GPS trung gian mô phỏng chân thực
-  const midLat1 = fromHub.lat + (toHub.lat - fromHub.lat) * 0.35 + (Math.random() - 0.5) * 0.006;
-  const midLng1 = fromHub.lng + (toHub.lng - fromHub.lng) * 0.35 + (Math.random() - 0.5) * 0.006;
-  const midLat2 = fromHub.lat + (toHub.lat - fromHub.lat) * 0.7 + (Math.random() - 0.5) * 0.006;
-  const midLng2 = fromHub.lng + (toHub.lng - fromHub.lng) * 0.7 + (Math.random() - 0.5) * 0.006;
+  const allStops = [fromHub, ...destHubs];
+  if (newIsRoundTrip.value) {
+    allStops.push(fromHub);
+  }
 
-  const generatedWaypoints: [number, number][] = [
-    [fromHub.lat, fromHub.lng],
-    [Number(midLat1.toFixed(4)), Number(midLng1.toFixed(4))],
-    [Number(midLat2.toFixed(4)), Number(midLng2.toFixed(4))],
-    [toHub.lat, toHub.lng],
-  ];
+  const generatedWaypoints: [number, number][] = [];
+  for (let s = 0; s < allStops.length - 1; s++) {
+    const pStart = allStops[s];
+    const pEnd = allStops[s + 1];
+
+    if (s === 0) {
+      generatedWaypoints.push([pStart.lat, pStart.lng]);
+    }
+
+    const midLat1 = pStart.lat + (pEnd.lat - pStart.lat) * 0.35 + (Math.random() - 0.5) * 0.005;
+    const midLng1 = pStart.lng + (pEnd.lng - pStart.lng) * 0.35 + (Math.random() - 0.5) * 0.005;
+    const midLat2 = pStart.lat + (pEnd.lat - pStart.lat) * 0.7 + (Math.random() - 0.5) * 0.005;
+    const midLng2 = pStart.lng + (pEnd.lng - pStart.lng) * 0.7 + (Math.random() - 0.5) * 0.005;
+
+    generatedWaypoints.push(
+      [Number(midLat1.toFixed(4)), Number(midLng1.toFixed(4))],
+      [Number(midLat2.toFixed(4)), Number(midLng2.toFixed(4))],
+      [pEnd.lat, pEnd.lng]
+    );
+  }
 
   const newRouteObj: RoutePath = {
     id: Date.now(),
     code: newRouteCode.value.toUpperCase().trim(),
     name: newRouteName.value.trim(),
     from: fromHub,
-    to: toHub,
-    distanceKm: Number(newDistanceKm.value),
+    to: lastDestHub,
+    destinations: destHubs,
+    stops: newDestinations.value.map((d) => ({
+      hubId: d.hubId,
+      hub: ECOTECH_HUBS.find((h) => h.id === d.hubId) || fromHub,
+      distanceKm: d.distanceKm,
+    })),
+    isRoundTrip: newIsRoundTrip.value,
+    distanceKm: Number(newTotalDistanceKm.value),
     waypoints: generatedWaypoints,
+    description: newDescription.value.trim(),
   };
 
-  // Thêm vào danh mục bản đồ GIS
   addEcotechRoute(newRouteObj);
 
-  // Thêm vào FleetStore
   fleetStore.addRoute({
     routeCode: newRouteObj.code,
     name: newRouteObj.name,
     startPoint: fromHub.shortName,
-    endPoint: toHub.shortName,
+    endPoint: destHubs.map((h) => h.shortName).join(' ➔ ') + (newIsRoundTrip.value ? ` ➔ ${fromHub.shortName}` : ''),
     standardDistanceKm: newRouteObj.distanceKm,
     description: newDescription.value.trim(),
   });
 
   showAddModal.value = false;
-
-  // Chọn ngay tuyến vừa tạo và vẽ lên bản đồ
   selectRoute(newRouteObj.code);
-  dialog.showSuccess(`Đã lưu và thiết lập tuyến đường quy chuẩn "${newRouteObj.name}" (${newRouteObj.code}) thành công!`, 'Lưu Tuyến Thành Công');
+  dialog.showSuccess(
+    `Đã thiết lập tuyến đường quy chuẩn 1 điểm đi ➔ ${destHubs.length} điểm đến (${newRouteObj.code}) thành công!`,
+    'Cài Đặt Tuyến Thành Công'
+  );
 }
 
 //=============================================================================
 // 3. KHỞI TẠO BẢN ĐỒ LEAFLET
 //=============================================================================
 function initMap() {
-  if (!mapContainer.value || typeof L === 'undefined') return;
+  if (!mapContainer.value) return;
 
-  mapInstance.value = L.map(mapContainer.value, {
+  if (mapInstance.value) {
+    try {
+      mapInstance.value.remove();
+    } catch (e) {}
+    mapInstance.value = null;
+  }
+
+  mapInstance.value = safeInitMap(mapContainer.value, {
     center: [11.5400, 106.6200],
     zoom: 12,
     zoomControl: false,
@@ -227,20 +320,9 @@ function initMap() {
 }
 
 function updateTileLayer() {
-  if (!mapInstance.value || typeof L === 'undefined') return;
+  if (!mapInstance.value) return;
   if (tileLayer) mapInstance.value.removeLayer(tileLayer);
-
-  if (mapStyle.value === 'osm') {
-    tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap | ECOTECH 2A Fleet GIS',
-    });
-  } else {
-    tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19,
-      attribution: '&copy; CartoDB & OpenStreetMap | ECOTECH 2A',
-    });
-  }
+  tileLayer = createTileLayer(mapStyle.value);
   tileLayer.addTo(mapInstance.value);
 }
 
@@ -366,7 +448,7 @@ function renderRoutes() {
           <div class="route-pin-node is-start">
             <div class="pin-pill">
               <span class="pin-letter">A</span>
-              <span class="pin-text">Điểm đi: <strong>${originShort}</strong></span>
+              <span class="pin-text">Xuất phát: <strong>${originShort}</strong></span>
             </div>
             <div class="pin-anchor-dot"></div>
           </div>
@@ -377,25 +459,50 @@ function renderRoutes() {
       const originMarker = L.marker(originPoint, { icon: originIcon, zIndexOffset: 2500 }).addTo(mapInstance.value);
       routePolylines.push(originMarker);
 
-      // 5. PIN ĐIỂM CUỐI (B - ĐÍCH ĐẾN) - Ghim chính xác đầu mút cuối cùng của tuyến
-      const destPoint = activeWaypoints[activeWaypoints.length - 1];
-      const destShort = route.to?.shortName || 'Điểm Đến';
-      const destIcon = L.divIcon({
-        className: 'route-endpoint-divicon',
-        html: `
-          <div class="route-pin-node is-end">
-            <div class="pin-pill">
-              <span class="pin-letter">B</span>
-              <span class="pin-text">Điểm đến: <strong>${destShort}</strong></span>
+      // 5. PIN CÁC ĐIỂM ĐẾN (Hỗ trợ 1 điểm đi -> Nhiều điểm đến)
+      if (route.destinations && route.destinations.length > 0) {
+        route.destinations.forEach((destHub, idx) => {
+          const isLast = idx === route.destinations!.length - 1;
+          const letter = isLast && !route.isRoundTrip ? 'B' : String(idx + 1);
+          const pinClass = isLast && !route.isRoundTrip ? 'is-end' : 'is-mid';
+          const destIcon = L.divIcon({
+            className: 'route-endpoint-divicon',
+            html: `
+              <div class="route-pin-node ${pinClass}">
+                <div class="pin-pill">
+                  <span class="pin-letter">${letter}</span>
+                  <span class="pin-text">Đến: <strong>${destHub.shortName}</strong></span>
+                </div>
+                <div class="pin-anchor-dot"></div>
+              </div>
+            `,
+            iconSize: [0, 0],
+            iconAnchor: [0, 0],
+          });
+          const destMarker = L.marker([destHub.lat, destHub.lng], { icon: destIcon, zIndexOffset: 2400 }).addTo(mapInstance.value);
+          routePolylines.push(destMarker);
+        });
+      } else {
+        // Tuyến đơn 1 điểm đến (B)
+        const destPoint = activeWaypoints[activeWaypoints.length - 1];
+        const destShort = route.to?.shortName || 'Điểm Đến';
+        const destIcon = L.divIcon({
+          className: 'route-endpoint-divicon',
+          html: `
+            <div class="route-pin-node is-end">
+              <div class="pin-pill">
+                <span class="pin-letter">B</span>
+                <span class="pin-text">Điểm đến: <strong>${destShort}</strong></span>
+              </div>
+              <div class="pin-anchor-dot"></div>
             </div>
-            <div class="pin-anchor-dot"></div>
-          </div>
-        `,
-        iconSize: [0, 0],
-        iconAnchor: [0, 0],
-      });
-      const destMarker = L.marker(destPoint, { icon: destIcon, zIndexOffset: 2500 }).addTo(mapInstance.value);
-      routePolylines.push(destMarker);
+          `,
+          iconSize: [0, 0],
+          iconAnchor: [0, 0],
+        });
+        const destMarker = L.marker(destPoint, { icon: destIcon, zIndexOffset: 2500 }).addTo(mapInstance.value);
+        routePolylines.push(destMarker);
+      }
 
       // 6. CÁC MŨI TÊN CHỈ HƯỚNG DI CHUYỂN DỌC TUYẾN ĐƯỜNG (›)
       for (let i = 0; i < activeWaypoints.length - 1; i++) {
@@ -502,17 +609,15 @@ defineExpose({
   selectRoute,
   openAddRouteModal,
   resetMapView,
+  invalidateSize: () => {
+    if (mapInstance.value) mapInstance.value.invalidateSize();
+  },
 });
 
 onMounted(() => {
-  const checkLeaflet = setInterval(() => {
-    if (typeof L !== 'undefined') {
-      clearInterval(checkLeaflet);
-      initMap();
-    }
-  }, 200);
-
-  setTimeout(() => clearInterval(checkLeaflet), 5000);
+  nextTick(() => {
+    initMap();
+  });
 
   if (mapContainer.value && typeof ResizeObserver !== 'undefined') {
     resizeObserver = new ResizeObserver(() => {
@@ -702,11 +807,29 @@ onUnmounted(() => {
                 <span class="dot from"></span>
                 <span>{{ route.from.shortName }}</span>
               </div>
-              <span class="step-arrow">➔</span>
-              <div class="hub-step">
-                <span class="dot to"></span>
-                <span>{{ route.to.shortName }}</span>
-              </div>
+              <template v-if="route.destinations && route.destinations.length > 1">
+                <template v-for="(dest, dIdx) in route.destinations" :key="dIdx">
+                  <span class="step-arrow">➔</span>
+                  <div class="hub-step">
+                    <span class="dot" :class="dIdx === route.destinations.length - 1 && !route.isRoundTrip ? 'to' : 'mid'"></span>
+                    <span>{{ dest.shortName }}</span>
+                  </div>
+                </template>
+                <template v-if="route.isRoundTrip">
+                  <span class="step-arrow">➔</span>
+                  <div class="hub-step">
+                    <span class="dot from"></span>
+                    <span>{{ route.from.shortName }}</span>
+                  </div>
+                </template>
+              </template>
+              <template v-else>
+                <span class="step-arrow">➔</span>
+                <div class="hub-step">
+                  <span class="dot to"></span>
+                  <span>{{ route.to.shortName }}</span>
+                </div>
+              </template>
             </div>
 
             <div class="route-card-footer">
@@ -721,13 +844,13 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- 4. Modal Cài Đặt / Thêm Tuyến Đường Quy Chuẩn (GPS Interactive) -->
+    <!-- 4. Modal Cài Đặt / Thêm Tuyến Đường Quy Chuẩn (1 Điểm Đi -> Nhiều Điểm Đến) -->
     <div v-if="showAddModal" class="modal-backdrop" @click.self="showAddModal = false">
-      <div class="modal-content modal-lg">
+      <div class="modal-content modal-xl route-config-modal">
         <div class="modal-header">
           <h3 class="modal-title">
             <MapPin :size="20" class="text-primary" />
-            <span>Cài Đặt Tuyến Đường Quy Chuẩn</span>
+            <span>Cài Đặt Tuyến Đường Quy Chuẩn (Đa Điểm Đến)</span>
           </h3>
           <button class="btn-close" @click="showAddModal = false">
             <X :size="18" />
@@ -735,71 +858,190 @@ onUnmounted(() => {
         </div>
 
         <div class="modal-body">
-          <div class="alert alert-info mb-3">
-            <ShieldCheck :size="18" />
+          <div class="alert alert-theme-notice">
+            <ShieldCheck :size="18" class="text-primary" />
             <span>
-              Cự ly quy chuẩn được khóa cứng để chống gian lận ODO và tự động tính định mức nhiên liệu tiêu chuẩn.
+              Hệ thống hỗ trợ cấu hình <strong>1 điểm xuất phát đi qua nhiều điểm đến</strong>. Cự ly chuẩn của từng chặng được khóa cứng tự động để tính định mức nhiên liệu và chống gian lận ODO.
             </span>
           </div>
 
-          <div class="grid-2 section-box">
-            <div class="form-group">
-              <label class="form-label">Điểm xuất phát (Hub A) <span class="required">*</span></label>
-              <select v-model="newFromHubId" class="form-select">
-                <option v-for="h in ECOTECH_HUBS" :key="h.id" :value="h.id">
-                  [{{ h.code }}] {{ h.name }} ({{ h.address }})
-                </option>
-              </select>
+          <!-- PHẦN 1: ĐIỂM XUẤT PHÁT -->
+          <div class="route-config-card start-card">
+            <div class="config-card-header">
+              <span class="hub-type-badge origin-badge">A. ĐIỂM XUẤT PHÁT (GỐC)</span>
+              <span class="text-xs text-muted">Trạm hoặc Đội bắt đầu hành trình</span>
             </div>
-
-            <div class="form-group">
-              <label class="form-label">Điểm đích (Hub B) <span class="required">*</span></label>
-              <select v-model="newToHubId" class="form-select">
+            <div class="form-group mb-0">
+              <select v-model="newFromHubId" class="form-select font-bold" @change="recalculateRouteInfo">
                 <option v-for="h in ECOTECH_HUBS" :key="h.id" :value="h.id">
-                  [{{ h.code }}] {{ h.name }} ({{ h.address }})
+                  [{{ h.code }}] {{ h.name }} — {{ h.address }}
                 </option>
               </select>
             </div>
           </div>
 
-          <div class="form-check-wrap mt-2 mb-3">
-            <label class="checkbox-label">
-              <input v-model="newIsRoundTrip" type="checkbox" />
-              <span>Tuyến khứ hồi (Xuất phát ➔ Đích ➔ Quay về bến xuất phát)</span>
+          <!-- PHẦN 2: DANH SÁCH CÁC ĐIỂM ĐẾN (MULTI-DESTINATIONS) -->
+          <div class="destinations-container">
+            <div class="destinations-header flex-between">
+              <div class="d-flex align-items-center gap-2">
+                <span class="destinations-title">B. DANH SÁCH ĐIỂM ĐẾN ({{ newDestinations.length }} điểm đến)</span>
+                <span class="badge badge-theme-tag">1 Điểm đi ➔ Nhiều Điểm đến</span>
+              </div>
+            </div>
+
+            <div class="destinations-list">
+              <div
+                v-for="(dest, idx) in newDestinations"
+                :key="idx"
+                class="dest-row-card"
+              >
+                <div class="dest-step-indicator">
+                  <div class="step-num">{{ idx + 1 }}</div>
+                  <div class="step-line" v-if="idx < newDestinations.length - 1"></div>
+                </div>
+
+                <div class="dest-fields-grid">
+                  <div class="dest-hub-select-wrap">
+                    <label class="dest-field-label">
+                      Điểm đến #{{ idx + 1 }}
+                      <span class="text-xs text-muted">
+                        (Từ {{ idx === 0 ? getHubShort(newFromHubId) : getHubShort(newDestinations[idx - 1].hubId) }})
+                      </span>
+                    </label>
+                    <select
+                      v-model="dest.hubId"
+                      class="form-select"
+                      @change="recalculateRouteInfo"
+                    >
+                      <option
+                        v-for="h in ECOTECH_HUBS"
+                        :key="h.id"
+                        :value="h.id"
+                        :disabled="h.id === newFromHubId && idx === 0"
+                      >
+                        [{{ h.code }}] {{ h.name }}
+                      </option>
+                    </select>
+                  </div>
+
+                  <div class="dest-km-wrap">
+                    <label class="dest-field-label">Cự ly chặng</label>
+                    <div class="input-with-hint">
+                      <input
+                        v-model.number="dest.distanceKm"
+                        type="number"
+                        step="0.5"
+                        min="0.5"
+                        class="form-input text-end"
+                        @input="onLegDistanceChange"
+                      />
+                      <span class="unit-tag">km</span>
+                    </div>
+                  </div>
+
+                  <div class="dest-actions-wrap" v-if="newDestinations.length > 1">
+                    <button
+                      type="button"
+                      class="btn-icon-danger"
+                      @click="removeDestination(idx)"
+                      title="Xóa điểm đến này"
+                    >
+                      <Trash2 :size="15" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              class="btn-add-dest-dashed w-100"
+              @click="addDestination"
+            >
+              <Plus :size="15" />
+              <span>+ Bổ sung thêm điểm đến tiếp theo trên tuyến</span>
+            </button>
+          </div>
+
+          <!-- TÙY CHỌN KHỨ HỒI -->
+          <div class="route-roundtrip-box" :class="{ 'is-active': newIsRoundTrip }">
+            <label class="roundtrip-label-row">
+              <input
+                v-model="newIsRoundTrip"
+                type="checkbox"
+                class="roundtrip-checkbox"
+                @change="recalculateRouteInfo"
+              />
+              <div class="roundtrip-body">
+                <div class="roundtrip-headline">
+                  <span class="roundtrip-title">Hành trình khứ hồi (2 chiều)</span>
+                  <span v-if="newIsRoundTrip" class="badge badge-success">Khứ hồi kích hoạt</span>
+                  <span v-else class="badge badge-secondary">Một chiều</span>
+                </div>
+                <div class="roundtrip-hint">
+                  Sau khi đến điểm cuối, xe quay về lại điểm xuất phát ban đầu (<strong>{{ getHubShort(newFromHubId) }}</strong>) để hoàn tất một vòng vận chuyển.
+                </div>
+              </div>
             </label>
           </div>
 
-          <div class="grid-2 route-metrics-row">
-            <div class="form-group">
-              <label class="form-label">Mã tuyến quy chuẩn <span class="required">*</span></label>
-              <input v-model="newRouteCode" type="text" class="form-input font-bold" placeholder="VD: TC1-D3-TC1" />
+          <!-- THÔNG SỐ TỔNG HỢP TOÀN TUYẾN -->
+          <div class="route-summary-panel">
+            <div class="summary-panel-header">
+              <span class="summary-panel-title">C. THÔNG SỐ TỔNG HỢP TOÀN TUYẾN</span>
+              <span class="summary-panel-badge">
+                {{ newDestinations.length }} điểm đến{{ newIsRoundTrip ? ' + 1 chặng hồi' : '' }}
+              </span>
             </div>
 
-            <div class="form-group">
-              <label class="form-label distance-label-row">
-                <span>Cự ly chuẩn (km) <span class="required">*</span></span>
-                <span v-if="newIsRoundTrip" class="distance-mode-tag mode-round">Đã tính Khứ hồi (Đi + Về)</span>
-                <span v-else class="distance-mode-tag mode-oneway">Cự ly 1 chiều</span>
-              </label>
-              <div class="input-with-hint">
-                <input v-model.number="newDistanceKm" type="number" step="0.5" class="form-input font-bold text-end" />
-                <span class="unit-tag">km</span>
+            <div class="summary-panel-body">
+              <div class="summary-row-grid">
+                <div class="form-group mb-0">
+                  <label class="form-label">Mã tuyến tự động sinh <span class="required">*</span></label>
+                  <input
+                    v-model="newRouteCode"
+                    type="text"
+                    class="form-input summary-code-input"
+                    placeholder="VD: TC1-D1-D2-TC1"
+                  />
+                  <div class="summary-field-hint">Mã định danh duy nhất của tuyến</div>
+                </div>
+
+                <div class="form-group mb-0">
+                  <label class="form-label">Tổng cự ly quy chuẩn toàn tuyến <span class="required">*</span></label>
+                  <div class="input-with-hint">
+                    <input
+                      v-model.number="newTotalDistanceKm"
+                      type="number"
+                      step="0.5"
+                      class="form-input summary-distance-input text-end"
+                    />
+                    <span class="unit-tag font-bold">km</span>
+                  </div>
+                  <div class="summary-field-hint">Tổng cộng cự ly tất cả các chặng</div>
+                </div>
+              </div>
+
+              <div class="form-group mb-0 mt-3">
+                <label class="form-label">Tên cung đường hoàn chỉnh</label>
+                <input
+                  v-model="newRouteName"
+                  type="text"
+                  class="form-input summary-name-input"
+                  placeholder="Hành trình xe di chuyển qua các điểm..."
+                />
               </div>
             </div>
           </div>
 
-          <div class="form-group">
-            <label class="form-label">Tên tuyến đường <span class="required">*</span></label>
-            <input v-model="newRouteName" type="text" class="form-input" placeholder="VD: Trạm cân 1 ➔ Nông trường Đội 3" />
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Mô tả đặc điểm cung đường & quy định vận tải</label>
+          <!-- MÔ TẢ ĐẶC ĐIỂM TUYẾN ĐƯỜNG -->
+          <div class="form-group route-desc-section">
+            <label class="form-label">Mô tả đặc điểm tuyến đường & lưu ý kỹ thuật</label>
             <textarea
               v-model="newDescription"
-              rows="2"
-              class="form-textarea"
-              placeholder="VD: Đường đất đỏ nội bộ nông trường, dốc nhẹ, mùa mưa cần giảm tốc độ..."
+              rows="3"
+              class="form-textarea route-desc-textarea"
+              placeholder="VD: Tuyến vận tải gom mủ liên nông trường, đường đất đỏ nội bộ có đoạn dốc nhẹ, chú ý an toàn mùa mưa..."
             ></textarea>
           </div>
         </div>
@@ -808,7 +1050,7 @@ onUnmounted(() => {
           <button class="btn btn-secondary" @click="showAddModal = false">Hủy</button>
           <button class="btn btn-primary" @click="handleSaveNewRoute">
             <CheckCircle2 :size="16" />
-            <span>Lưu & Vẽ Lên Bản Đồ GPS</span>
+            <span>Lưu & Vẽ Tuyến Lên Bản Đồ GPS</span>
           </button>
         </div>
       </div>
@@ -1338,6 +1580,16 @@ onUnmounted(() => {
 .btn-close { background: transparent; border: none; cursor: pointer; color: #64748b; }
 .alert { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 6px; }
 .alert-info { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
+.alert-theme-notice {
+  background: #f0fdf4;
+  border: 1.5px solid #bbf7d0;
+  color: #166534;
+  font-size: 0.8125rem;
+  padding: 12px 16px;
+  border-radius: 10px;
+  margin-bottom: 18px;
+  line-height: 1.5;
+}
 
 .btn-quick-add {
   display: inline-flex;
@@ -1388,13 +1640,366 @@ onUnmounted(() => {
   border-radius: 4px;
 }
 .mode-round {
-  background: #eff6ff;
-  color: #1d4ed8;
-  border: 1px solid #bfdbfe;
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
 }
 .mode-oneway {
   background: #f1f5f9;
   color: #475569;
   border: 1px solid #cbd5e1;
+}
+
+/* Modal Wide Sizing */
+.route-config-modal {
+  max-width: 1080px !important;
+  width: 95vw;
+}
+.route-config-modal .modal-header {
+  padding: 18px 28px;
+}
+.route-config-modal .modal-body {
+  padding: 22px 28px;
+}
+.route-config-modal .modal-footer {
+  padding: 16px 28px;
+}
+
+/* Multi-destinations Configuration Styling */
+.route-config-card {
+  background: #f8fafc;
+  border: 1.5px solid #d6e4d7;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 18px;
+}
+.start-card {
+  border-left: 4px solid #15803d;
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+.config-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.hub-type-badge {
+  font-size: 0.6875rem;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.origin-badge {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #86efac;
+}
+.destinations-container {
+  background: #ffffff;
+  border: 1.5px solid #d6e4d7;
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin-bottom: 20px;
+}
+.destinations-header {
+  margin-bottom: 14px;
+}
+.badge-theme-tag {
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+.destinations-title {
+  font-size: 0.8125rem;
+  font-weight: 800;
+  color: #0c1a11;
+}
+.destinations-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.dest-row-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  background: #fcfdfc;
+  border: 1.5px solid #d6e4d7;
+  border-radius: 8px;
+  transition: all 0.2s;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+.dest-row-card:hover {
+  border-color: #86efac;
+  background: #f0fdf4;
+  box-shadow: 0 2px 8px rgba(21, 128, 61, 0.06);
+}
+.dest-step-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  flex-shrink: 0;
+}
+.step-num {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #15803d;
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.step-line {
+  width: 2px;
+  height: 100%;
+  background: #bbf7d0;
+}
+.dest-fields-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 160px auto;
+  gap: 16px;
+  align-items: flex-end;
+}
+.dest-field-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #273e30;
+  margin-bottom: 4px;
+}
+.btn-icon-danger {
+  width: 34px;
+  height: 34px;
+  border-radius: 6px;
+  border: 1px solid #fecaca;
+  background: #fee2e2;
+  color: #dc2626;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-icon-danger:hover {
+  background: #fca5a5;
+  color: #991b1b;
+}
+.btn-add-dest-dashed {
+  background: transparent;
+  border: 1.5px dashed #15803d;
+  color: #15803d;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 6px;
+  margin-bottom: 16px;
+}
+.btn-add-dest-dashed:hover {
+  background: #f0fdf4;
+  border-color: #166534;
+  color: #166534;
+}
+
+/* Roundtrip Toggle Box */
+.route-roundtrip-box {
+  background: #fcfdfc;
+  border: 1.5px solid #d6e4d7;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  transition: all 0.2s ease;
+}
+.route-roundtrip-box.is-active {
+  background: #f0fdf4;
+  border-color: #86efac;
+  box-shadow: 0 2px 6px rgba(21, 128, 61, 0.08);
+}
+.roundtrip-label-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  cursor: pointer;
+  margin: 0;
+  width: 100%;
+}
+.roundtrip-checkbox {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  cursor: pointer;
+  accent-color: #15803d;
+  flex-shrink: 0;
+}
+.roundtrip-body {
+  flex: 1;
+}
+.roundtrip-headline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.roundtrip-title {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #0c1a11;
+}
+.roundtrip-hint {
+  font-size: 0.75rem;
+  color: #52705d;
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+/* Route Summary Panel */
+.route-summary-panel {
+  background: #fcfdfc;
+  border: 1.5px solid #d6e4d7;
+  border-radius: 10px;
+  margin-bottom: 16px;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(21, 128, 61, 0.04);
+}
+.summary-panel-header {
+  background: #f4f8f3;
+  border-bottom: 1px solid #d6e4d7;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.summary-panel-title {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #1e3a24;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.summary-panel-badge {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: #15803d;
+  background: #dcfce7;
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid #86efac;
+}
+.summary-panel-body {
+  padding: 16px 18px;
+}
+.summary-row-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.summary-code-input {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-weight: 700;
+  color: #15803d;
+  background: #ffffff;
+  border: 1px solid #d6e4d7;
+  padding: 10px 12px;
+  border-radius: 8px;
+}
+.summary-code-input:focus {
+  border-color: #15803d;
+  box-shadow: 0 0 0 3px rgba(21, 128, 61, 0.15);
+  outline: none;
+}
+.summary-distance-input {
+  font-weight: 800;
+  font-size: 1.05rem;
+  color: #15803d;
+  background: #ffffff;
+  border: 1.5px solid #86efac;
+  padding: 10px 38px 10px 12px;
+  border-radius: 8px;
+}
+.summary-distance-input:focus {
+  border-color: #15803d;
+  box-shadow: 0 0 0 3px rgba(21, 128, 61, 0.15);
+  outline: none;
+}
+.summary-name-input {
+  font-weight: 600;
+  color: #0c1a11;
+  background: #ffffff;
+  border: 1px solid #d6e4d7;
+  padding: 10px 12px;
+  border-radius: 8px;
+}
+.summary-name-input:focus {
+  border-color: #15803d;
+  box-shadow: 0 0 0 3px rgba(21, 128, 61, 0.15);
+  outline: none;
+}
+.summary-field-hint {
+  font-size: 0.6875rem;
+  color: #52705d;
+  margin-top: 4px;
+}
+
+/* Description Section */
+.route-desc-section {
+  margin-top: 16px;
+  margin-bottom: 4px;
+}
+.route-desc-section .form-label {
+  font-weight: 700;
+  color: #1e3a24;
+  font-size: 0.8125rem;
+  margin-bottom: 6px;
+  display: block;
+}
+.route-desc-textarea {
+  min-height: 72px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #d6e4d7;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  background: #ffffff;
+}
+.route-desc-textarea:focus {
+  border-color: #15803d;
+  box-shadow: 0 0 0 3px rgba(21, 128, 61, 0.15);
+  outline: none;
+  background: #ffffff;
+}
+.mt-3 {
+  margin-top: 14px !important;
+}
+.dot.mid {
+  background: #0284c7;
+}
+.route-pin-node.is-mid .pin-pill {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #0284c7;
+}
+.route-pin-node.is-mid .pin-anchor-dot {
+  border-top-color: #0284c7;
 }
 </style>

@@ -18,12 +18,22 @@ watch(
   () => route.query.view,
   (newVal) => {
     viewMode.value = newVal === 'table' ? 'table' : 'map';
+    if (viewMode.value === 'map') {
+      setTimeout(() => {
+        routesMapRef.value?.invalidateSize();
+      }, 120);
+    }
   }
 );
 
 function switchView(mode: 'map' | 'table') {
   viewMode.value = mode;
   router.replace({ query: { ...route.query, view: mode } });
+  if (mode === 'map') {
+    setTimeout(() => {
+      routesMapRef.value?.invalidateSize();
+    }, 120);
+  }
 }
 
 function viewRouteOnMap(routeCode: string) {

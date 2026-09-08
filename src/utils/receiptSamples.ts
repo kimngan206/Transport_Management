@@ -125,7 +125,7 @@ export function getWeighStationReceiptSample(plate = '51C-889.26', netWeight = '
     <text x="365" y="165" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#15803d" text-anchor="end">${plate}</text>
 
     <text x="35" y="195" font-family="Arial, sans-serif" font-size="12" fill="#475569">Hàng hóa vận chuyển:</text>
-    <text x="365" y="195" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#0f172a" text-anchor="end">Mủ nước cao su NT Đội 1</text>
+    <text x="365" y="195" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#0f172a" text-anchor="end">Mủ nước cao su Đội 1</text>
 
     <text x="35" y="225" font-family="Arial, sans-serif" font-size="12" fill="#475569">Khối lượng tổng (Gross):</text>
     <text x="365" y="225" font-family="Arial, sans-serif" font-size="12" fill="#0f172a" text-anchor="end">9.820 kg</text>

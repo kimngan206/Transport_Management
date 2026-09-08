@@ -3,9 +3,10 @@ import { ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useFleetStore } from '@/stores/fleet';
 import { useDialogStore } from '@/stores/dialog';
-import type { Vehicle } from '@/types';
+import type { Vehicle, Driver, VehicleCategory } from '@/types';
 import StatusBadge from '@/components/common/StatusBadge.vue';
 import VehicleDetailModal from '@/components/fleet/VehicleDetailModal.vue';
+import DriverDetailModal from '@/components/fleet/DriverDetailModal.vue';
 import {
   Truck,
   UserCheck,
@@ -13,7 +14,8 @@ import {
   KeyRound,
   Layers,
   ExternalLink,
-  Eye,
+  Edit2,
+  Trash2,
 } from 'lucide-vue-next';
 
 const route = useRoute();
@@ -26,6 +28,13 @@ const selectedVehicleForDetail = ref<Vehicle | null>(null);
 
 function openVehicleDetail(v: Vehicle) {
   selectedVehicleForDetail.value = v;
+}
+
+// Modal chi tiết tài xế
+const selectedDriverForDetail = ref<Driver | null>(null);
+
+function openDriverDetail(d: Driver) {
+  selectedDriverForDetail.value = d;
 }
 
 watch(
@@ -130,8 +139,9 @@ function getDriverEmploymentStatusLabel(status: string): string {
   }
 }
 
-// ==================== Modal 1: Thêm xe ====================
+// ==================== Modal 1: Thêm / Sửa xe ====================
 const showAddVehModal = ref(false);
+const editingVehicle = ref<Vehicle | null>(null);
 const newVehPlate = ref('');
 const newVehType = ref<'Truck' | 'Pickup' | 'Excavator'>('Truck');
 const newVehModel = ref('');
@@ -139,75 +149,196 @@ const newVehCapacity = ref(5.0);
 const newVehEmptyQuota = ref(0.25);
 const newVehLoadedQuota = ref(0.02);
 const newVehOdo = ref(10000);
+const newVehDriverId = ref<number | ''>('');
 
-function handleAddVehicle() {
+function openAddVehicleModal() {
+  editingVehicle.value = null;
+  newVehPlate.value = '';
+  newVehType.value = 'Truck';
+  newVehModel.value = '';
+  newVehCapacity.value = 5.0;
+  newVehEmptyQuota.value = 0.25;
+  newVehLoadedQuota.value = 0.02;
+  newVehOdo.value = 10000;
+  newVehDriverId.value = '';
+  showAddVehModal.value = true;
+}
+
+function openEditVehicleModal(vehicle: Vehicle) {
+  editingVehicle.value = vehicle;
+  newVehPlate.value = vehicle.licensePlate;
+  newVehType.value = vehicle.vehicleType;
+  newVehModel.value = vehicle.model;
+  newVehCapacity.value = vehicle.capacityTons;
+  newVehEmptyQuota.value = vehicle.fuelQuotaEmpty;
+  newVehLoadedQuota.value = vehicle.fuelQuotaLoaded;
+  newVehOdo.value = vehicle.currentOdoKm;
+  newVehDriverId.value = vehicle.assignedDriverId || '';
+  if (selectedVehicleForDetail.value) {
+    selectedVehicleForDetail.value = null;
+  }
+  showAddVehModal.value = true;
+}
+
+function handleSaveVehicle() {
   if (!newVehPlate.value.trim() || !newVehModel.value.trim()) {
     dialog.showWarning('Vui lòng nhập đầy đủ biển số xe và tên dòng xe để tiếp tục!', 'Thiếu Thông Tin Phương Tiện', 'Kiểm tra lại');
     return;
   }
   const plate = newVehPlate.value.trim();
-  fleetStore.addVehicle({
-    licensePlate: plate,
-    vehicleType: newVehType.value,
-    model: newVehModel.value.trim(),
-    capacityTons: Number(newVehCapacity.value),
-    fuelQuotaEmpty: Number(newVehEmptyQuota.value),
-    fuelQuotaLoaded: Number(newVehLoadedQuota.value),
-    currentOdoKm: Number(newVehOdo.value),
-    status: 'Available',
-    maintenanceStatus: 'Normal',
-    lastMaintenanceOdo: Number(newVehOdo.value),
-    lastMaintenanceDate: new Date().toISOString().slice(0, 10),
-  });
+  const selectedDriver = fleetStore.drivers.find((d) => d.id === Number(newVehDriverId.value));
+  const isEdit = !!editingVehicle.value;
+
+  if (isEdit && editingVehicle.value) {
+    fleetStore.updateVehicle({
+      ...editingVehicle.value,
+      licensePlate: plate,
+      vehicleType: newVehType.value,
+      model: newVehModel.value.trim(),
+      capacityTons: Number(newVehCapacity.value),
+      fuelQuotaEmpty: Number(newVehEmptyQuota.value),
+      fuelQuotaLoaded: Number(newVehLoadedQuota.value),
+      currentOdoKm: Number(newVehOdo.value),
+      assignedDriverId: selectedDriver ? selectedDriver.id : undefined,
+      assignedDriverName: selectedDriver ? selectedDriver.fullName : undefined,
+      assignedDriverPhone: selectedDriver ? selectedDriver.phone : undefined,
+    });
+    dialog.showSuccess(`Phương tiện [${plate}] đã được cập nhật thành công!`, 'Cập Nhật Thành Công');
+  } else {
+    fleetStore.addVehicle({
+      licensePlate: plate,
+      vehicleType: newVehType.value,
+      model: newVehModel.value.trim(),
+      capacityTons: Number(newVehCapacity.value),
+      fuelQuotaEmpty: Number(newVehEmptyQuota.value),
+      fuelQuotaLoaded: Number(newVehLoadedQuota.value),
+      currentOdoKm: Number(newVehOdo.value),
+      status: 'Available',
+      maintenanceStatus: 'Normal',
+      lastMaintenanceOdo: Number(newVehOdo.value),
+      lastMaintenanceDate: new Date().toISOString().slice(0, 10),
+      assignedDriverId: selectedDriver ? selectedDriver.id : undefined,
+      assignedDriverName: selectedDriver ? selectedDriver.fullName : undefined,
+      assignedDriverPhone: selectedDriver ? selectedDriver.phone : undefined,
+    });
+    dialog.showSuccess(`Phương tiện [${plate}] đã được thêm vào đội xe thành công!`, 'Thêm Xe Mới Thành Công');
+  }
+
   showAddVehModal.value = false;
+  editingVehicle.value = null;
   newVehPlate.value = '';
   newVehModel.value = '';
-  dialog.showSuccess(`Phương tiện [${plate}] đã được thêm vào đội xe thành công!`, 'Thêm Xe Mới Thành Công');
+  newVehDriverId.value = '';
 }
 
-// ==================== Modal 2: Thêm loại xe ====================
+function handleDeleteVehicle(vehicle: Vehicle) {
+  if (vehicle.status === 'OnTrip') {
+    dialog.showWarning(`Phương tiện [${vehicle.licensePlate}] đang thực hiện chuyến vận chuyển. Không thể xóa lúc này!`, 'Không Thể Xóa', 'Đã hiểu');
+    return;
+  }
+
+  dialog.showConfirm({
+    title: 'Xác Nhận Xóa Phương Tiện',
+    message: `Bạn có chắc chắn muốn xóa phương tiện [${vehicle.licensePlate}] (${vehicle.model}) khỏi đội xe?`,
+    confirmText: 'Xác Nhận Xóa',
+    onConfirm: () => {
+      fleetStore.deleteVehicle(vehicle.id);
+      dialog.showSuccess(`Đã xóa phương tiện [${vehicle.licensePlate}] khỏi đội xe thành công!`, 'Xóa Thành Công');
+    },
+  });
+}
+
+// ==================== Modal 2: Thêm / Sửa loại xe ====================
 const showAddCatModal = ref(false);
+const editingCategory = ref<VehicleCategory | null>(null);
 const newCatCode = ref('');
 const newCatName = ref('');
 const newCatGroup = ref<'Vận tải mủ' | 'Cơ giới nông trường' | 'Công tác & Kỹ thuật'>('Vận tải mủ');
 const newCatVehType = ref<'Truck' | 'Pickup' | 'Excavator'>('Truck');
-const newCatCapacity = ref(5.0);
-const newCatEmptyQuota = ref(0.25);
-const newCatLoadedQuota = ref(0.02);
 const newCatDesc = ref('');
+const newCatIsActive = ref(true);
 
-function handleAddCategory() {
+function openAddCategoryModal() {
+  editingCategory.value = null;
+  newCatCode.value = '';
+  newCatName.value = '';
+  newCatGroup.value = 'Vận tải mủ';
+  newCatVehType.value = 'Truck';
+  newCatDesc.value = '';
+  newCatIsActive.value = true;
+  showAddCatModal.value = true;
+}
+
+function openEditCategoryModal(cat: VehicleCategory) {
+  editingCategory.value = cat;
+  newCatCode.value = cat.code;
+  newCatName.value = cat.name;
+  newCatGroup.value = cat.group;
+  newCatVehType.value = cat.vehicleTypeCode;
+  newCatDesc.value = cat.description || '';
+  newCatIsActive.value = cat.isActive;
+  showAddCatModal.value = true;
+}
+
+function handleSaveCategory() {
   if (!newCatCode.value.trim() || !newCatName.value.trim()) {
-    dialog.showWarning('Vui lòng nhập đầy đủ mã loại xe và tên loại xe!', 'Thiếu Thông Tin Loại Xe', 'Kiểm tra lại');
+    dialog.showWarning('Vui lòng nhập đầy đủ mã loại xe và tên loại xe!', 'Thiếu Thông Tin Bắt Buộc', 'Kiểm tra lại');
     return;
   }
   const catName = newCatName.value.trim();
-  fleetStore.addVehicleCategory({
-    code: newCatCode.value.trim().toUpperCase(),
-    name: catName,
-    group: newCatGroup.value,
-    vehicleTypeCode: newCatVehType.value,
-    standardCapacityTons: Number(newCatCapacity.value) || undefined,
-    fuelQuotaType:
-      newCatVehType.value === 'Excavator'
-        ? 'L_PER_HOUR'
-        : newCatVehType.value === 'Truck'
-          ? 'L_PER_TON_KM'
-          : 'L_PER_KM',
-    defaultQuotaEmpty: Number(newCatEmptyQuota.value) || 0,
-    defaultQuotaLoaded: Number(newCatLoadedQuota.value) || undefined,
-    description: newCatDesc.value.trim(),
-    isActive: true,
-  });
+  const catCode = newCatCode.value.trim().toUpperCase();
+
+  if (editingCategory.value) {
+    fleetStore.updateVehicleCategory({
+      ...editingCategory.value,
+      code: catCode,
+      name: catName,
+      group: newCatGroup.value,
+      vehicleTypeCode: newCatVehType.value,
+      description: newCatDesc.value.trim(),
+      isActive: newCatIsActive.value,
+    });
+    dialog.showSuccess(`Loại xe [${catName}] đã được cập nhật thành công!`, 'Cập Nhật Thành Công');
+  } else {
+    fleetStore.addVehicleCategory({
+      code: catCode,
+      name: catName,
+      group: newCatGroup.value,
+      vehicleTypeCode: newCatVehType.value,
+      defaultQuotaEmpty: newCatVehType.value === 'Excavator' ? 14.5 : newCatVehType.value === 'Truck' ? 0.25 : 0.1,
+      fuelQuotaType: newCatVehType.value === 'Excavator' ? 'L_PER_HOUR' : newCatVehType.value === 'Truck' ? 'L_PER_TON_KM' : 'L_PER_KM',
+      description: newCatDesc.value.trim(),
+      isActive: newCatIsActive.value,
+    });
+    dialog.showSuccess(`Loại xe [${catName}] đã được tạo mới thành công!`, 'Thêm Loại Xe Mới Thành Công');
+  }
+
   showAddCatModal.value = false;
-  newCatCode.value = '';
-  newCatName.value = '';
-  newCatDesc.value = '';
-  dialog.showSuccess(`Loại xe [${catName}] đã được tạo mới thành công!`, 'Thêm Loại Xe Mới Thành Công');
+  editingCategory.value = null;
 }
 
-// ==================== Modal 3: Thêm tài xế ====================
+function handleDeleteCategory(cat: VehicleCategory) {
+  const usingCount = countVehiclesForCat(cat);
+  if (usingCount > 0) {
+    dialog.showWarning(`Loại xe [${cat.name}] đang có ${usingCount} phương tiện trực thuộc. Không thể xóa!`, 'Không Thể Xóa', 'Đã hiểu');
+    return;
+  }
+
+  dialog.showConfirm({
+    title: 'Xác Nhận Xóa Loại Xe',
+    message: `Bạn có chắc chắn muốn xóa loại xe [${cat.name}] (${cat.code}) khỏi hệ thống?`,
+    confirmText: 'Xác Nhận Xóa',
+    onConfirm: () => {
+      fleetStore.deleteVehicleCategory(cat.id);
+      dialog.showSuccess(`Đã xóa loại xe [${cat.name}] thành công!`, 'Xóa Thành Công');
+    },
+  });
+}
+
+// ==================== Modal 3: Thêm / Sửa tài xế ====================
 const showAddDriverModal = ref(false);
+const editingDriver = ref<Driver | null>(null);
+const newDriverEmployeeCode = ref('');
 const newDriverName = ref('');
 const newDriverPhone = ref('');
 const newDriverLicenseNum = ref('');
@@ -215,27 +346,110 @@ const newDriverLicenseClass = ref('Hạng C');
 const newDriverLicenseExpiry = ref('2029-12-31');
 const newDriverStatus = ref<'Active' | 'OnLeave' | 'Suspended'>('Active');
 
-function handleAddDriver() {
+function openAddDriverModal() {
+  editingDriver.value = null;
+  newDriverEmployeeCode.value = '';
+  newDriverName.value = '';
+  newDriverPhone.value = '';
+  newDriverLicenseNum.value = '';
+  newDriverLicenseClass.value = 'Hạng C';
+  newDriverLicenseExpiry.value = '2029-12-31';
+  newDriverStatus.value = 'Active';
+  showAddDriverModal.value = true;
+}
+
+function openEditDriverModal(driver: Driver) {
+  editingDriver.value = driver;
+  newDriverEmployeeCode.value = driver.employeeCode || `NV-${String(driver.id).padStart(4, '0')}`;
+  newDriverName.value = driver.fullName;
+  newDriverPhone.value = driver.phone;
+  newDriverLicenseNum.value = driver.licenseNumber;
+  newDriverLicenseClass.value = driver.licenseClass;
+  newDriverLicenseExpiry.value = driver.licenseExpiryDate;
+  newDriverStatus.value = driver.employmentStatus;
+  selectedDriverForDetail.value = null;
+  showAddDriverModal.value = true;
+}
+
+function handleSaveDriver() {
   if (!newDriverName.value.trim() || !newDriverPhone.value.trim() || !newDriverLicenseNum.value.trim()) {
     dialog.showWarning('Vui lòng điền đầy đủ Họ tên, Số điện thoại và Số GPLX của tài xế!', 'Thiếu Thông Tin Tài Xế', 'Kiểm tra lại');
     return;
   }
   const driverName = newDriverName.value.trim();
-  fleetStore.addDriver({
-    accountId: 0,
-    fullName: driverName,
-    phone: newDriverPhone.value.trim(),
-    licenseNumber: newDriverLicenseNum.value.trim(),
-    licenseClass: newDriverLicenseClass.value,
-    licenseExpiryDate: newDriverLicenseExpiry.value,
-    employmentStatus: newDriverStatus.value,
-    isCurrentlyOnTrip: false,
-  });
+  const isEdit = !!editingDriver.value;
+  const employeeCode = newDriverEmployeeCode.value.trim().toUpperCase() ||
+    (editingDriver.value?.employeeCode || `NV-${Date.now().toString().slice(-4)}`);
+
+  if (isEdit && editingDriver.value) {
+    fleetStore.updateDriver({
+      ...editingDriver.value,
+      employeeCode,
+      fullName: driverName,
+      phone: newDriverPhone.value.trim(),
+      licenseNumber: newDriverLicenseNum.value.trim(),
+      licenseClass: newDriverLicenseClass.value,
+      licenseExpiryDate: newDriverLicenseExpiry.value,
+      employmentStatus: newDriverStatus.value,
+    });
+
+    // Đồng bộ nếu tài xế đang được gán xe
+    fleetStore.vehicles.forEach((v) => {
+      if (v.assignedDriverId === editingDriver.value?.id) {
+        v.assignedDriverName = driverName;
+        v.assignedDriverPhone = newDriverPhone.value.trim();
+      }
+    });
+
+    dialog.showSuccess(`Đã cập nhật hồ sơ tài xế [${driverName}] thành công!`, 'Cập Nhật Thành Công');
+  } else {
+    fleetStore.addDriver({
+      accountId: 0,
+      employeeCode,
+      fullName: driverName,
+      phone: newDriverPhone.value.trim(),
+      licenseNumber: newDriverLicenseNum.value.trim(),
+      licenseClass: newDriverLicenseClass.value,
+      licenseExpiryDate: newDriverLicenseExpiry.value,
+      employmentStatus: newDriverStatus.value,
+      isCurrentlyOnTrip: false,
+    });
+    dialog.showSuccess(`Hồ sơ tài xế [${driverName}] đã được lưu vào hệ thống thành công!`, 'Thêm Tài Xế Mới Thành Công');
+  }
+
   showAddDriverModal.value = false;
+  editingDriver.value = null;
+  newDriverEmployeeCode.value = '';
   newDriverName.value = '';
   newDriverPhone.value = '';
   newDriverLicenseNum.value = '';
-  dialog.showSuccess(`Hồ sơ tài xế [${driverName}] đã được lưu vào hệ thống thành công!`, 'Thêm Tài Xế Mới Thành Công');
+}
+
+function handleDeleteDriver(driver: Driver) {
+  if (driver.isCurrentlyOnTrip) {
+    dialog.showWarning(`Tài xế [${driver.fullName}] đang thực hiện chuyến vận chuyển. Không thể xóa lúc này!`, 'Không Thể Xóa', 'Đã hiểu');
+    return;
+  }
+
+  const assignedVeh = fleetStore.vehicles.find((v) => v.assignedDriverId === driver.id);
+  const warningText = assignedVeh
+    ? `Tài xế [${driver.fullName}] hiện đang là tài xế trực thuộc của xe [${assignedVeh.licensePlate}]. Nếu xóa, xe này sẽ chuyển về trạng thái chưa có tài xế trực thuộc. Bạn có chắc chắn muốn xóa?`
+    : `Bạn có chắc chắn muốn xóa tài xế [${driver.fullName}] khỏi hệ thống?`;
+
+  dialog.showConfirm({
+    title: 'Xác Nhận Xóa Tài Xế',
+    message: warningText,
+    confirmText: 'Xác Nhận Xóa',
+    onConfirm: () => {
+      if (assignedVeh) {
+        assignedVeh.assignedDriverId = undefined;
+        assignedVeh.assignedDriverName = undefined;
+        assignedVeh.assignedDriverPhone = undefined;
+      }
+      fleetStore.deleteDriver(driver.id);
+      dialog.showSuccess(`Đã xóa tài xế [${driver.fullName}] khỏi hệ thống!`, 'Xóa Thành Công');
+    },
+  });
 }
 
 // ==================== Modal 4: Lập phiếu bàn giao mượn trả ====================
@@ -283,14 +497,6 @@ function handleAddHandover() {
         <div class="tab-toggle">
           <button
             class="toggle-btn"
-            :class="{ active: activeTab === 'vehicles' }"
-            @click="activeTab = 'vehicles'"
-          >
-            <Truck :size="15" />
-            <span>Phương tiện ({{ fleetStore.vehicles.length }})</span>
-          </button>
-          <button
-            class="toggle-btn"
             :class="{ active: activeTab === 'types' }"
             @click="activeTab = 'types'"
           >
@@ -304,6 +510,14 @@ function handleAddHandover() {
           >
             <UserCheck :size="15" />
             <span>Tài xế ({{ fleetStore.drivers.length }})</span>
+          </button>
+          <button
+            class="toggle-btn"
+            :class="{ active: activeTab === 'vehicles' }"
+            @click="activeTab = 'vehicles'"
+          >
+            <Truck :size="15" />
+            <span>Phương tiện ({{ fleetStore.vehicles.length }})</span>
           </button>
           <button
             class="toggle-btn"
@@ -324,25 +538,26 @@ function handleAddHandover() {
           <h3 class="card-title">Danh Sách Phương Tiện Đội Xe</h3>
           <p class="text-xs text-muted">Toàn bộ xe tải, xe bán tải công tác và máy đào thuộc quản lý</p>
         </div>
-        <button class="btn btn-primary" @click="showAddVehModal = true">
+        <button class="btn btn-primary" @click="openAddVehicleModal">
           <Plus :size="16" />
           <span>Thêm Xe Mới</span>
         </button>
       </div>
 
       <div class="table-container">
-        <table class="table">
+        <table class="table table-fleet">
           <thead>
             <tr>
-              <th>Biển Số Xe</th>
-              <th>Loại Xe</th>
-              <th>Model / Dòng Xe</th>
-              <th>Tải Trọng / Sức Chứa</th>
-              <th>Định Mức Nhiên Liệu</th>
-              <th>Chỉ Số Vận Hành (ODO)</th>
-              <th>Trạng Thái Xe</th>
-              <th>Chu Kỳ Bảo Dưỡng</th>
-              <th>Thao Tác</th>
+              <th style="min-width: 105px;">Biển Số Xe</th>
+              <th style="min-width: 80px;">Loại Xe</th>
+              <th style="min-width: 170px;">Model / Dòng Xe</th>
+              <th style="min-width: 155px;">Tài Xế Trực Thuộc</th>
+              <th style="min-width: 90px;">Tải Trọng</th>
+              <th style="min-width: 140px;">Định Mức Nhiên Liệu</th>
+              <th style="min-width: 155px;">Chỉ Số Vận Hành (ODO)</th>
+              <th style="min-width: 110px;">Trạng Thái Xe</th>
+              <th style="min-width: 115px;">Chu Kỳ Bảo Dưỡng</th>
+              <th class="text-center sticky-action-col" style="min-width: 90px; width: 90px;">Hành Động</th>
             </tr>
           </thead>
           <tbody>
@@ -355,33 +570,45 @@ function handleAddHandover() {
               <td><span class="type-pill">{{ getVehicleTypeLabel(v.vehicleType) }}</span></td>
               <td>{{ v.model }}</td>
               <td>
+                <div v-if="v.assignedDriverName" class="driver-direct-cell">
+                  <div class="driver-mini-icon">
+                    <UserCheck :size="14" class="text-success" />
+                  </div>
+                  <div class="driver-mini-info">
+                    <strong>{{ v.assignedDriverName }}</strong>
+                    <span v-if="v.assignedDriverPhone" class="text-xs text-muted">{{ v.assignedDriverPhone }}</span>
+                  </div>
+                </div>
+                <span v-else class="text-muted text-xs italic">— Chưa phân công —</span>
+              </td>
+              <td>
                 <span v-if="v.capacityTons">{{ v.capacityTons }} Tấn</span>
                 <span v-if="v.passengerCapacity" class="text-muted text-xs"> ({{ v.passengerCapacity }} chỗ)</span>
               </td>
               <td>
                 <div v-if="v.vehicleType !== 'Excavator'" class="flex-col text-xs">
-                  <span>NLP (không tải): <strong>{{ v.fuelQuotaEmpty }} L/km</strong></span>
-                  <span>NLC (có tải): <strong>{{ v.fuelQuotaLoaded }} L/tấn.km</strong></span>
+                  <span>Không tải: <strong>{{ v.fuelQuotaEmpty }} L/km</strong></span>
+                  <span>Có tải: <strong>{{ v.fuelQuotaLoaded }} L/t.km</strong></span>
                 </div>
                 <div v-else class="text-xs">
                   <span>Định mức giờ máy: <strong>{{ v.hourMeterQuota }} L/giờ</strong></span>
                 </div>
               </td>
               <td>
-                <div v-if="v.vehicleType !== 'Excavator'" class="flex-col">
+                <div v-if="v.vehicleType !== 'Excavator'" class="flex-col text-xs">
                   <strong>{{ v.currentOdoKm.toLocaleString() }} km</strong>
-                  <span class="text-xs text-muted">Lần trước: {{ v.lastMaintenanceOdo.toLocaleString() }} km</span>
+                  <span class="text-muted">Lần trước: {{ v.lastMaintenanceOdo.toLocaleString() }} km</span>
                   <span
-                    class="text-xs font-bold"
+                    class="font-bold"
                     :class="(v.currentOdoKm - v.lastMaintenanceOdo) >= getThreshold(v) ? 'text-danger' : 'text-success'"
                   >
                     Đã chạy: {{ (v.currentOdoKm - v.lastMaintenanceOdo).toLocaleString() }} km
                     <span v-if="(v.currentOdoKm - v.lastMaintenanceOdo) >= getThreshold(v)" class="badge-overdue-pill">! Cần bảo dưỡng</span>
                   </span>
                 </div>
-                <div v-else class="flex-col">
+                <div v-else class="flex-col text-xs">
                   <strong>{{ v.currentOperatingHours }} giờ</strong>
-                  <span class="text-xs text-muted">Giờ máy tích lũy</span>
+                  <span class="text-muted">Giờ máy tích lũy</span>
                 </div>
               </td>
               <td>
@@ -392,15 +619,23 @@ function handleAddHandover() {
               <td>
                 <StatusBadge :status="v.maintenanceStatus" type="maintenance" />
               </td>
-              <td>
-                <button
-                  class="btn btn-secondary btn-sm"
-                  @click="openVehicleDetail(v)"
-                  title="Xem chi tiết thông số bảo dưỡng và lịch sử xe"
-                >
-                  <Eye :size="13" />
-                  <span>Chi tiết</span>
-                </button>
+              <td class="text-center sticky-action-col">
+                <div class="actions-group">
+                  <button
+                    class="btn-action btn-edit"
+                    @click="openEditVehicleModal(v)"
+                    title="Chỉnh sửa thông số phương tiện"
+                  >
+                    <Edit2 :size="14" />
+                  </button>
+                  <button
+                    class="btn-action btn-delete"
+                    @click="handleDeleteVehicle(v)"
+                    title="Xóa phương tiện khỏi đội xe"
+                  >
+                    <Trash2 :size="14" />
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -413,14 +648,14 @@ function handleAddHandover() {
       <div class="card-header flex-between">
         <div>
           <h3 class="card-title">Danh Sách Loại Xe & Thiết Bị</h3>
-          <p class="text-xs text-muted">Quy chuẩn tải trọng và định mức tiêu hao nhiên liệu cơ sở theo từng chủng loại</p>
+          <p class="text-xs text-muted">Quy chuẩn chủng loại xe phục vụ khai thác vận tải mủ và cơ giới nông trường</p>
         </div>
         <div class="flex-actions">
           <router-link to="/fleet/types" class="btn btn-outline btn-sm">
             <ExternalLink :size="14" />
             <span>Mở Trang Chi Tiết</span>
           </router-link>
-          <button class="btn btn-primary" @click="showAddCatModal = true">
+          <button class="btn btn-primary" @click="openAddCategoryModal">
             <Plus :size="16" />
             <span>Thêm Loại Xe Mới</span>
           </button>
@@ -428,16 +663,16 @@ function handleAddHandover() {
       </div>
 
       <div class="table-container">
-        <table class="table">
+        <table class="table table-fleet">
           <thead>
             <tr>
-              <th>Mã Loại Xe</th>
-              <th>Tên Loại Xe</th>
-              <th>Nhóm Phương Tiện</th>
-              <th>Tải Trọng / Chỗ</th>
-              <th>Định Mức Tiêu Chuẩn</th>
-              <th>Số Lượng Xe Đang Dùng</th>
-              <th>Trạng Thái</th>
+              <th style="min-width: 120px;">Mã Loại Xe</th>
+              <th style="min-width: 180px;">Tên Loại Xe</th>
+              <th style="min-width: 140px;">Nhóm Phương Tiện</th>
+              <th style="min-width: 220px;">Mô Tả / Đặc Điểm</th>
+              <th style="min-width: 140px;">Số Lượng Xe Đang Dùng</th>
+              <th style="min-width: 100px;">Trạng Thái</th>
+              <th class="text-center sticky-action-col" style="min-width: 90px; width: 90px;">Hành Động</th>
             </tr>
           </thead>
           <tbody>
@@ -446,18 +681,7 @@ function handleAddHandover() {
               <td><strong>{{ cat.name }}</strong></td>
               <td><span class="type-pill">{{ cat.group }}</span></td>
               <td>
-                <span v-if="cat.standardCapacityTons">{{ cat.standardCapacityTons }} Tấn</span>
-                <span v-else-if="cat.standardSeats">{{ cat.standardSeats }} Chỗ</span>
-                <span v-else class="text-muted">—</span>
-              </td>
-              <td>
-                <div v-if="cat.vehicleTypeCode === 'Excavator'" class="text-xs">
-                  <span>NLP: <strong>{{ cat.defaultQuotaEmpty }} L/giờ</strong></span>
-                </div>
-                <div v-else class="flex-col text-xs">
-                  <span>NLP: <strong>{{ cat.defaultQuotaEmpty }} L/km</strong></span>
-                  <span v-if="cat.defaultQuotaLoaded">NLC: <strong>{{ cat.defaultQuotaLoaded }} L/tấn.km</strong></span>
-                </div>
+                <span class="text-sm text-secondary">{{ cat.description || '—' }}</span>
               </td>
               <td>
                 <span class="badge badge-completed">
@@ -468,6 +692,24 @@ function handleAddHandover() {
                 <span class="driver-status-badge" :class="cat.isActive ? 'status-active' : 'status-suspended'">
                   {{ cat.isActive ? 'Hoạt động' : 'Tạm dừng' }}
                 </span>
+              </td>
+              <td class="text-center sticky-action-col">
+                <div class="actions-group">
+                  <button
+                    class="btn-action btn-edit"
+                    @click="openEditCategoryModal(cat)"
+                    title="Chỉnh sửa loại xe"
+                  >
+                    <Edit2 :size="14" />
+                  </button>
+                  <button
+                    class="btn-action btn-delete"
+                    @click="handleDeleteCategory(cat)"
+                    title="Xóa loại xe"
+                  >
+                    <Trash2 :size="14" />
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -482,7 +724,7 @@ function handleAddHandover() {
           <h3 class="card-title">Danh Sách Tài Xế</h3>
           <p class="text-xs text-muted">Danh sách tài xế cơ hữu, hạng giấy phép lái xe và trạng thái sẵn sàng nhận chuyến</p>
         </div>
-        <button class="btn btn-primary" @click="showAddDriverModal = true">
+        <button class="btn btn-primary" @click="openAddDriverModal">
           <Plus :size="16" />
           <span>Thêm Tài Xế Mới</span>
         </button>
@@ -492,6 +734,7 @@ function handleAddHandover() {
         <table class="table">
           <thead>
             <tr>
+              <th>Mã NV</th>
               <th>Họ Và Tên</th>
               <th>Số Điện Thoại</th>
               <th>Số Giấy Phép Lái Xe</th>
@@ -499,10 +742,22 @@ function handleAddHandover() {
               <th>Ngày Hết Hạn</th>
               <th>Tình Trạng Hoạt Động</th>
               <th>Trạng Thái Chuyến</th>
+              <th class="text-center sticky-action-col" style="min-width: 90px; width: 90px;">Hành Động</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="d in fleetStore.drivers" :key="d.id">
+              <td>
+                <button
+                  class="btn-code-link"
+                  @click="openDriverDetail(d)"
+                  title="Bấm để xem hồ sơ chi tiết tài xế"
+                >
+                  <span class="employee-code-badge">
+                    {{ d.employeeCode || `NV-${String(d.id).padStart(4, '0')}` }}
+                  </span>
+                </button>
+              </td>
               <td><strong>{{ d.fullName }}</strong></td>
               <td>{{ d.phone }}</td>
               <td>{{ d.licenseNumber }}</td>
@@ -519,6 +774,24 @@ function handleAddHandover() {
                 <span class="badge" :class="d.isCurrentlyOnTrip ? 'badge-dispatched' : 'badge-completed'">
                   {{ d.isCurrentlyOnTrip ? 'Đang chạy chuyến' : 'Đang rảnh' }}
                 </span>
+              </td>
+              <td class="text-center sticky-action-col">
+                <div class="actions-group">
+                  <button
+                    class="btn-action btn-edit"
+                    @click="openEditDriverModal(d)"
+                    title="Chỉnh sửa hồ sơ tài xế"
+                  >
+                    <Edit2 :size="14" />
+                  </button>
+                  <button
+                    class="btn-action btn-delete"
+                    @click="handleDeleteDriver(d)"
+                    title="Xóa tài xế"
+                  >
+                    <Trash2 :size="14" />
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -577,7 +850,7 @@ function handleAddHandover() {
     <div v-if="showAddVehModal" class="modal-backdrop" @click.self="showAddVehModal = false">
       <div class="modal-content">
         <div class="modal-header">
-          <h3 class="modal-title">Thêm Phương Tiện Mới</h3>
+          <h3 class="modal-title">{{ editingVehicle ? 'Chỉnh Sửa Phương Tiện' : 'Thêm Phương Tiện Mới' }}</h3>
         </div>
         <div class="modal-body">
           <div class="grid-2">
@@ -619,30 +892,43 @@ function handleAddHandover() {
             </div>
           </div>
 
-          <div class="form-group">
-            <label class="form-label">Chỉ số ODO hiện tại (km)</label>
-            <input v-model.number="newVehOdo" type="number" class="form-input" />
+          <div class="grid-2">
+            <div class="form-group">
+              <label class="form-label">Chỉ số ODO hiện tại (km)</label>
+              <input v-model.number="newVehOdo" type="number" class="form-input" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Tài xế trực thuộc / Phụ trách chính</label>
+              <select v-model="newVehDriverId" class="form-select">
+                <option :value="''">-- Chưa gán tài xế / Chọn sau --</option>
+                <option v-for="d in fleetStore.drivers" :key="d.id" :value="d.id">
+                  {{ d.fullName }} ({{ d.licenseClass }} - SĐT: {{ d.phone }})
+                </option>
+              </select>
+            </div>
           </div>
         </div>
 
         <div class="modal-footer">
           <button class="btn btn-secondary" @click="showAddVehModal = false">Hủy</button>
-          <button class="btn btn-primary" @click="handleAddVehicle">Lưu Phương Tiện</button>
+          <button class="btn btn-primary" @click="handleSaveVehicle">
+            {{ editingVehicle ? 'Lưu Thay Đổi' : 'Lưu Phương Tiện' }}
+          </button>
         </div>
       </div>
     </div>
 
-    <!-- Modal 2: Thêm loại xe -->
+    <!-- Modal 2: Thêm / Sửa loại xe -->
     <div v-if="showAddCatModal" class="modal-backdrop" @click.self="showAddCatModal = false">
       <div class="modal-content">
         <div class="modal-header">
-          <h3 class="modal-title">Thêm Loại Xe / Thiết Bị Mới</h3>
+          <h3 class="modal-title">{{ editingCategory ? 'Chỉnh Sửa Loại Xe / Thiết Bị' : 'Thêm Loại Xe / Thiết Bị Mới' }}</h3>
         </div>
         <div class="modal-body">
           <div class="grid-2">
             <div class="form-group">
               <label class="form-label">Mã loại xe <span class="required">*</span></label>
-              <input v-model="newCatCode" type="text" class="form-input" placeholder="Ví dụ: TRUCK_10T" />
+              <input v-model="newCatCode" type="text" class="form-input" placeholder="Ví dụ: TRUCK_10T" :readonly="!!editingCategory" />
             </div>
             <div class="form-group">
               <label class="form-label">Nhóm chuyên dụng <span class="required">*</span></label>
@@ -659,61 +945,64 @@ function handleAddHandover() {
             <input v-model="newCatName" type="text" class="form-input" placeholder="Ví dụ: Xe bồn chở mủ cao su 10 tấn" />
           </div>
 
-          <div class="grid-3">
-            <div class="form-group">
-              <label class="form-label">Dòng phương tiện</label>
-              <select v-model="newCatVehType" class="form-select">
-                <option value="Truck">Xe tải / Xe bồn</option>
-                <option value="Pickup">Xe bán tải</option>
-                <option value="Excavator">Máy đào / Cơ giới</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Tải trọng (Tấn)</label>
-              <input v-model.number="newCatCapacity" type="number" step="0.5" class="form-input" />
-            </div>
-            <div class="form-group">
-              <label class="form-label">NLP (L/km hoặc L/h)</label>
-              <input v-model.number="newCatEmptyQuota" type="number" step="0.01" class="form-input" />
-            </div>
+          <div class="form-group">
+            <label class="form-label">Mô tả / Ghi chú</label>
+            <textarea v-model="newCatDesc" class="form-input" rows="3" placeholder="Ghi chú về mục đích sử dụng, đặc điểm kỹ thuật..."></textarea>
           </div>
 
           <div class="form-group">
-            <label class="form-label">Mô tả / Ghi chú</label>
-            <textarea v-model="newCatDesc" class="form-input" rows="2" placeholder="Ghi chú về mục đích sử dụng..."></textarea>
+            <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+              <input type="checkbox" v-model="newCatIsActive" />
+              <span>Kích hoạt loại xe này trong hệ thống</span>
+            </label>
           </div>
         </div>
 
         <div class="modal-footer">
           <button class="btn btn-secondary" @click="showAddCatModal = false">Hủy</button>
-          <button class="btn btn-primary" @click="handleAddCategory">Lưu Loại Xe</button>
+          <button class="btn btn-primary" @click="handleSaveCategory">
+            {{ editingCategory ? 'Lưu Thay Đổi' : 'Lưu Loại Xe' }}
+          </button>
         </div>
       </div>
     </div>
 
-    <!-- Modal 3: Thêm tài xế -->
+    <!-- Modal 3: Thêm / Sửa tài xế -->
     <div v-if="showAddDriverModal" class="modal-backdrop" @click.self="showAddDriverModal = false">
       <div class="modal-content">
         <div class="modal-header">
-          <h3 class="modal-title">Thêm Tài Xế Mới</h3>
+          <h3 class="modal-title">{{ editingDriver ? 'Chỉnh Sửa Hồ Sơ Tài Xế' : 'Thêm Tài Xế Mới' }}</h3>
         </div>
         <div class="modal-body">
           <div class="grid-2">
             <div class="form-group">
-              <label class="form-label">Họ và tên tài xế <span class="required">*</span></label>
-              <input v-model="newDriverName" type="text" class="form-input" placeholder="Ví dụ: Nguyễn Văn Hải" />
+              <label class="form-label">Mã nhân viên (Mã NV)</label>
+              <input
+                v-model="newDriverEmployeeCode"
+                type="text"
+                class="form-input font-mono"
+                placeholder="Ví dụ: NV-0105"
+                style="text-transform: uppercase"
+              />
             </div>
             <div class="form-group">
-              <label class="form-label">Số điện thoại <span class="required">*</span></label>
-              <input v-model="newDriverPhone" type="text" class="form-input" placeholder="Ví dụ: 0912 345 678" />
+              <label class="form-label">Họ và tên tài xế <span class="required">*</span></label>
+              <input v-model="newDriverName" type="text" class="form-input" placeholder="Ví dụ: Nguyễn Văn Hải" />
             </div>
           </div>
 
           <div class="grid-2">
             <div class="form-group">
+              <label class="form-label">Số điện thoại <span class="required">*</span></label>
+              <input v-model="newDriverPhone" type="text" class="form-input" placeholder="Ví dụ: 0912 345 678" />
+            </div>
+            <div class="form-group">
               <label class="form-label">Số giấy phép lái xe (GPLX) <span class="required">*</span></label>
               <input v-model="newDriverLicenseNum" type="text" class="form-input" placeholder="Ví dụ: C-790123456" />
             </div>
+          </div>
+
+          <div class="grid-2">
             <div class="form-group">
               <label class="form-label">Hạng bằng lái</label>
               <select v-model="newDriverLicenseClass" class="form-select">
@@ -725,27 +1014,27 @@ function handleAddHandover() {
                 <option value="Chứng chỉ vận hành xe máy chuyên dùng">Chứng chỉ vận hành xe máy chuyên dùng</option>
               </select>
             </div>
-          </div>
-
-          <div class="grid-2">
             <div class="form-group">
               <label class="form-label">Ngày hết hạn bằng lái</label>
               <input v-model="newDriverLicenseExpiry" type="date" class="form-input" />
             </div>
-            <div class="form-group">
-              <label class="form-label">Tình trạng hoạt động</label>
-              <select v-model="newDriverStatus" class="form-select">
-                <option value="Active">Đang làm việc</option>
-                <option value="OnLeave">Nghỉ phép</option>
-                <option value="Suspended">Tạm đình chỉ</option>
-              </select>
-            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Tình trạng hoạt động</label>
+            <select v-model="newDriverStatus" class="form-select">
+              <option value="Active">Đang làm việc</option>
+              <option value="OnLeave">Nghỉ phép</option>
+              <option value="Suspended">Tạm đình chỉ</option>
+            </select>
           </div>
         </div>
 
         <div class="modal-footer">
           <button class="btn btn-secondary" @click="showAddDriverModal = false">Hủy</button>
-          <button class="btn btn-primary" @click="handleAddDriver">Lưu Hồ Sơ Tài Xế</button>
+          <button class="btn btn-primary" @click="handleSaveDriver">
+            {{ editingDriver ? 'Lưu Thay Đổi' : 'Lưu Hồ Sơ Tài Xế' }}
+          </button>
         </div>
       </div>
     </div>
@@ -828,6 +1117,15 @@ function handleAddHandover() {
       v-if="selectedVehicleForDetail"
       :vehicle="selectedVehicleForDetail"
       @close="selectedVehicleForDetail = null"
+      @edit="openEditVehicleModal"
+    />
+
+    <!-- Modal Xem Chi Tiết Hồ Sơ Tài Xế -->
+    <DriverDetailModal
+      v-if="selectedDriverForDetail"
+      :driver="selectedDriverForDetail"
+      @close="selectedDriverForDetail = null"
+      @edit="openEditDriverModal"
     />
   </div>
 </template>
@@ -948,7 +1246,29 @@ function handleAddHandover() {
 }
 .btn-plate-link:hover {
   color: #166534;
-  filter: brightness(0.9);
+}
+
+/* Driver direct cell */
+.driver-direct-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.driver-mini-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.driver-mini-info {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
 }
 
 .badge-overdue-pill {
@@ -997,4 +1317,83 @@ function handleAddHandover() {
 .text-xs { font-size: 0.75rem; }
 .text-muted { color: var(--text-muted); }
 .required { color: #ef4444; }
+
+.actions-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-action {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-action:hover {
+  background: #f8fafc;
+  color: #0f172a;
+}
+.btn-edit:hover { border-color: #0284c7; color: #0284c7; }
+.btn-delete:hover { border-color: #dc2626; color: #dc2626; }
+.btn-code-link {
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.employee-code-badge {
+  display: inline-block;
+  font-family: monospace;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+  padding: 3px 8px;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+.btn-code-link:hover .employee-code-badge {
+  background: #dcfce7;
+  border-color: #86efac;
+  box-shadow: 0 0 0 2px rgba(21, 128, 61, 0.15);
+  transform: translateY(-1px);
+}
+
+/* Sticky Action Column */
+.table th.sticky-action-col,
+.table td.sticky-action-col {
+  position: sticky !important;
+  right: 0 !important;
+  background-color: #ffffff !important;
+  z-index: 4;
+  box-shadow: -4px 0 10px rgba(15, 23, 42, 0.08);
+}
+.table th.sticky-action-col {
+  background-color: #f8fafc !important;
+  z-index: 5;
+}
+.table tbody tr:hover td.sticky-action-col {
+  background-color: #f8fafc !important;
+}
+
+/* Compact fleet table styling */
+.table-fleet th {
+  padding: 10px 12px;
+  font-size: 0.6875rem;
+}
+.table-fleet td {
+  padding: 10px 12px;
+  font-size: 0.8125rem;
+}
 </style>

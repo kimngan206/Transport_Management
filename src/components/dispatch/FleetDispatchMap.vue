@@ -14,9 +14,7 @@ import {
   Search,
   Clock,
 } from 'lucide-vue-next';
-
-// Declare Leaflet global loaded from CDN
-declare const L: any;
+import L, { safeInitMap, createTileLayer } from '@/utils/leaflet';
 
 //=============================================================================
 // 1. KHỞI TẠO STATE & COMPUTED
@@ -105,10 +103,17 @@ let resizeObserver: ResizeObserver | null = null;
 // 2. KHỞI TẠO BẢN ĐỒ & QUẢN LÝ LỘ TRÌNH (ROUTES)
 //=============================================================================
 function initMap() {
-  if (!mapContainer.value || typeof L === 'undefined') return;
+  if (!mapContainer.value) return;
 
-  // Khởi tạo bản đồ đồng bộ theo chuẩn StandardRoutesMap
-  mapInstance.value = L.map(mapContainer.value, {
+  if (mapInstance.value) {
+    try {
+      mapInstance.value.remove();
+    } catch (e) {}
+    mapInstance.value = null;
+  }
+
+  // Khởi tạo bản đồ an toàn theo chuẩn GIS
+  mapInstance.value = safeInitMap(mapContainer.value, {
     center: [11.5400, 106.6200],
     zoom: 12,
     zoomControl: false,
@@ -149,20 +154,9 @@ function initMap() {
 }
 
 function updateTileLayer() {
-  if (!mapInstance.value || typeof L === 'undefined') return;
+  if (!mapInstance.value) return;
   if (tileLayer) mapInstance.value.removeLayer(tileLayer);
-
-  if (mapStyle.value === 'osm') {
-    tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap | ECOTECH 2A Fleet GIS',
-    });
-  } else {
-    tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19,
-      attribution: '&copy; CartoDB & OpenStreetMap | ECOTECH 2A',
-    });
-  }
+  tileLayer = createTileLayer(mapStyle.value);
   tileLayer.addTo(mapInstance.value);
 }
 
@@ -590,15 +584,19 @@ watch(mapStyle, () => {
   updateTileLayer();
 });
 
-onMounted(() => {
-  const checkLeaflet = setInterval(() => {
-    if (typeof L !== 'undefined') {
-      clearInterval(checkLeaflet);
-      initMap();
-    }
-  }, 200);
+// Expose phương thức ra ngoài
+defineExpose({
+  resetMapView,
+  focusVehicle,
+  invalidateSize: () => {
+    if (mapInstance.value) mapInstance.value.invalidateSize();
+  },
+});
 
-  setTimeout(() => clearInterval(checkLeaflet), 5000);
+onMounted(() => {
+  nextTick(() => {
+    initMap();
+  });
 
   if (mapContainer.value && typeof ResizeObserver !== 'undefined') {
     resizeObserver = new ResizeObserver(() => {

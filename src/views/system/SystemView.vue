@@ -18,15 +18,9 @@ const rolesList = [
     color: '#0284c7',
   },
   {
-    role: 'Approver',
-    name: 'Cấp Quản Lý Phê Duyệt',
-    desc: 'Duyệt hoặc từ chối yêu cầu đặt xe theo phạm vi phòng ban phụ trách (Bắt buộc lý do khi từ chối).',
-    color: '#d97706',
-  },
-  {
     role: 'Dispatcher',
     name: 'Điều Phối Viên Đội Xe',
-    desc: 'Quản lý đội xe, tài xế, tuyến đường; thực hiện ghép chuyến và gán tài nguyên.',
+    desc: 'Duyệt yêu cầu đặt xe trực tiếp, quản lý đội xe, tài xế, tuyến đường; thực hiện ghép chuyến và phân công phương tiện.',
     color: '#7c3aed',
   },
   {
@@ -170,7 +164,7 @@ const rolesList = [
             <tr v-for="dept in departments" :key="dept.id">
               <td><span class="dept-code">{{ dept.code }}</span></td>
               <td><strong>{{ dept.name }}</strong></td>
-              <td>Trần Trọng Quản (Trưởng phòng)</td>
+              <td>Lê Minh Điều Vận (Phụ trách)</td>
               <td class="text-sm text-secondary">
                 Quản lý kế hoạch khai thác, thu hoạch và vận chuyển mủ cao su
               </td>
