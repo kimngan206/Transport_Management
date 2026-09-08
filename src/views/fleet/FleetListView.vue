@@ -3,7 +3,9 @@ import { ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useFleetStore } from '@/stores/fleet';
 import { useDialogStore } from '@/stores/dialog';
+import type { Vehicle } from '@/types';
 import StatusBadge from '@/components/common/StatusBadge.vue';
+import VehicleDetailModal from '@/components/fleet/VehicleDetailModal.vue';
 import {
   Truck,
   UserCheck,
@@ -11,12 +13,20 @@ import {
   KeyRound,
   Layers,
   ExternalLink,
+  Eye,
 } from 'lucide-vue-next';
 
 const route = useRoute();
 const fleetStore = useFleetStore();
 const dialog = useDialogStore();
 const activeTab = ref<'vehicles' | 'types' | 'drivers' | 'handover'>('vehicles');
+
+// Modal chi tiết phương tiện & chu kỳ bảo dưỡng (Section 4 - baoduong.md)
+const selectedVehicleForDetail = ref<Vehicle | null>(null);
+
+function openVehicleDetail(v: Vehicle) {
+  selectedVehicleForDetail.value = v;
+}
 
 watch(
   () => route.query.tab,
@@ -66,6 +76,14 @@ function countVehiclesForCat(category: any): number {
     if (category.code === 'TRUCK_LIGHT_5T') return v.vehicleType === 'Truck' && (v.capacityTons || 0) <= 5;
     return v.vehicleType === 'Truck';
   }).length;
+}
+
+// Helper an toàn lấy ngưỡng chu kỳ bảo dưỡng
+function getThreshold(v: any): number {
+  if (fleetStore && typeof fleetStore.getVehicleMaintenanceThreshold === 'function') {
+    return fleetStore.getVehicleMaintenanceThreshold(v);
+  }
+  return 5000;
 }
 
 // Chuyển đổi trạng thái xe sang tiếng Việt
@@ -321,14 +339,19 @@ function handleAddHandover() {
               <th>Model / Dòng Xe</th>
               <th>Tải Trọng / Sức Chứa</th>
               <th>Định Mức Nhiên Liệu</th>
-              <th>Chỉ Số Vận Hành</th>
+              <th>Chỉ Số Vận Hành (ODO)</th>
               <th>Trạng Thái Xe</th>
               <th>Chu Kỳ Bảo Dưỡng</th>
+              <th>Thao Tác</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="v in fleetStore.vehicles" :key="v.id">
-              <td><strong>{{ v.licensePlate }}</strong></td>
+            <tr v-for="v in fleetStore.vehicles" :key="v.id" class="veh-row">
+              <td>
+                <button class="btn-plate-link" @click="openVehicleDetail(v)" title="Xem hồ sơ & chi tiết chu kỳ bảo dưỡng xe">
+                  <strong>{{ v.licensePlate }}</strong>
+                </button>
+              </td>
               <td><span class="type-pill">{{ getVehicleTypeLabel(v.vehicleType) }}</span></td>
               <td>{{ v.model }}</td>
               <td>
@@ -347,7 +370,14 @@ function handleAddHandover() {
               <td>
                 <div v-if="v.vehicleType !== 'Excavator'" class="flex-col">
                   <strong>{{ v.currentOdoKm.toLocaleString() }} km</strong>
-                  <span class="text-xs text-muted">Lần bảo dưỡng gần nhất: {{ v.lastMaintenanceOdo.toLocaleString() }} km</span>
+                  <span class="text-xs text-muted">Lần trước: {{ v.lastMaintenanceOdo.toLocaleString() }} km</span>
+                  <span
+                    class="text-xs font-bold"
+                    :class="(v.currentOdoKm - v.lastMaintenanceOdo) >= getThreshold(v) ? 'text-danger' : 'text-success'"
+                  >
+                    Đã chạy: {{ (v.currentOdoKm - v.lastMaintenanceOdo).toLocaleString() }} km
+                    <span v-if="(v.currentOdoKm - v.lastMaintenanceOdo) >= getThreshold(v)" class="badge-overdue-pill">! Cần bảo dưỡng</span>
+                  </span>
                 </div>
                 <div v-else class="flex-col">
                   <strong>{{ v.currentOperatingHours }} giờ</strong>
@@ -361,6 +391,16 @@ function handleAddHandover() {
               </td>
               <td>
                 <StatusBadge :status="v.maintenanceStatus" type="maintenance" />
+              </td>
+              <td>
+                <button
+                  class="btn btn-secondary btn-sm"
+                  @click="openVehicleDetail(v)"
+                  title="Xem chi tiết thông số bảo dưỡng và lịch sử xe"
+                >
+                  <Eye :size="13" />
+                  <span>Chi tiết</span>
+                </button>
               </td>
             </tr>
           </tbody>
@@ -782,6 +822,13 @@ function handleAddHandover() {
         </div>
       </div>
     </div>
+
+    <!-- Modal Xem Chi Tiết Xe & Chu Kỳ Bảo Dưỡng (Section 4 - baoduong.md) -->
+    <VehicleDetailModal
+      v-if="selectedVehicleForDetail"
+      :vehicle="selectedVehicleForDetail"
+      @close="selectedVehicleForDetail = null"
+    />
   </div>
 </template>
 
@@ -885,6 +932,34 @@ function handleAddHandover() {
   justify-content: space-between;
   align-items: center;
   gap: 12px;
+}
+
+.btn-plate-link {
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: #15803d;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-size: 0.875rem;
+  display: inline-block;
+  text-align: left;
+}
+.btn-plate-link:hover {
+  color: #166534;
+  filter: brightness(0.9);
+}
+
+.badge-overdue-pill {
+  background: #fee2e2;
+  color: #dc2626;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-left: 4px;
+  display: inline-block;
 }
 
 .flex-actions {

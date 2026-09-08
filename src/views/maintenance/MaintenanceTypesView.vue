@@ -265,9 +265,9 @@ function confirmDelete(item: MaintenanceType) {
             <Wrench :size="24" class="text-primary" />
           </div>
           <div>
-            <h1 class="page-title">Danh Mục Loại Bảo Dưỡng & Sửa Chữa</h1>
+            <h1 class="page-title">Cài Đặt Bảo Dưỡng</h1>
             <p class="page-subtitle">
-              Quản lý định mức chu kỳ kỹ thuật, chi phí dự toán và quy trình kiểm chuẩn cho đội xe vận tải mủ & cơ giới nông trường
+              Cấu hình định mức chu kỳ bảo dưỡng (Km / Giờ máy), chi phí dự toán và quy trình kiểm chuẩn cho đội xe
             </p>
           </div>
         </div>
@@ -440,6 +440,9 @@ function confirmDelete(item: MaintenanceType) {
                 <span v-if="item.cycleMonths" class="cycle-months">
                   📅 Định kỳ: <strong>{{ item.cycleMonths }}</strong> tháng
                 </span>
+                <span v-if="item.group === 'Bảo dưỡng định kỳ' && item.cycleKm && item.isActive" class="auto-rule-pill">
+                  🎯 Ngưỡng cảnh báo tự động
+                </span>
               </div>
             </td>
             <td>
@@ -563,6 +566,9 @@ function confirmDelete(item: MaintenanceType) {
                 placeholder="VD: 5000"
                 class="form-control"
               />
+              <span class="form-help-text">
+                💡 Định mức này được hệ thống sử dụng làm ngưỡng tự động kích hoạt cảnh báo xe cần bảo dưỡng trong Đội xe & Dashboard.
+              </span>
             </div>
 
             <div class="form-group">
@@ -1143,7 +1149,7 @@ function confirmDelete(item: MaintenanceType) {
   background: #ffffff;
   border-radius: 12px;
   width: 100%;
-  max-width: 640px;
+  max-width: 820px;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
@@ -1445,5 +1451,28 @@ function confirmDelete(item: MaintenanceType) {
 .btn-outline:hover {
   background: #f1f5f9;
   color: #0f172a;
+}
+
+.auto-rule-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+.form-help-text {
+  display: block;
+  font-size: 0.75rem;
+  color: #0284c7;
+  line-height: 1.4;
+  margin-top: 4px;
+  font-weight: 500;
 }
 </style>

@@ -7,6 +7,8 @@ import { useFleetStore } from '@/stores/fleet';
 import { useDriverStore } from '@/stores/driver';
 import { useDialogStore } from '@/stores/dialog';
 import { mockStorage } from '@/services/mockStorage';
+import type { Vehicle } from '@/types';
+import VehicleDetailModal from '@/components/fleet/VehicleDetailModal.vue';
 import {
   LayoutDashboard,
   CalendarCheck,
@@ -25,6 +27,9 @@ import {
   Menu,
   PanelLeftClose,
   PanelLeftOpen,
+  Bell,
+  AlertTriangle,
+  CheckCircle2,
 } from 'lucide-vue-next';
 
 const route = useRoute();
@@ -34,6 +39,15 @@ const bookingStore = useBookingStore();
 const fleetStore = useFleetStore();
 const driverStore = useDriverStore();
 const dialog = useDialogStore();
+
+// Dropdown thông báo & Modal chi tiết xe
+const showNotificationDropdown = ref(false);
+const selectedVehicleForDetail = ref<Vehicle | null>(null);
+
+function goToVehicleMaintenance(v: Vehicle) {
+  selectedVehicleForDetail.value = v;
+  showNotificationDropdown.value = false;
+}
 
 // Trạng thái đóng/mở Menu Sidebar
 const isSidebarCollapsed = ref(localStorage.getItem('qldv_sidebar_collapsed') === 'true');
@@ -70,7 +84,7 @@ const openGroups = ref<Record<string, boolean>>({
   fleet: true,
   routes: false,
   operations: true,
-  maintenance: false,
+  maintenance: true,
   reports: false,
   system: false,
 });
@@ -237,6 +251,66 @@ const showSection = computed(() => {
       </div>
 
       <div class="header-right-actions">
+        <!-- Icon quả chuông Thông Báo Bảo Dưỡng & Vận Hành (Section 2 - baoduong.md) -->
+        <div class="header-notify-wrap">
+          <button
+            class="btn-header-notify"
+            @click="showNotificationDropdown = !showNotificationDropdown"
+            :title="`Thông báo (${dueMaintCount} cảnh báo bảo dưỡng)`"
+          >
+            <Bell :size="16" />
+            <span v-if="dueMaintCount > 0" class="notify-count-dot">
+              {{ dueMaintCount }}
+            </span>
+          </button>
+
+          <!-- Dropdown danh sách thông báo -->
+          <div
+            v-if="showNotificationDropdown"
+            class="notify-dropdown-menu"
+          >
+            <div class="notify-dropdown-header">
+              <span class="notify-dropdown-title">Thông Báo Hệ Thống</span>
+              <span class="notify-badge-tag">{{ dueMaintCount }} cảnh báo</span>
+            </div>
+
+            <div class="notify-dropdown-body">
+              <div v-if="dueMaintCount === 0" class="notify-empty">
+                <CheckCircle2 :size="18" class="text-success" />
+                <span>Không có cảnh báo mới. Đội xe đang vận hành an toàn!</span>
+              </div>
+
+              <div
+                v-for="v in fleetStore.dueMaintenanceVehicles"
+                :key="v.id"
+                class="notify-item"
+                @click="goToVehicleMaintenance(v)"
+              >
+                <div class="notify-item-icon">
+                  <AlertTriangle :size="16" class="text-danger" />
+                </div>
+                <div class="notify-item-content">
+                  <div class="notify-item-title">
+                    Xe <strong>{{ v.licensePlate }}</strong> đã đến hạn bảo dưỡng!
+                  </div>
+                  <div class="notify-item-desc">
+                    Đã chạy <strong>{{ (v.currentOdoKm - v.lastMaintenanceOdo).toLocaleString() }} km</strong> từ lần bảo dưỡng trước (chạm ngưỡng 5.000 km).
+                  </div>
+                  <div class="notify-item-time">
+                    Đến hạn bảo dưỡng • Bấm xem chi tiết xe
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="notify-dropdown-footer">
+              <button class="btn-all-notif" @click="router.push('/maintenance'); showNotificationDropdown = false">
+                <span>Xem tất cả xe cần bảo dưỡng &gt;</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- Nút Reset Mock Dữ Liệu -->
         <button class="btn-header-reset" @click="handleResetData" title="Khôi phục dữ liệu mẫu gốc">
           <RotateCcw :size="12" class="reset-ico" />
@@ -385,10 +459,6 @@ const showSection = computed(() => {
               <router-link to="/fleet?tab=drivers" class="sub-nav-link" :class="{ active: route.path === '/fleet' && route.query.tab === 'drivers' }">
                 <span>Danh sách tài xế</span>
               </router-link>
-
-              <router-link to="/fleet?tab=handover" class="sub-nav-link" :class="{ active: route.path === '/fleet' && route.query.tab === 'handover' }">
-                <span>Bàn giao / Mượn trả xe</span>
-              </router-link>
             </div>
           </div>
 
@@ -461,11 +531,11 @@ const showSection = computed(() => {
 
             <div v-show="openGroups.maintenance" class="sub-links-list">
               <router-link to="/maintenance" class="sub-nav-link" :class="{ active: route.path === '/maintenance' }">
-                <span>Cảnh báo bảo dưỡng</span>
+                <span>Cần bảo dưỡng</span>
                 <span v-if="dueMaintCount > 0" class="mini-badge badge-red">{{ dueMaintCount }}</span>
               </router-link>
               <router-link to="/maintenance/types" class="sub-nav-link" :class="{ active: route.path === '/maintenance/types' }">
-                <span>Loại bảo dưỡng</span>
+                <span>Cài đặt bảo dưỡng</span>
               </router-link>
             </div>
           </div>
@@ -545,6 +615,13 @@ const showSection = computed(() => {
         <router-view />
       </main>
     </div>
+
+    <!-- Modal Xem Chi Tiết Xe & Chu Kỳ Bảo Dưỡng (Section 4 - baoduong.md) -->
+    <VehicleDetailModal
+      v-if="selectedVehicleForDetail"
+      :vehicle="selectedVehicleForDetail"
+      @close="selectedVehicleForDetail = null"
+    />
   </div>
 </template>
 
@@ -624,6 +701,184 @@ const showSection = computed(() => {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+/* Chuông thông báo (Section 2 - baoduong.md) */
+.header-notify-wrap {
+  position: relative;
+}
+
+.btn-header-notify {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-header-notify:hover {
+  background: rgba(255, 255, 255, 0.22);
+  transform: translateY(-1px);
+}
+
+.notify-count-dot {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #dc2626;
+  color: #ffffff;
+  font-size: 0.625rem;
+  font-weight: 900;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #0f172a;
+  box-shadow: 0 0 8px rgba(220, 38, 38, 0.8);
+}
+
+.notify-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 350px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e2e8f0;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: fadeInDown 0.15s ease-out;
+}
+
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.notify-dropdown-header {
+  padding: 12px 16px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.notify-dropdown-title {
+  font-size: 0.8125rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.notify-badge-tag {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  background: #fee2e2;
+  color: #dc2626;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.notify-dropdown-body {
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.notify-empty {
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: #64748b;
+  font-size: 0.8125rem;
+  text-align: center;
+}
+
+.notify-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.notify-item:hover {
+  background: #fef2f2;
+}
+
+.notify-item:last-child {
+  border-bottom: none;
+}
+
+.notify-item-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: #fee2e2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.notify-item-content {
+  flex: 1;
+}
+
+.notify-item-title {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.3;
+}
+
+.notify-item-desc {
+  font-size: 0.75rem;
+  color: #475569;
+  margin-top: 2px;
+  line-height: 1.35;
+}
+
+.notify-item-time {
+  font-size: 0.6875rem;
+  color: #94a3b8;
+  margin-top: 4px;
+}
+
+.notify-dropdown-footer {
+  padding: 8px 16px;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  text-align: center;
+}
+
+.btn-all-notif {
+  background: transparent;
+  border: none;
+  color: #15803d;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+.btn-all-notif:hover {
+  text-decoration: underline;
 }
 
 .btn-header-reset {

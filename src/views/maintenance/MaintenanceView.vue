@@ -4,7 +4,7 @@ import { useFleetStore } from '@/stores/fleet';
 import { useAuthStore } from '@/stores/auth';
 import { useDialogStore } from '@/stores/dialog';
 import StatusBadge from '@/components/common/StatusBadge.vue';
-import { Wrench, AlertTriangle, ShieldAlert, Plus } from 'lucide-vue-next';
+import { Wrench, AlertTriangle, ShieldAlert, Plus, Settings } from 'lucide-vue-next';
 
 const fleetStore = useFleetStore();
 const authStore = useAuthStore();
@@ -68,6 +68,14 @@ function handleCreateRecord() {
   showRecordModal.value = false;
   dialog.showSuccess(`Đã lưu hồ sơ bảo dưỡng cho xe ${v?.licensePlate || ''} thành công. ODO và chu kỳ bảo dưỡng kế tiếp đã được cập nhật!`, 'Ghi Nhận Bảo Dưỡng Thành Công');
 }
+
+// Lấy ngưỡng bảo dưỡng an toàn (chống lỗi HMR khi reload store)
+function getThreshold(v: any): number {
+  if (fleetStore && typeof fleetStore.getVehicleMaintenanceThreshold === 'function') {
+    return fleetStore.getVehicleMaintenanceThreshold(v);
+  }
+  return 5000;
+}
 </script>
 
 <template>
@@ -76,11 +84,15 @@ function handleCreateRecord() {
       <div>
         <h1 class="page-title">Quản Lý Bảo Dưỡng & Sự Cố Xe</h1>
         <p class="page-subtitle">
-          Theo dõi chu kỳ bảo dưỡng 5.000 km, tiếp nhận báo hỏng sự cố và ghi nhận chi phí sửa chữa thực tế
+          Theo dõi chu kỳ bảo dưỡng định mức, tiếp nhận báo hỏng sự cố và ghi nhận chi phí sửa chữa thực tế
         </p>
       </div>
 
       <div class="header-actions">
+        <router-link to="/maintenance/types" class="btn btn-outline">
+          <Settings :size="16" />
+          <span>Cài Đặt Bảo Dưỡng</span>
+        </router-link>
         <button class="btn btn-outline-danger" @click="showIncidentModal = true">
           <AlertTriangle :size="16" />
           <span>Báo Sự Cố Xe</span>
@@ -100,7 +112,7 @@ function handleCreateRecord() {
         @click="activeTab = 'due'"
       >
         <AlertTriangle :size="15" />
-        <span>Xe cần bảo dưỡng (5.000 km)</span>
+        <span>Xe cần bảo dưỡng</span>
         <span v-if="fleetStore.dueMaintenanceVehicles.length > 0" class="badge-red">
           {{ fleetStore.dueMaintenanceVehicles.length }}
         </span>
@@ -121,14 +133,20 @@ function handleCreateRecord() {
         @click="activeTab = 'records'"
       >
         <Wrench :size="15" />
-        <span>Lịch sử sửa chữa ({{ fleetStore.maintenances.length }})</span>
+        <span>Lịch sử bảo dưỡng ({{ fleetStore.maintenances.length }})</span>
       </button>
     </div>
 
-    <!-- 1. Danh sách xe cần bảo dưỡng 5.000 km (Rule 27) -->
+    <!-- 1. Danh sách xe cần bảo dưỡng định kỳ -->
     <div v-if="activeTab === 'due'" class="card">
-      <div class="card-header">
-        <h3 class="card-title">Cảnh Báo Bảo Dưỡng Định Kỳ (Chu kỳ: 5.000 km ODO)</h3>
+      <div class="card-header flex justify-between items-center">
+        <div>
+          <h3 class="card-title">Cảnh Báo Bảo Dưỡng Định Kỳ</h3>
+          <p class="text-xs text-muted">Hệ thống kích hoạt khi xe đạt hoặc vượt định mức chu kỳ đã cài đặt</p>
+        </div>
+        <router-link to="/maintenance/types" class="btn-setting-link-top">
+          ⚙ Cài đặt bảo dưỡng ↗
+        </router-link>
       </div>
 
       <div class="table-container">
@@ -153,11 +171,11 @@ function handleCreateRecord() {
               <td>
                 <span
                   class="font-bold"
-                  :class="(v.currentOdoKm - v.lastMaintenanceOdo) >= 5000 ? 'text-danger' : 'text-success'"
+                  :class="(v.currentOdoKm - v.lastMaintenanceOdo) >= getThreshold(v) ? 'text-danger' : 'text-success'"
                 >
                   {{ (v.currentOdoKm - v.lastMaintenanceOdo).toLocaleString() }} km
-                  <span v-if="(v.currentOdoKm - v.lastMaintenanceOdo) >= 5000" class="ml-1 text-xs">
-                    (Vượt mức 5.000 km)
+                  <span v-if="(v.currentOdoKm - v.lastMaintenanceOdo) >= getThreshold(v)" class="ml-1 text-xs">
+                    (Vượt ngưỡng quy định {{ getThreshold(v).toLocaleString() }} km)
                   </span>
                 </span>
               </td>
@@ -182,7 +200,7 @@ function handleCreateRecord() {
     <!-- 2. Danh sách Sự cố báo hỏng -->
     <div v-else-if="activeTab === 'incidents'" class="card">
       <div class="card-header">
-        <h3 class="card-title">Báo Cáo Sự Cố & Hư Hỏng Phương Tiện (IncidentReport)</h3>
+        <h3 class="card-title">Báo Cáo Sự Cố & Hư Hỏng Phương Tiện</h3>
       </div>
 
       <div class="table-container">
@@ -417,4 +435,33 @@ function handleCreateRecord() {
 .text-xs { font-size: 0.75rem; }
 .ml-1 { margin-left: 4px; }
 .mb-4 { margin-bottom: 20px; }
+
+.btn-outline {
+  background: white;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+.btn-outline:hover {
+  background: #f8fafc;
+  color: var(--text);
+}
+.btn-setting-link-top {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 6px;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+.btn-setting-link-top:hover {
+  background: #dcfce7;
+  color: #14532d;
+}
 </style>

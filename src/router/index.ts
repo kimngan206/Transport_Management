@@ -85,7 +85,7 @@ const router = createRouter({
       path: '/maintenance/types',
       name: 'maintenance-types',
       component: () => import('@/views/maintenance/MaintenanceTypesView.vue'),
-      meta: { title: 'Loại Bảo Dưỡng - QL_Điều Vận' },
+      meta: { title: 'Cài Đặt Bảo Dưỡng - QL_Điều Vận' },
     },
     {
       path: '/reports',

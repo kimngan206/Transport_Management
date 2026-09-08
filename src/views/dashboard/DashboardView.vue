@@ -5,9 +5,11 @@ import { useAuthStore } from '@/stores/auth';
 import { useBookingStore } from '@/stores/booking';
 import { useDispatchStore } from '@/stores/dispatch';
 import { useFleetStore } from '@/stores/fleet';
+import type { Vehicle } from '@/types';
 import MetricCard from '@/components/common/MetricCard.vue';
 import StatusBadge from '@/components/common/StatusBadge.vue';
 import BookingCreateModal from '@/components/booking/BookingCreateModal.vue';
+import VehicleDetailModal from '@/components/fleet/VehicleDetailModal.vue';
 import {
   FileText,
   Clock,
@@ -19,6 +21,7 @@ import {
   PlusCircle,
   Layers,
   ArrowRight,
+  Eye,
 } from 'lucide-vue-next';
 
 const router = useRouter();
@@ -28,12 +31,14 @@ const dispatchStore = useDispatchStore();
 const fleetStore = useFleetStore();
 
 const showCreateModal = ref(false);
+const selectedVehicleForDetail = ref<Vehicle | null>(null);
 
 // KPIs tổng hợp
 const totalRequestsCount = computed(() => bookingStore.requests.length);
 const pendingCount = computed(() => bookingStore.pendingRequests.length);
 const activeTripsCount = computed(() => dispatchStore.activeTrips.length);
 const dueMaintCount = computed(() => fleetStore.dueMaintenanceVehicles.length);
+const dueMaintenanceVehicles = computed(() => fleetStore.dueMaintenanceVehicles);
 
 // Vận hành sản lượng & dầu
 const totalLatexTons = computed(() => {
@@ -123,6 +128,66 @@ const recentTrips = computed(() => dispatchStore.trips.slice(0, 5));
         variant="danger"
         :icon="Wrench"
       />
+    </div>
+
+    <!-- Khối Cảnh Báo Đội Xe Đến Hạn Bảo Dưỡng (Section 2 - baoduong.md) -->
+    <div v-if="dueMaintenanceVehicles.length > 0" class="card fleet-alert-card mb-4">
+      <div class="fleet-alert-header">
+        <div class="alert-title-wrap">
+          <span class="alert-badge-pulse">🚨</span>
+          <div>
+            <h3 class="fleet-alert-title">CẢNH BÁO ĐỘI XE ĐẾN HẠN BẢO DƯỠNG</h3>
+            <p class="fleet-alert-sub">Hệ thống tự động phát hiện {{ dueMaintenanceVehicles.length }} xe đã đạt / vượt chu kỳ ODO định mức quy định kể từ lần bảo dưỡng trước</p>
+          </div>
+        </div>
+        <button class="btn btn-outline-danger btn-sm" @click="router.push('/maintenance')">
+          <Wrench :size="14" />
+          <span>Vào Module Bảo Dưỡng</span>
+        </button>
+      </div>
+
+      <div class="alert-vehicles-grid">
+        <div
+          v-for="v in dueMaintenanceVehicles"
+          :key="v.id"
+          class="alert-vehicle-item"
+        >
+          <div class="item-top">
+            <div class="item-plate-group">
+              <Truck :size="18" class="text-danger" />
+              <strong>{{ v.licensePlate }}</strong>
+            </div>
+            <span class="maint-need-badge">CẦN BẢO DƯỠNG</span>
+          </div>
+
+          <div class="item-model text-xs text-muted">
+            {{ v.model }}
+          </div>
+
+          <div class="item-distance-row">
+            <span>Đã chạy từ lần bảo dưỡng:</span>
+            <strong class="text-danger">
+              {{ (v.currentOdoKm - v.lastMaintenanceOdo).toLocaleString() }} km
+            </strong>
+          </div>
+
+          <div class="item-meta-row text-xs">
+            <span>ODO: {{ v.currentOdoKm.toLocaleString() }} km</span>
+            <span>Mốc trước: {{ v.lastMaintenanceOdo.toLocaleString() }} km</span>
+          </div>
+
+          <div class="item-actions">
+            <button class="btn btn-secondary btn-sm flex-1" @click="selectedVehicleForDetail = v">
+              <Eye :size="13" />
+              <span>Xem xe</span>
+            </button>
+            <button class="btn btn-primary btn-sm flex-1" @click="router.push('/maintenance')">
+              <Wrench :size="13" />
+              <span>Tạo lịch / Ghi phiếu BD</span>
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Khối Giám sát Sản lượng & Nhiên liệu (Mục 32 trang 38) -->
@@ -228,6 +293,13 @@ const recentTrips = computed(() => dispatchStore.trips.slice(0, 5));
       v-if="showCreateModal"
       @close="showCreateModal = false"
     />
+
+    <!-- Modal Xem Chi Tiết Xe & Chu Kỳ Bảo Dưỡng (Section 4 - baoduong.md) -->
+    <VehicleDetailModal
+      v-if="selectedVehicleForDetail"
+      :vehicle="selectedVehicleForDetail"
+      @close="selectedVehicleForDetail = null"
+    />
   </div>
 </template>
 
@@ -320,4 +392,111 @@ const recentTrips = computed(() => dispatchStore.trips.slice(0, 5));
 .font-bold { font-weight: 700; }
 .text-danger { color: #dc2626; }
 .text-success { color: #15803d; }
+.flex-1 { flex: 1; }
+
+/* Cảnh báo đội xe (Section 2 - baoduong.md) */
+.fleet-alert-card {
+  border: 1px solid #fecaca;
+  border-left: 5px solid #dc2626;
+  background: #fffafa;
+  padding: 16px 20px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.08);
+}
+
+.fleet-alert-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.alert-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.alert-badge-pulse {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.fleet-alert-title {
+  font-size: 0.9375rem;
+  font-weight: 800;
+  color: #991b1b;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.fleet-alert-sub {
+  font-size: 0.75rem;
+  color: #b91c1c;
+  margin: 2px 0 0 0;
+}
+
+.alert-vehicles-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.alert-vehicle-item {
+  background: #ffffff;
+  border: 1px solid #fee2e2;
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+}
+
+.item-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.item-plate-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9375rem;
+  color: #0f172a;
+}
+
+.maint-need-badge {
+  background: #fee2e2;
+  color: #b91c1c;
+  font-size: 0.625rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  letter-spacing: 0.03em;
+}
+
+.item-distance-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8125rem;
+  padding: 4px 0;
+  border-top: 1px dashed #fecaca;
+  border-bottom: 1px dashed #fecaca;
+}
+
+.item-meta-row {
+  display: flex;
+  justify-content: space-between;
+  color: #64748b;
+}
+
+.item-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
 </style>

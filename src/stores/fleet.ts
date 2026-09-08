@@ -1,4 +1,4 @@
-import { defineStore } from 'pinia';
+import { defineStore, acceptHMRUpdate } from 'pinia';
 import { ref, computed } from 'vue';
 import { mockStorage } from '@/services/mockStorage';
 import type {
@@ -31,6 +31,32 @@ export const useFleetStore = defineStore('fleet', () => {
     mockStorage.saveMaintenanceTypes(maintenanceTypes.value);
   }
 
+  // Lấy ngưỡng chu kỳ bảo dưỡng định kỳ cấu hình trong Danh mục loại bảo dưỡng
+  function getVehicleMaintenanceThreshold(vehicle: Vehicle): number {
+    if (vehicle.vehicleType === 'Excavator') {
+      const exType = maintenanceTypes.value.find(
+        (m) => m.isActive && m.applicableVehicleType === 'Excavator' && m.cycleHours
+      );
+      return exType?.cycleHours || 500;
+    }
+
+    // Tìm gói bảo dưỡng định kỳ đang kích hoạt áp dụng cho loại xe này hoặc 'All'
+    const applicable = maintenanceTypes.value
+      .filter(
+        (m) =>
+          m.isActive &&
+          m.group === 'Bảo dưỡng định kỳ' &&
+          m.cycleKm &&
+          (m.applicableVehicleType === vehicle.vehicleType || m.applicableVehicleType === 'All')
+      )
+      .sort((a, b) => (a.cycleKm || 0) - (b.cycleKm || 0));
+
+    if (applicable.length > 0 && applicable[0].cycleKm) {
+      return applicable[0].cycleKm;
+    }
+    return 5000;
+  }
+
   // Getters
   const availableVehicles = computed(() => {
     return vehicles.value.filter(
@@ -40,8 +66,9 @@ export const useFleetStore = defineStore('fleet', () => {
 
   const dueMaintenanceVehicles = computed(() => {
     return vehicles.value.filter((v) => {
+      const threshold = getVehicleMaintenanceThreshold(v);
       const distanceSinceLast = v.currentOdoKm - v.lastMaintenanceOdo;
-      return v.maintenanceStatus === 'Due' || v.maintenanceStatus === 'Overdue' || distanceSinceLast >= 5000;
+      return v.maintenanceStatus === 'Due' || v.maintenanceStatus === 'Overdue' || distanceSinceLast >= threshold;
     });
   });
 
@@ -55,8 +82,9 @@ export const useFleetStore = defineStore('fleet', () => {
     if (!v) return;
     v.currentOdoKm = newOdo;
 
-    // Rule 27: Cảnh báo bảo dưỡng 5.000 km
-    if (newOdo - v.lastMaintenanceOdo >= 5000) {
+    // Kiểm tra tự động theo ngưỡng chu kỳ bảo dưỡng đã cài đặt
+    const threshold = getVehicleMaintenanceThreshold(v);
+    if (newOdo - v.lastMaintenanceOdo >= threshold) {
       v.maintenanceStatus = 'Due';
     }
     saveState();
@@ -198,6 +226,7 @@ export const useFleetStore = defineStore('fleet', () => {
     incidents,
     maintenances,
     maintenanceTypes,
+    getVehicleMaintenanceThreshold,
     availableVehicles,
     dueMaintenanceVehicles,
     activeDrivers,
@@ -218,3 +247,7 @@ export const useFleetStore = defineStore('fleet', () => {
     toggleMaintenanceTypeStatus,
   };
 });
+
+if (import.meta.hot) {
+  import.meta.hot.accept(acceptHMRUpdate(useFleetStore, import.meta.hot));
+}
