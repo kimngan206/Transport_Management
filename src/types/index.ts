@@ -1,0 +1,247 @@
+// Types cho Hệ thống Quản lý Điều vận và Đội xe (QL_Điều Vận)
+
+export type UserRole = 'Requester' | 'Approver' | 'Dispatcher' | 'Driver' | 'Admin';
+
+export interface User {
+  id: number;
+  username: string;
+  fullName: string;
+  jobTitle?: string;
+  email: string;
+  phone: string;
+  departmentId: number;
+  departmentName: string;
+  roles: UserRole[];
+  driverId?: number; // Nếu user là Driver
+  avatarUrl?: string;
+}
+
+export interface Department {
+  id: number;
+  code: string;
+  name: string;
+  managerId: number;
+}
+
+export type VehicleType = 'Truck' | 'Pickup' | 'Excavator';
+export type VehicleOperationalStatus = 'Available' | 'OnTrip' | 'UnderMaintenance' | 'Broken';
+export type MaintenanceStatus = 'Normal' | 'Due' | 'Overdue';
+
+export interface VehicleCategory {
+  id: number;
+  code: string;
+  name: string;
+  group: 'Vận tải mủ' | 'Cơ giới nông trường' | 'Công tác & Kỹ thuật';
+  vehicleTypeCode: VehicleType;
+  standardCapacityTons?: number;
+  standardSeats?: number;
+  fuelQuotaType: 'L_PER_KM' | 'L_PER_TON_KM' | 'L_PER_HOUR';
+  defaultQuotaEmpty: number;
+  defaultQuotaLoaded?: number;
+  description: string;
+  isActive: boolean;
+}
+
+export interface Vehicle {
+  id: number;
+  licensePlate: string;
+  vehicleType: VehicleType;
+  model: string;
+  capacityTons: number; // Sức chứa tải trọng (tấn)
+  passengerCapacity?: number; // Số người (đối với xe pickup/chở người)
+  fuelQuotaEmpty: number; // NLP: Lít/km không tải (ví dụ 0.25 L/km)
+  fuelQuotaLoaded: number; // NLC: Lít/tấn.km có tải (ví dụ 0.02 L/tấn.km)
+  hourMeterQuota?: number; // Lít/giờ đối với xe xúc
+  currentOdoKm: number;
+  currentOperatingHours?: number; // Giờ máy hiện tại (xe xúc)
+  status: VehicleOperationalStatus;
+  maintenanceStatus: MaintenanceStatus;
+  lastMaintenanceOdo: number;
+  lastMaintenanceDate: string;
+}
+
+export interface Driver {
+  id: number;
+  accountId: number;
+  fullName: string;
+  phone: string;
+  licenseNumber: string;
+  licenseClass: string; // Hạng B2, C, D, E, FC...
+  licenseExpiryDate: string;
+  employmentStatus: 'Active' | 'OnLeave' | 'Suspended';
+  isCurrentlyOnTrip: boolean;
+}
+
+export interface StandardRoute {
+  id: number;
+  routeCode: string;
+  name: string;
+  startPoint: string;
+  endPoint: string;
+  standardDistanceKm: number;
+  description: string;
+}
+
+export type RequestStatus =
+  | 'PENDING'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'DISPATCHED'
+  | 'INPROGRESS'
+  | 'COMPLETED'
+  | 'CANCELLED';
+
+export interface TransportRequest {
+  id: number;
+  requestCode: string;
+  requesterId: number;
+  requesterName: string;
+  requesterPhone: string;
+  departmentId: number;
+  departmentName: string;
+  vehicleType: VehicleType;
+  startTime: string; // YYYY-MM-DD HH:mm
+  endTime: string; // YYYY-MM-DD HH:mm
+  fromLocation: string;
+  toLocation: string;
+  standardRouteId?: number;
+  purpose: string;
+  passengersCount?: number;
+  estimatedWeightKg?: number; // Khối lượng mủ / hàng dự kiến (kg)
+  status: RequestStatus;
+  rejectionReason?: string;
+  approvedById?: number;
+  approvedByName?: string;
+  approvedAt?: string;
+  assignedTripId?: number;
+  createdAt: string;
+  timeline: {
+    status: RequestStatus;
+    timestamp: string;
+    note: string;
+    actor: string;
+  }[];
+}
+
+export type TripStatus = 'ASSIGNED' | 'INPROGRESS' | 'COMPLETED' | 'CANCELLED';
+
+export interface TransportTrip {
+  id: number;
+  tripCode: string;
+  vehicleId: number;
+  vehiclePlate: string;
+  vehicleType: VehicleType;
+  driverId: number;
+  driverName: string;
+  driverPhone: string;
+  requestIds: number[]; // US-06: Ghép nhiều request
+  routeId: number;
+  routeName: string;
+  standardDistanceKm: number;
+  scheduledStartTime: string;
+  scheduledEndTime: string;
+  actualStartTime?: string;
+  actualEndTime?: string;
+  startOdo?: number;
+  endOdo?: number;
+  actualDistanceKm?: number;
+  
+  // Sản lượng mủ (đặc thù xe tải chở mủ cao su)
+  weightLatex1Kg?: number; // Mủ nước 1
+  weightLatex2Kg?: number; // Mủ nước 2
+  weightLatex3Kg?: number; // Mủ nước 3
+  weightLatexTapKg?: number; // Mủ tạp
+  totalLatexWeightKg?: number;
+
+  // Nhiên liệu theo định mức chuẩn và thực tế
+  calculatedFuelLiters?: number;
+  actualFuelFilledLiters?: number;
+  fuelVarianceLiters?: number;
+
+  // Giờ máy (đặc thù xe xúc)
+  startHourMeter?: number;
+  endHourMeter?: number;
+  totalOperatingHours?: number;
+
+  status: TripStatus;
+  notes?: string;
+  expenses: TripExpense[];
+  createdAt: string;
+}
+
+export interface TripExpense {
+  id: number;
+  tripId: number;
+  expenseType: 'Fuel' | 'Toll' | 'Parking' | 'Repair' | 'Other';
+  amount: number;
+  receiptNote?: string;
+  receiptImage?: string;
+  recordedAt: string;
+}
+
+export interface EquipmentWorkLog {
+  id: number;
+  vehicleId: number;
+  driverId: number;
+  workDate: string;
+  startHourMeter: number;
+  endHourMeter: number;
+  totalHours: number;
+  taskType: string;
+  fuelAllocated: number;
+  notes?: string;
+}
+
+export interface IncidentReport {
+  id: number;
+  vehicleId: number;
+  vehiclePlate: string;
+  reportedByDriverId: number;
+  driverName: string;
+  reportDate: string;
+  issueDescription: string;
+  severity: 'Warning' | 'StopOperation';
+  status: 'Pending' | 'InRepair' | 'Resolved';
+  resolutionNote?: string;
+}
+
+export interface MaintenanceRecord {
+  id: number;
+  vehicleId: number;
+  vehiclePlate: string;
+  incidentReportId?: number;
+  maintenanceType: 'Periodic5000Km' | 'AccidentRepair' | 'TireChange' | 'HydraulicRepair' | 'Other';
+  maintenanceOdo: number;
+  cost: number;
+  garageName: string;
+  replacedParts: string;
+  maintenanceDate: string;
+  notes?: string;
+}
+
+export interface VehicleOdoHistory {
+  id: number;
+  vehicleId: number;
+  tripId?: number;
+  startOdo: number;
+  endOdo: number;
+  distanceKm: number;
+  recordedAt: string;
+  recordedBy: string;
+}
+
+export interface MaintenanceType {
+  id: number;
+  code: string;
+  name: string;
+  group: 'Bảo dưỡng định kỳ' | 'Sửa chữa phục hồi' | 'Hệ thống chuyên dụng';
+  applicableVehicleType: 'All' | 'Truck' | 'Pickup' | 'Excavator';
+  cycleKm?: number;
+  cycleMonths?: number;
+  cycleHours?: number;
+  estimatedCost: number;
+  estimatedDurationHours: number;
+  description: string;
+  checklistItems: string[];
+  isActive: boolean;
+}
