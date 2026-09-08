@@ -155,7 +155,7 @@ const showSection = computed(() => {
 
   if (role === 'Approver') {
     return {
-      dashboard: true,
+      dashboard: false,
       booking: false,
       approval: true,
       dispatch: false,
@@ -163,7 +163,7 @@ const showSection = computed(() => {
       routes: false,
       operations: false,
       maintenance: false,
-      reports: true,
+      reports: false,
       system: false,
     };
   }
@@ -171,7 +171,7 @@ const showSection = computed(() => {
   if (role === 'Dispatcher') {
     return {
       dashboard: true,
-      booking: true,
+      booking: false,
       approval: false,
       dispatch: true,
       fleet: true,

@@ -55,6 +55,36 @@ function openBatchGeneral() {
   preselectedRequests.value = [];
   showBatchModal.value = true;
 }
+
+// Chuyển đổi trạng thái xe sang tiếng Việt
+function getVehicleStatusLabel(status: string): string {
+  switch (status) {
+    case 'Available':
+      return 'Sẵn sàng';
+    case 'OnTrip':
+      return 'Đang chạy chuyến';
+    case 'UnderMaintenance':
+      return 'Đang bảo dưỡng';
+    case 'Broken':
+      return 'Sự cố / Hỏng hóc';
+    default:
+      return status;
+  }
+}
+
+// Chuyển đổi loại xe sang tiếng Việt
+function getVehicleTypeLabel(type: string): string {
+  switch (type) {
+    case 'Truck':
+      return 'Xe tải';
+    case 'Pickup':
+      return 'Bán tải';
+    case 'Excavator':
+      return 'Máy đào';
+    default:
+      return type;
+  }
+}
 </script>
 
 <template>
@@ -121,7 +151,7 @@ function openBatchGeneral() {
           >
             <div class="req-card-top">
               <strong>{{ req.requestCode }}</strong>
-              <span class="type-pill">{{ req.vehicleType }}</span>
+              <span class="type-pill">{{ getVehicleTypeLabel(req.vehicleType) }}</span>
             </div>
 
             <div class="req-card-route">
@@ -171,7 +201,7 @@ function openBatchGeneral() {
                 <strong>{{ v.licensePlate }}</strong>
               </div>
               <span class="veh-status-badge" :class="`status-${v.status.toLowerCase()}`">
-                {{ v.status }}
+                {{ getVehicleStatusLabel(v.status) }}
               </span>
             </div>
 
@@ -268,7 +298,7 @@ function openBatchGeneral() {
               <td>
                 <div class="flex-col">
                   <strong>{{ t.vehiclePlate }}</strong>
-                  <span class="text-xs text-muted">{{ t.vehicleType }}</span>
+                  <span class="text-xs text-muted">{{ getVehicleTypeLabel(t.vehicleType) }}</span>
                 </div>
               </td>
               <td>

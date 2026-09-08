@@ -44,6 +44,25 @@ const selectedVehicle = computed(() => {
   return fleetStore.vehicles.find((v) => v.id === Number(vehicleId.value));
 });
 
+function getVehicleStatusLabel(status: string): string {
+  switch (status) {
+    case 'Available': return 'Sẵn sàng';
+    case 'OnTrip': return 'Đang chạy chuyến';
+    case 'UnderMaintenance': return 'Đang bảo dưỡng';
+    case 'Broken': return 'Sự cố / Hỏng hóc';
+    default: return status;
+  }
+}
+
+function getVehicleTypeLabel(type: string): string {
+  switch (type) {
+    case 'Truck': return 'Xe tải';
+    case 'Pickup': return 'Bán tải';
+    case 'Excavator': return 'Máy đào';
+    default: return type;
+  }
+}
+
 const selectedDriver = computed(() => {
   return fleetStore.drivers.find((d) => d.id === Number(driverId.value));
 });
@@ -216,7 +235,7 @@ function handleDispatch() {
               <div class="req-info">
                 <div class="req-title-row">
                   <span class="req-code"><strong>{{ r.requestCode }}</strong></span>
-                  <span class="req-type-tag">{{ r.vehicleType }}</span>
+                  <span class="req-type-tag">{{ getVehicleTypeLabel(r.vehicleType) }}</span>
                   <span class="req-time">{{ r.startTime.slice(11) }} - {{ r.endTime.slice(11) }}</span>
                 </div>
                 <div class="req-route-row">
@@ -278,7 +297,7 @@ function handleDispatch() {
                 :value="v.id"
                 :disabled="v.status !== 'Available'"
               >
-                {{ v.licensePlate }} ({{ v.vehicleType }} - Tải {{ v.capacityTons }}T) [{{ v.status }}]
+                {{ v.licensePlate }} ({{ getVehicleTypeLabel(v.vehicleType) }} - Tải {{ v.capacityTons }}T) [{{ getVehicleStatusLabel(v.status) }}]
               </option>
             </select>
             <span v-if="selectedVehicle" class="form-hint">
@@ -303,7 +322,7 @@ function handleDispatch() {
               </option>
             </select>
             <span v-if="selectedDriver" class="form-hint">
-              SĐT: {{ selectedDriver.phone }} | Tình trạng: {{ selectedDriver.employmentStatus }}
+              SĐT: {{ selectedDriver.phone }} | Tình trạng: {{ selectedDriver.employmentStatus === 'Active' ? 'Đang làm việc' : selectedDriver.employmentStatus }}
             </span>
           </div>
         </div>

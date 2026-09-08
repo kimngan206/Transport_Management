@@ -117,7 +117,7 @@ router.beforeEach((to) => {
   try {
     const authStore = useAuthStore();
     if (authStore.activeRole === 'Approver') {
-      if (to.path === '/' || to.path === '/booking') {
+      if (to.path === '/' || to.path === '/booking' || to.path === '/reports') {
         return '/approval';
       }
     } else if (authStore.activeRole === 'Requester') {
