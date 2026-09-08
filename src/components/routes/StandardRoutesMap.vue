@@ -67,6 +67,18 @@ const selectedRoute = computed(() => {
   return routesList.value.find((r) => r.code === selectedRouteCode.value) || null;
 });
 
+// Đồng bộ khi prop tuyến được chọn từ bên ngoài thay đổi
+watch(
+  () => props.initialSelectedRouteCode,
+  (newCode) => {
+    if (newCode) {
+      selectRoute(newCode);
+    } else {
+      resetMapView();
+    }
+  }
+);
+
 // Thống kê nhanh
 const totalStandardKm = computed(() => {
   return routesList.value.reduce((sum, r) => sum + r.distanceKm, 0);
@@ -263,6 +275,13 @@ function renderHubMarkers() {
   });
   hubMarkers = [];
 
+  // Khi đang chọn 1 tuyến đường cụ thể:
+  // Điểm đi (A) và điểm đến (B) đã được biểu diễn trực quan qua Pin A và Pin B trong renderRoutes().
+  // Ẩn toàn bộ các trạm khác trên mạng lưới để chỉ hiển thị duy nhất tuyến đang chọn, tránh chồng lấn và rối mắt.
+  if (selectedRouteCode.value) {
+    return;
+  }
+
   ECOTECH_HUBS.forEach((hub) => {
     const customIcon = L.divIcon({
       className: 'custom-hub-icon',
@@ -443,6 +462,7 @@ function selectRoute(code: string) {
   selectedRouteCode.value = code;
   emit('routeSelected', code);
   renderRoutes();
+  renderHubMarkers();
   focusRoute(code);
 }
 
@@ -461,6 +481,7 @@ function focusRoute(code: string) {
 function resetMapView() {
   selectedRouteCode.value = null;
   renderRoutes();
+  renderHubMarkers();
   if (mapInstance.value) {
     mapInstance.value.invalidateSize();
     mapInstance.value.flyTo([11.5400, 106.6200], 12, { duration: 0.8 });
@@ -604,8 +625,8 @@ onUnmounted(() => {
       <!-- Container chứa Leaflet Map -->
       <div ref="mapContainer" class="leaflet-map-canvas"></div>
 
-      <!-- Chú giải sơ đồ (Legend overlay) -->
-      <div class="map-legend-card">
+      <!-- Chú giải sơ đồ (Legend overlay - Tự động thích ứng theo chế độ Tổng thể hoặc Tuyến đang chọn) -->
+      <div v-if="!selectedRoute" class="map-legend-card">
         <h5 class="legend-title">Mạng Lưới Nông Trường</h5>
         <div class="legend-item">
           <span class="legend-icon icon-station">TC1</span>
@@ -622,6 +643,22 @@ onUnmounted(() => {
         <div class="legend-item">
           <span class="legend-line"></span>
           <span>Tuyến quy chuẩn</span>
+        </div>
+      </div>
+
+      <div v-else class="map-legend-card single-vehicle-legend">
+        <h5 class="legend-title">Sơ Đồ Tuyến {{ selectedRoute.code }}</h5>
+        <div class="legend-item">
+          <span class="legend-icon icon-start-pin">A</span>
+          <span>Điểm đi: <strong>{{ selectedRoute.from.shortName }}</strong></span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-icon icon-end-pin">B</span>
+          <span>Điểm đến: <strong>{{ selectedRoute.to.shortName }}</strong></span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-line line-running"></span>
+          <span>Cự ly quy chuẩn ({{ selectedRoute.distanceKm }} km)</span>
         </div>
       </div>
 
@@ -1234,6 +1271,37 @@ onUnmounted(() => {
   height: 4px;
   background: #16a34a;
   border-radius: 2px;
+}
+
+.line-running {
+  background: #15803d;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.6);
+}
+
+.icon-start-pin {
+  background: #0284c7;
+  font-weight: 800;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-end-pin {
+  background: #dc2626;
+  font-weight: 800;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.single-vehicle-legend {
+  border-left: 3px solid #15803d;
 }
 
 /* Modal Styling */
