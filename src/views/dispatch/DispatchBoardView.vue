@@ -8,13 +8,15 @@ import type { TransportRequest } from '@/types';
 import StatusBadge from '@/components/common/StatusBadge.vue';
 import BatchTripModal from '@/components/dispatch/BatchTripModal.vue';
 import FleetDispatchMap from '@/components/dispatch/FleetDispatchMap.vue';
-import { Layers, Truck, UserCheck, AlertCircle, Plus, CheckCircle2, MapPin, LayoutGrid } from 'lucide-vue-next';
+import TripExpensesModal from '@/components/common/TripExpensesModal.vue';
+import { Layers, Truck, UserCheck, AlertCircle, Plus, CheckCircle2, MapPin, LayoutGrid, Receipt } from 'lucide-vue-next';
 
 const route = useRoute();
 const router = useRouter();
 const bookingStore = useBookingStore();
 const dispatchStore = useDispatchStore();
 const fleetStore = useFleetStore();
+const viewExpensesTrip = ref<any>(null);
 
 // Chế độ xem: 'map' (Bản đồ & Lộ trình GPS) hoặc 'board' (Bảng thẻ Kanban 3 cột)
 const viewMode = ref<'map' | 'board'>((route.query.view as string) === 'board' ? 'board' : 'map');
@@ -283,12 +285,13 @@ function getVehicleTypeLabel(type: string): string {
               <th>Thời Gian Dự Kiến</th>
               <th>Số YC Ghép</th>
               <th>Sản Lượng Mủ (kg)</th>
+              <th>Chi Phí & Bằng Chứng</th>
               <th>Trạng Thái</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="trips.length === 0">
-              <td colspan="8" class="text-center py-5 text-muted">
+              <td colspan="9" class="text-center py-5 text-muted">
                 Chưa có chuyến xe nào được điều phối.
               </td>
             </tr>
@@ -329,6 +332,21 @@ function getVehicleTypeLabel(type: string): string {
                 <span v-else class="text-muted">—</span>
               </td>
               <td>
+                <div v-if="t.expenses && t.expenses.length > 0" class="flex-col">
+                  <strong>{{ t.expenses.reduce((acc, e) => acc + (e.amount || 0), 0).toLocaleString() }} đ</strong>
+                  <button
+                    class="btn-proof-tag mt-1"
+                    :class="t.expenses.every((e) => !!e.receiptImage) ? 'proof-full' : 'proof-partial'"
+                    @click="viewExpensesTrip = t"
+                    title="Xem chi tiết các khoản chi và ảnh chụp hóa đơn bằng chứng"
+                  >
+                    <Receipt :size="12" />
+                    <span>{{ t.expenses.filter((e) => !!e.receiptImage).length }}/{{ t.expenses.length }} Hóa đơn</span>
+                  </button>
+                </div>
+                <span v-else class="text-xs text-muted">0 đ</span>
+              </td>
+              <td>
                 <StatusBadge :status="t.status" />
               </td>
             </tr>
@@ -343,6 +361,13 @@ function getVehicleTypeLabel(type: string): string {
       :initial-selected-requests="preselectedRequests"
       @close="showBatchModal = false"
       @dispatched="showBatchModal = false"
+    />
+
+    <!-- Modal Xem Chi tiết & Thẩm định Bằng chứng Chi phí -->
+    <TripExpensesModal
+      v-if="viewExpensesTrip"
+      :trip="viewExpensesTrip"
+      @close="viewExpensesTrip = null"
     />
   </div>
 </template>
@@ -584,7 +609,35 @@ function getVehicleTypeLabel(type: string): string {
   color: #15803d;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
-.mb-4 { margin-bottom: 16px; }
+.btn-proof-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  width: fit-content;
+  transition: all 0.15s;
+}
+.btn-proof-tag.proof-full {
+  background: #dcfce7;
+  color: #15803d;
+  border-color: #86efac;
+}
+.btn-proof-tag.proof-full:hover {
+  background: #bbf7d0;
+}
+.btn-proof-tag.proof-partial {
+  background: #fef3c7;
+  color: #b45309;
+  border-color: #fde68a;
+}
+.btn-proof-tag.proof-partial:hover {
+  background: #fde68a;
+}
 
 @media (max-width: 1024px) {
   .dispatch-board-grid { grid-template-columns: 1fr; }

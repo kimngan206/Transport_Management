@@ -299,6 +299,23 @@ h1, h2, h3, h4, h5, h6 {
 }
 .badge-dispatched .badge-dot { background-color: #8b5cf6; }
 
+.badge-accepted {
+  background-color: #ecfeff;
+  color: #0e7490;
+  border-color: #a5f3fc;
+}
+.badge-accepted .badge-dot { background-color: #06b6d4; }
+
+.badge-arrived {
+  background-color: #fefce8;
+  color: #a16207;
+  border-color: #fef08a;
+}
+.badge-arrived .badge-dot {
+  background-color: #eab308;
+  animation: pulse-dot 1.5s infinite;
+}
+
 .badge-inprogress {
   background-color: #f0f9ff;
   color: #0369a1;

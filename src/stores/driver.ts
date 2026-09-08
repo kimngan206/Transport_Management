@@ -1,4 +1,4 @@
-import { defineStore } from 'pinia';
+import { defineStore, acceptHMRUpdate } from 'pinia';
 import { computed } from 'vue';
 import { useDispatchStore } from './dispatch';
 import { useFleetStore } from './fleet';
@@ -26,10 +26,45 @@ export const useDriverStore = defineStore('driver', () => {
   });
 
   const currentActiveTrip = computed<TransportTrip | undefined>(() => {
-    return myTrips.value.find((t) => t.status === 'INPROGRESS' || t.status === 'ASSIGNED');
+    return myTrips.value.find(
+      (t) =>
+        t.status === 'ASSIGNED' ||
+        t.status === 'ACCEPTED' ||
+        t.status === 'INPROGRESS' ||
+        t.status === 'ARRIVED'
+    );
   });
 
-  // US-08: Bắt đầu chuyến xe
+  // Hành động 1: Tài xế xác nhận nhận chuyến xe để thông báo cho Điều phối viên
+  function acceptTrip(tripId: number): { success: boolean; message: string } {
+    const trip = dispatchStore.trips.find((t) => t.id === tripId);
+    if (!trip) return { success: false, message: 'Không tìm thấy chuyến xe' };
+
+    if (trip.status !== 'ASSIGNED') {
+      return { success: false, message: 'Chuyến xe đã được xác nhận hoặc đang chạy!' };
+    }
+
+    const nowStr = new Date().toISOString().slice(0, 16).replace('T', ' ');
+    trip.status = 'ACCEPTED';
+    trip.acceptedAt = nowStr;
+
+    // Ghi nhận timeline vào các yêu cầu ghép để người đặt xe & Dispatcher theo dõi
+    for (const reqId of trip.requestIds) {
+      bookingStore.updateRequestStatus(
+        reqId,
+        'DISPATCHED',
+        trip.driverName,
+        `Tài xế ${trip.driverName} đã xác nhận nhận lệnh vận chuyển lúc ${nowStr.slice(11)}.`
+      );
+    }
+
+    return {
+      success: true,
+      message: `Đã xác nhận nhận chuyến ${trip.tripCode}! Thông tin đã được gửi tới Điều phối viên.`,
+    };
+  }
+
+  // Hành động 2: Bắt đầu chuyến xe (Nhập ODO xuất bến)
   function startTrip(
     tripId: number,
     startOdo: number
@@ -37,8 +72,8 @@ export const useDriverStore = defineStore('driver', () => {
     const trip = dispatchStore.trips.find((t) => t.id === tripId);
     if (!trip) return { success: false, message: 'Không tìm thấy chuyến xe' };
 
-    if (trip.status !== 'ASSIGNED') {
-      return { success: false, message: 'Chuyến xe không ở trạng thái chờ khởi hành (ASSIGNED)' };
+    if (trip.status !== 'ASSIGNED' && trip.status !== 'ACCEPTED') {
+      return { success: false, message: 'Chuyến xe không ở trạng thái chờ khởi hành (ASSIGNED hoặc ACCEPTED)' };
     }
 
     const vehicle = fleetStore.vehicles.find((v) => v.id === trip.vehicleId);
@@ -78,6 +113,39 @@ export const useDriverStore = defineStore('driver', () => {
     };
   }
 
+  // Hành động 3: Tài xế báo cáo đã đến địa điểm chỉ định
+  function reportArrived(
+    tripId: number,
+    note?: string
+  ): { success: boolean; message: string } {
+    const trip = dispatchStore.trips.find((t) => t.id === tripId);
+    if (!trip) return { success: false, message: 'Không tìm thấy chuyến xe' };
+
+    if (trip.status !== 'INPROGRESS') {
+      return { success: false, message: 'Chuyến xe chưa khởi hành hoặc đã hoàn thành!' };
+    }
+
+    const nowStr = new Date().toISOString().slice(0, 16).replace('T', ' ');
+    trip.status = 'ARRIVED';
+    trip.arrivedAt = nowStr;
+    trip.arrivalNote = note || '';
+
+    // Cập nhật timeline các yêu cầu ghép
+    for (const reqId of trip.requestIds) {
+      bookingStore.updateRequestStatus(
+        reqId,
+        'INPROGRESS',
+        trip.driverName,
+        `Tài xế báo cáo xe đã đến điểm chỉ định lúc ${nowStr.slice(11)}${note ? ` (${note})` : ''}.`
+      );
+    }
+
+    return {
+      success: true,
+      message: `Đã cập nhật trạng thái: Xe đã đến điểm chỉ định! Thông tin đã đồng bộ lên bản đồ Điều phối.`,
+    };
+  }
+
   // US-09: Hoàn thành chuyến xe & Tính toán nhiên liệu, ODO
   function completeTrip(
     tripId: number,
@@ -97,7 +165,7 @@ export const useDriverStore = defineStore('driver', () => {
     const trip = dispatchStore.trips.find((t) => t.id === tripId);
     if (!trip) return { success: false, message: 'Không tìm thấy chuyến xe' };
 
-    if (trip.status !== 'INPROGRESS') {
+    if (trip.status !== 'INPROGRESS' && trip.status !== 'ARRIVED') {
       return { success: false, message: 'Chuyến xe chưa bắt đầu hoặc đã hoàn thành!' };
     }
 
@@ -125,7 +193,6 @@ export const useDriverStore = defineStore('driver', () => {
     const totalWeightKg = latex1 + latex2 + latex3 + latexTap;
 
     // Rule 22: Công thức tính nhiên liệu tiêu chuẩn cho xe tải
-    // Dầu chuẩn = (StandardDistanceKm * NLP) + [(WeightKg / 1000) * StandardDistanceKm * NLC]
     let calculatedFuel = 0;
     const distanceForFuel = trip.standardDistanceKm || distanceKm;
 
@@ -136,24 +203,17 @@ export const useDriverStore = defineStore('driver', () => {
     } else if (vehicle.vehicleType === 'Pickup') {
       calculatedFuel = Number((distanceForFuel * (vehicle.fuelQuotaEmpty || 0.1)).toFixed(2));
     } else if (vehicle.vehicleType === 'Excavator') {
-      // Rule 24: Xe xúc theo giờ máy
       const hours = (payload.endHourMeter || 0) - (payload.startHourMeter || 0);
-      calculatedFuel = Number((hours * (vehicle.hourMeterQuota || 14.5)).toFixed(2));
-      trip.startHourMeter = payload.startHourMeter;
-      trip.endHourMeter = payload.endHourMeter;
-      trip.totalOperatingHours = hours;
-      if (vehicle.currentOperatingHours !== undefined) {
-        vehicle.currentOperatingHours = payload.endHourMeter || vehicle.currentOperatingHours;
-      }
+      calculatedFuel = Number((Math.max(0, hours) * (vehicle.fuelQuotaEmpty || 12.0)).toFixed(2));
     }
 
     const actualFuel = Number(payload.actualFuelFilledLiters) || 0;
     const fuelVariance = Number((actualFuel - calculatedFuel).toFixed(2));
 
-    // Cập nhật thông tin Trip
+    // Cập nhật Trip
     trip.endOdo = payload.endOdo;
-    trip.actualDistanceKm = distanceKm;
     trip.actualEndTime = nowStr;
+    trip.actualDistanceKm = distanceKm;
     trip.weightLatex1Kg = latex1;
     trip.weightLatex2Kg = latex2;
     trip.weightLatex3Kg = latex3;
@@ -162,21 +222,29 @@ export const useDriverStore = defineStore('driver', () => {
     trip.calculatedFuelLiters = calculatedFuel;
     trip.actualFuelFilledLiters = actualFuel;
     trip.fuelVarianceLiters = fuelVariance;
+    trip.startHourMeter = payload.startHourMeter;
+    trip.endHourMeter = payload.endHourMeter;
+    trip.totalOperatingHours =
+      payload.endHourMeter && payload.startHourMeter
+        ? payload.endHourMeter - payload.startHourMeter
+        : undefined;
     trip.status = 'COMPLETED';
-    if (payload.notes) trip.notes = payload.notes;
 
-    // Chi phí chuyến đi (Rule 20)
+    // Lưu các chi phí phát sinh nếu có
     if (payload.expenses && payload.expenses.length > 0) {
-      const newExpenses: TripExpense[] = payload.expenses.map((e, idx) => ({
-        ...e,
-        id: Date.now() + idx,
+      trip.expenses = payload.expenses.map((exp, idx) => ({
+        id: (exp as any).id || Date.now() + idx,
         tripId: trip.id,
-        recordedAt: nowStr,
+        expenseType: exp.expenseType,
+        amount: Number(exp.amount) || 0,
+        receiptNote: exp.receiptNote,
+        receiptImage: exp.receiptImage,
+        recordedAt: (exp as any).recordedAt || new Date().toISOString().slice(0, 16).replace('T', ' '),
+        auditStatus: (exp as any).auditStatus || (exp.receiptImage ? 'APPROVED' : 'PENDING'),
       }));
-      trip.expenses.push(...newExpenses);
     }
 
-    // Cập nhật ODO xe & kiểm tra bảo dưỡng 5.000 km (Rule 19 & 27)
+    // Cập nhật ODO xe và kiểm tra cảnh báo bảo dưỡng
     if (vehicle.vehicleType !== 'Excavator') {
       fleetStore.updateVehicleOdo(vehicle.id, payload.endOdo);
     }
@@ -201,10 +269,66 @@ export const useDriverStore = defineStore('driver', () => {
     };
   }
 
+  function addExpenseToTrip(
+    tripId: number,
+    expense: {
+      expenseType: TripExpense['expenseType'];
+      amount: number;
+      receiptNote?: string;
+      receiptImage?: string;
+    }
+  ) {
+    const trip = dispatchStore.trips.find((t) => t.id === tripId);
+    if (!trip) return { success: false, message: 'Không tìm thấy chuyến xe' };
+    if (!trip.expenses) trip.expenses = [];
+    const newExp: TripExpense = {
+      id: Date.now() + Math.floor(Math.random() * 1000),
+      tripId: trip.id,
+      expenseType: expense.expenseType,
+      amount: Number(expense.amount) || 0,
+      receiptNote: expense.receiptNote,
+      receiptImage: expense.receiptImage,
+      recordedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
+      auditStatus: expense.receiptImage ? 'APPROVED' : 'PENDING',
+    };
+    trip.expenses.push(newExp);
+    return { success: true, message: 'Đã kê khai chi phí & lưu bằng chứng thành công!', expense: newExp };
+  }
+
+  function removeExpenseFromTrip(tripId: number, expenseId: number) {
+    const trip = dispatchStore.trips.find((t) => t.id === tripId);
+    if (!trip || !trip.expenses) return { success: false, message: 'Không tìm thấy chi phí' };
+    const idx = trip.expenses.findIndex((e) => e.id === expenseId);
+    if (idx !== -1) {
+      trip.expenses.splice(idx, 1);
+      return { success: true, message: 'Đã xóa khoản chi' };
+    }
+    return { success: false, message: 'Không tìm thấy khoản chi' };
+  }
+
+  function auditExpense(tripId: number, expenseId: number, status: 'APPROVED' | 'REJECTED' | 'PENDING', note?: string) {
+    const trip = dispatchStore.trips.find((t) => t.id === tripId);
+    if (!trip || !trip.expenses) return { success: false, message: 'Không tìm thấy chuyến xe' };
+    const exp = trip.expenses.find((e) => e.id === expenseId);
+    if (!exp) return { success: false, message: 'Không tìm thấy khoản chi' };
+    exp.auditStatus = status;
+    if (note !== undefined) exp.auditNote = note;
+    return { success: true, message: 'Đã cập nhật trạng thái thẩm định bằng chứng chi phí' };
+  }
+
   return {
     myTrips,
     currentActiveTrip,
+    acceptTrip,
     startTrip,
+    reportArrived,
     completeTrip,
+    addExpenseToTrip,
+    removeExpenseFromTrip,
+    auditExpense,
   };
 });
+
+if (import.meta.hot) {
+  import.meta.hot.accept(acceptHMRUpdate(useDriverStore, import.meta.hot));
+}

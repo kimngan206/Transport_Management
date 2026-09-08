@@ -19,6 +19,8 @@ const labelMap: Record<string, string> = {
 
   // Trip Status
   ASSIGNED: 'Đã phân công',
+  ACCEPTED: 'Đã nhận chuyến',
+  ARRIVED: 'Đã đến nơi',
 
   // Maintenance Status
   Normal: 'Bình thường',
@@ -36,6 +38,10 @@ const badgeClass = computed(() => {
     case 'dispatched':
     case 'assigned':
       return 'badge-dispatched';
+    case 'accepted':
+      return 'badge-accepted';
+    case 'arrived':
+      return 'badge-arrived';
     case 'inprogress':
       return 'badge-inprogress';
     case 'completed':

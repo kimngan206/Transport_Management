@@ -382,6 +382,18 @@ export const mockStorage = {
       saveToStorage(STORAGE_KEYS.TRIPS, initialTrips);
       return [...initialTrips];
     }
+    // Đảm bảo chuyến 1002 có trạng thái ASSIGNED ban đầu để trải nghiệm trọn vẹn luồng nhận chuyến
+    const t1002 = res.find((t) => t.id === 1002);
+    if (t1002 && !t1002.acceptedAt && t1002.status === 'INPROGRESS') {
+      t1002.status = 'ASSIGNED';
+      saveToStorage(STORAGE_KEYS.TRIPS, res);
+    }
+    const t1001 = res.find((t) => t.id === 1001);
+    if (t1001 && t1001.expenses && (!t1001.expenses[0] || !t1001.expenses[0].receiptImage)) {
+      const init1001 = initialTrips.find((t) => t.id === 1001);
+      if (init1001) t1001.expenses = JSON.parse(JSON.stringify(init1001.expenses));
+      saveToStorage(STORAGE_KEYS.TRIPS, res);
+    }
     return res;
   },
   saveTrips(data: TransportTrip[]) {

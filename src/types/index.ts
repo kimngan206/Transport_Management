@@ -123,7 +123,7 @@ export interface TransportRequest {
   }[];
 }
 
-export type TripStatus = 'ASSIGNED' | 'INPROGRESS' | 'COMPLETED' | 'CANCELLED';
+export type TripStatus = 'ASSIGNED' | 'ACCEPTED' | 'INPROGRESS' | 'ARRIVED' | 'COMPLETED' | 'CANCELLED';
 
 export interface TransportTrip {
   id: number;
@@ -140,8 +140,11 @@ export interface TransportTrip {
   standardDistanceKm: number;
   scheduledStartTime: string;
   scheduledEndTime: string;
-  actualStartTime?: string;
-  actualEndTime?: string;
+  acceptedAt?: string; // Mốc thời gian tài xế bấm nhận chuyến
+  actualStartTime?: string; // Mốc thời gian xuất bến
+  arrivedAt?: string; // Mốc thời gian tài xế báo đã đến điểm chỉ định
+  arrivalNote?: string; // Ghi chú khi đến nơi
+  actualEndTime?: string; // Mốc thời gian về bến hoàn thành
   startOdo?: number;
   endOdo?: number;
   actualDistanceKm?: number;
@@ -177,6 +180,8 @@ export interface TripExpense {
   receiptNote?: string;
   receiptImage?: string;
   recordedAt: string;
+  auditStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
+  auditNote?: string;
 }
 
 export interface EquipmentWorkLog {

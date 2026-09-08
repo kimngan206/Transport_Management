@@ -4,7 +4,24 @@ import { useDriverStore } from '@/stores/driver';
 import { useFleetStore } from '@/stores/fleet';
 import { useDialogStore } from '@/stores/dialog';
 import type { TransportTrip, TripExpense } from '@/types';
-import { X, CheckCircle, AlertCircle, Calculator, Plus, Trash2 } from 'lucide-vue-next';
+import {
+  X,
+  CheckCircle,
+  CheckCircle2,
+  AlertCircle,
+  Calculator,
+  Plus,
+  Trash2,
+  Camera,
+  ZoomIn,
+  AlertTriangle,
+} from 'lucide-vue-next';
+import {
+  getPetrolimexReceiptSample,
+  getTollReceiptSample,
+  getWeighStationReceiptSample,
+  getRepairReceiptSample,
+} from '@/utils/receiptSamples';
 
 const props = defineProps<{
   trip: TransportTrip;
@@ -38,22 +55,95 @@ const endHour = ref<number>((vehicle?.currentOperatingHours || 4820) + 4);
 const actualFuel = ref<number>(10.5);
 const notes = ref<string>('Hoàn thành chuyến đi an toàn');
 const errorMsg = ref<string>('');
+const previewProofModalImage = ref<string | null>(null);
 
 // Chi phí chuyến đi
 interface TempExpense {
+  id?: number;
   expenseType: TripExpense['expenseType'];
   amount: number;
   receiptNote: string;
+  receiptImage?: string;
+  sampleName?: string;
+  auditStatus?: TripExpense['auditStatus'];
 }
-const expenses = ref<TempExpense[]>([
-  { expenseType: 'Toll', amount: 35000, receiptNote: 'Vé trạm thu phí' },
-]);
+
+const expenses = ref<TempExpense[]>(
+  props.trip.expenses && props.trip.expenses.length > 0
+    ? props.trip.expenses.map((e) => ({
+        id: e.id,
+        expenseType: e.expenseType,
+        amount: e.amount,
+        receiptNote: e.receiptNote || '',
+        receiptImage: e.receiptImage,
+        sampleName: e.receiptImage ? 'Ảnh chụp hóa đơn chứng từ' : undefined,
+        auditStatus: e.auditStatus,
+      }))
+    : [
+        {
+          expenseType: 'Toll',
+          amount: 35000,
+          receiptNote: 'Vé trạm thu phí BOT ĐT741',
+          receiptImage: getTollReceiptSample(props.trip.vehiclePlate, '35.000 đ'),
+          sampleName: 'Vé BOT ĐT741',
+        },
+      ]
+);
 
 function addExpense() {
   expenses.value.push({ expenseType: 'Fuel', amount: 0, receiptNote: '' });
 }
 function removeExpense(idx: number) {
   expenses.value.splice(idx, 1);
+}
+
+function onFileInputChange(event: Event, exp: TempExpense) {
+  const target = event.target as HTMLInputElement;
+  if (!target.files || target.files.length === 0) return;
+  const file = target.files[0];
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    if (e.target?.result) {
+      exp.receiptImage = e.target.result as string;
+      exp.sampleName = file.name;
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+function applySampleReceipt(exp: TempExpense, type: 'Fuel' | 'Toll' | 'Weigh' | 'Repair') {
+  const plate = props.trip.vehiclePlate || '51C-889.26';
+
+  if (type === 'Fuel') {
+    exp.expenseType = 'Fuel';
+    if (!exp.amount) exp.amount = 850000;
+    if (!exp.receiptNote) exp.receiptNote = 'Hóa đơn đổ dầu DO Petrolimex';
+    exp.receiptImage = getPetrolimexReceiptSample(plate, formatNumberWithDots(exp.amount) + ' đ', '45.2 Lít');
+    exp.sampleName = 'Mẫu HĐ Petrolimex';
+  } else if (type === 'Toll') {
+    exp.expenseType = 'Toll';
+    if (!exp.amount) exp.amount = 35000;
+    if (!exp.receiptNote) exp.receiptNote = 'Vé trạm thu phí BOT ĐT741';
+    exp.receiptImage = getTollReceiptSample(plate, formatNumberWithDots(exp.amount) + ' đ');
+    exp.sampleName = 'Mẫu Vé BOT ĐT741';
+  } else if (type === 'Weigh') {
+    exp.expenseType = 'Other';
+    if (!exp.amount) exp.amount = 50000;
+    if (!exp.receiptNote) exp.receiptNote = 'Phí trạm cân tiếp nhận mủ cao su TC1';
+    exp.receiptImage = getWeighStationReceiptSample(plate, '4.800 kg mủ', formatNumberWithDots(exp.amount) + ' đ');
+    exp.sampleName = 'Mẫu Phiếu Cân Mủ';
+  } else if (type === 'Repair') {
+    exp.expenseType = 'Repair';
+    if (!exp.amount) exp.amount = 150000;
+    if (!exp.receiptNote) exp.receiptNote = 'Vá lốp xe tải lưu động khẩn cấp';
+    exp.receiptImage = getRepairReceiptSample(plate, formatNumberWithDots(exp.amount) + ' đ');
+    exp.sampleName = 'Mẫu Biên Lai Vá Vỏ';
+  }
+}
+
+function removeReceiptImage(exp: TempExpense) {
+  exp.receiptImage = undefined;
+  exp.sampleName = undefined;
 }
 
 // Phân tách hàng nghìn bằng dấu "." (chuẩn hiển thị tiền tệ & số liệu Việt Nam)
@@ -82,6 +172,10 @@ function onNumberInput(event: Event, setter: (val: number) => void) {
 
 const totalExpenseAmount = computed(() => {
   return expenses.value.reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+});
+
+const verifiedExpensesCount = computed(() => {
+  return expenses.value.filter((e) => e.amount > 0 && !!e.receiptImage).length;
 });
 
 // Tính toán thời gian thực ngay trong modal (US-23)
@@ -266,44 +360,179 @@ function handleComplete() {
           </span>
         </div>
 
-        <!-- 4. Khai báo chi phí chuyến đi -->
+        <!-- 4. Khai báo chi phí chuyến đi & Bằng chứng xác minh -->
         <div class="section-box mt-3">
           <div class="flex-between">
-            <h4 class="section-title">Khai báo chi phí chuyến đi</h4>
+            <div>
+              <h4 class="section-title mb-0">Kê khai chi phí phát sinh & Bằng chứng xác minh</h4>
+              <p class="section-subtitle">
+                Đính kèm ảnh chụp hóa đơn, vé trạm BOT, phiếu cân mủ để Điều phối & Kế toán xác minh tính trung thực
+              </p>
+            </div>
             <button class="btn btn-secondary btn-sm" @click="addExpense">
               <Plus :size="14" />
-              <span>Thêm chi phí</span>
+              <span>Thêm khoản chi</span>
             </button>
           </div>
 
-          <div v-for="(exp, idx) in expenses" :key="idx" class="expense-row">
-            <select v-model="exp.expenseType" class="form-select expense-type">
-              <option value="Toll">Vé cầu đường (Toll)</option>
-              <option value="Fuel">Xăng dầu (Fuel)</option>
-              <option value="Parking">Bãi đỗ xe (Parking)</option>
-              <option value="Repair">Sửa chữa nhanh</option>
-              <option value="Other">Khác</option>
-            </select>
-            <div class="expense-amount-wrap">
+          <div v-if="expenses.length === 0" class="empty-expense-hint">
+            <span>Không phát sinh chi phí cho chuyến xe này.</span>
+          </div>
+
+          <div
+            v-for="(exp, idx) in expenses"
+            :key="idx"
+            class="expense-item-card"
+            :class="{ 'has-proof': !!exp.receiptImage, 'no-proof': !exp.receiptImage }"
+          >
+            <!-- Hàng 1: Loại chi phí, Số tiền, Ghi chú, Nút xóa -->
+            <div class="expense-inputs-row">
+              <select v-model="exp.expenseType" class="form-select expense-type">
+                <option value="Toll">Vé cầu đường (Toll)</option>
+                <option value="Fuel">Xăng dầu (Fuel)</option>
+                <option value="Parking">Bãi đỗ xe (Parking)</option>
+                <option value="Repair">Sửa chữa nhanh</option>
+                <option value="Other">Khác</option>
+              </select>
+
+              <div class="expense-amount-wrap">
+                <input
+                  :value="formatNumberWithDots(exp.amount)"
+                  @input="onExpenseAmountInput($event, exp)"
+                  type="text"
+                  inputmode="numeric"
+                  class="form-input expense-amount font-bold text-end"
+                  placeholder="0"
+                />
+                <span class="currency-suffix">đ</span>
+              </div>
+
               <input
-                :value="formatNumberWithDots(exp.amount)"
-                @input="onExpenseAmountInput($event, exp)"
+                v-model="exp.receiptNote"
                 type="text"
-                inputmode="numeric"
-                class="form-input expense-amount font-bold text-end"
-                placeholder="0"
+                class="form-input expense-note"
+                placeholder="Ghi chú số hóa đơn / số vé..."
               />
-              <span class="currency-suffix">đ</span>
+
+              <button class="btn-del" @click="removeExpense(idx)" title="Xóa khoản chi này">
+                <Trash2 :size="16" />
+              </button>
             </div>
-            <input v-model="exp.receiptNote" type="text" class="form-input expense-note" placeholder="Ghi chú hóa đơn..." />
-            <button class="btn-del" @click="removeExpense(idx)" title="Xóa chi phí">
-              <Trash2 :size="16" />
-            </button>
+
+            <!-- Hàng 2: Khu vực đính kèm bằng chứng xác minh (Proof / Evidence) -->
+            <div class="expense-proof-row">
+              <div v-if="exp.receiptImage" class="proof-attached-box">
+                <div class="proof-thumbnail-preview" @click="previewProofModalImage = exp.receiptImage">
+                  <img :src="exp.receiptImage" alt="Ảnh hóa đơn" class="proof-thumb" />
+                  <div class="zoom-hover-overlay">
+                    <ZoomIn :size="14" />
+                    <span>Xem lớn</span>
+                  </div>
+                </div>
+
+                <div class="proof-info-meta">
+                  <div class="proof-badge-verified">
+                    <CheckCircle2 :size="13" />
+                    <span>Đã có ảnh bằng chứng xác minh</span>
+                  </div>
+                  <span class="proof-file-name text-xs text-muted">
+                    {{ exp.sampleName || 'Ảnh chụp hóa đơn chứng từ' }}
+                  </span>
+                </div>
+
+                <div class="proof-actions">
+                  <label class="btn-action-text text-primary">
+                    <Camera :size="13" />
+                    <span>Đổi ảnh</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      class="hidden-file-input"
+                      @change="onFileInputChange($event, exp)"
+                    />
+                  </label>
+                  <button type="button" class="btn-action-text text-danger" @click="removeReceiptImage(exp)">
+                    <span>✕ Xóa ảnh</span>
+                  </button>
+                </div>
+              </div>
+
+              <div v-else class="proof-upload-box">
+                <div class="proof-warning-tag">
+                  <AlertTriangle :size="13" class="text-amber" />
+                  <span>Chưa có ảnh bằng chứng xác minh:</span>
+                </div>
+
+                <!-- Nút tải ảnh thật từ camera/thiết bị -->
+                <label class="btn btn-outline btn-xs btn-upload-proof">
+                  <Camera :size="13" />
+                  <span>Chụp / Tải ảnh hóa đơn</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    class="hidden-file-input"
+                    @change="onFileInputChange($event, exp)"
+                  />
+                </label>
+
+                <!-- Bộ nút chọn mẫu chứng từ nhanh phục vụ kiểm thử -->
+                <div class="quick-samples-group">
+                  <span class="text-xxs text-muted">Mẫu nhanh:</span>
+                  <button
+                    type="button"
+                    class="btn-sample-chip"
+                    @click="applySampleReceipt(exp, 'Toll')"
+                    title="Đính kèm mẫu vé BOT thu phí đường bộ"
+                  >
+                    🎫 Vé BOT
+                  </button>
+                  <button
+                    type="button"
+                    class="btn-sample-chip"
+                    @click="applySampleReceipt(exp, 'Fuel')"
+                    title="Đính kèm mẫu hóa đơn xăng dầu Petrolimex"
+                  >
+                    ⛽ HĐ Xăng dầu
+                  </button>
+                  <button
+                    type="button"
+                    class="btn-sample-chip"
+                    @click="applySampleReceipt(exp, 'Weigh')"
+                    title="Đính kèm mẫu phiếu cân mủ cao su"
+                  >
+                    ⚖️ Phiếu cân mủ
+                  </button>
+                  <button
+                    type="button"
+                    class="btn-sample-chip"
+                    @click="applySampleReceipt(exp, 'Repair')"
+                    title="Đính kèm mẫu biên lai vá vỏ / sửa chữa"
+                  >
+                    🔧 Vá vỏ
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div v-if="expenses.length > 0" class="total-expense-summary">
-            <span>Tổng cộng chi phí:</span>
-            <strong class="text-primary font-bold">{{ formatNumberWithDots(totalExpenseAmount) }} đ</strong>
+          <!-- Tổng kết chi phí & chứng từ -->
+          <div v-if="expenses.length > 0" class="total-expense-summary-box">
+            <div class="expense-proof-stats">
+              <span class="proof-stat-item">
+                Chứng từ xác minh: 
+                <strong :class="verifiedExpensesCount === expenses.length ? 'text-success' : 'text-amber'">
+                  {{ verifiedExpensesCount }} / {{ expenses.length }} khoản chi
+                </strong>
+              </span>
+              <span v-if="verifiedExpensesCount < expenses.length" class="text-xs text-amber font-medium">
+                (Khoản chi thiếu hóa đơn có thể phải giải trình lại)
+              </span>
+            </div>
+
+            <div class="expense-total-amount">
+              <span>Tổng cộng chi phí:</span>
+              <strong class="text-primary font-bold">{{ formatNumberWithDots(totalExpenseAmount) }} đ</strong>
+            </div>
           </div>
         </div>
       </div>
@@ -315,11 +544,21 @@ function handleComplete() {
         </button>
       </div>
     </div>
+
+    <!-- Lightbox phóng to ảnh hóa đơn -->
+    <div v-if="previewProofModalImage" class="lightbox-overlay" @click.self="previewProofModalImage = null">
+      <div class="lightbox-content">
+        <button class="lightbox-close" @click="previewProofModalImage = null">
+          <X :size="20" />
+        </button>
+        <img :src="previewProofModalImage" alt="Hóa đơn bằng chứng chi phí" class="lightbox-img" />
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.modal-lg { max-width: 820px; }
+.modal-lg { max-width: 840px; }
 .btn-close { background: transparent; border: none; cursor: pointer; color: var(--text-muted); }
 .section-box {
   background: #f8fafc;
@@ -330,15 +569,23 @@ function handleComplete() {
 .section-title {
   font-size: 0.875rem;
   font-weight: 700;
-  margin-bottom: 8px;
+}
+.section-subtitle {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-top: 2px;
+  margin-bottom: 0;
 }
 .bg-gray { background-color: #e2e8f0; color: #475569; }
 .font-bold { font-weight: 700; }
+.font-medium { font-weight: 500; }
 .text-success { color: #16a34a; }
 .text-primary { color: #15803d; }
 .text-danger { color: #dc2626; }
+.text-amber { color: #b45309; }
 .mt-2 { margin-top: 8px; }
 .mt-3 { margin-top: 12px; }
+.mb-0 { margin-bottom: 0; }
 .total-latex-bar {
   background: #dcfce7;
   color: #166534;
@@ -376,11 +623,29 @@ function handleComplete() {
 .calc-val { font-size: 1.125rem; font-weight: 800; }
 .fuel-input { padding: 6px 10px; font-weight: 700; }
 .flex-between { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-.expense-row {
+
+/* Expense item cards */
+.expense-item-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color 0.2s;
+}
+.expense-item-card.has-proof {
+  border-color: #86efac;
+}
+.expense-item-card.no-proof {
+  border-color: #fde68a;
+}
+.expense-inputs-row {
   display: flex;
   gap: 8px;
   align-items: center;
-  margin-bottom: 8px;
 }
 .expense-type { width: 175px; }
 .expense-amount-wrap {
@@ -406,19 +671,223 @@ function handleComplete() {
 .expense-note { flex: 1; }
 .btn-del { background: transparent; border: none; cursor: pointer; color: var(--danger); padding: 6px; }
 .btn-del:hover { background: #fee2e2; border-radius: 4px; }
-.total-expense-summary {
+
+/* Proof Row */
+.expense-proof-row {
+  padding-top: 6px;
+  border-top: 1px dashed #f1f5f9;
+}
+.proof-attached-box {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+.proof-thumbnail-preview {
+  position: relative;
+  width: 50px;
+  height: 50px;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.proof-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.zoom-hover-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(15, 23, 42, 0.6);
+  color: white;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: 0.5625rem;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.proof-thumbnail-preview:hover .zoom-hover-overlay {
+  opacity: 1;
+}
+.proof-info-meta {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.proof-badge-verified {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #15803d;
+}
+.proof-actions {
+  display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px dashed var(--border-card);
-  font-size: 0.8125rem;
-  color: var(--text-secondary);
 }
+.btn-action-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+.btn-action-text:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.proof-upload-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fffbeb;
+  border: 1px dashed #fde68a;
+  border-radius: 6px;
+  padding: 6px 10px;
+  flex-wrap: wrap;
+}
+.proof-warning-tag {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: #92400e;
+}
+.btn-upload-proof {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+}
+.btn-upload-proof:hover {
+  border-color: #0284c7;
+  color: #0284c7;
+}
+.hidden-file-input {
+  display: none;
+}
+.quick-samples-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+}
+.btn-sample-chip {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 2px 8px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-sample-chip:hover {
+  border-color: #0284c7;
+  color: #0284c7;
+  background: #f0f9ff;
+}
+
+.total-expense-summary-box {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+  font-size: 0.8125rem;
+}
+.expense-proof-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.expense-total-amount {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.empty-expense-hint {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+
 .text-end { text-align: right; }
-.font-semibold { font-weight: 600; }
+.text-xs { font-size: 0.75rem; }
+.text-xxs { font-size: 0.625rem; }
 .alert { display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: var(--radius-sm); margin-bottom: 14px; }
 .alert-danger { background: #fee2e2; border: 1px solid #fecaca; color: #b91c1c; }
+
+/* Lightbox Modal */
+.lightbox-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.75);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.lightbox-content {
+  position: relative;
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 14px;
+  max-width: 480px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.lightbox-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: #f1f5f9;
+  border: none;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.lightbox-img {
+  max-width: 100%;
+  max-height: 75vh;
+  object-fit: contain;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+}
 </style>
+

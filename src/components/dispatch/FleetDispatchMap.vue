@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
 import type { HubLocation, VehicleMapState } from '@/types/map';
 import { ECOTECH_HUBS, ECOTECH_ROUTES, initialVehicleMapStates } from '@/mocks/mapData';
+import { useDispatchStore } from '@/stores/dispatch';
 import {
   Truck,
   MapPin,
@@ -11,6 +12,7 @@ import {
   CheckCircle2,
   ChevronRight,
   Search,
+  Clock,
 } from 'lucide-vue-next';
 
 // Declare Leaflet global loaded from CDN
@@ -19,6 +21,7 @@ declare const L: any;
 //=============================================================================
 // 1. KHỞI TẠO STATE & COMPUTED
 //=============================================================================
+const dispatchStore = useDispatchStore();
 const mapContainer = ref<HTMLElement | null>(null);
 const mapInstance = ref<any>(null);
 const isFullScreen = ref(false);
@@ -26,6 +29,17 @@ const filterStatus = ref<'ALL' | 'RUNNING' | 'AVAILABLE' | 'MAINTENANCE'>('ALL')
 const searchQuery = ref('');
 const selectedVehicleId = ref<number | null>(null);
 const mapStyle = ref<'osm' | 'topo'>('osm');
+
+// Tra cứu thông tin chuyến xe liên kết của phương tiện (nếu có)
+function getTripForVehicle(vehiclePlate?: string) {
+  if (!vehiclePlate) return undefined;
+  return dispatchStore.trips.find(
+    (t) =>
+      t.vehiclePlate === vehiclePlate &&
+      t.status !== 'COMPLETED' &&
+      t.status !== 'CANCELLED'
+  );
+}
 
 // Danh sách trạng thái xe động
 const vehicleMapStates = ref<VehicleMapState[]>(JSON.parse(JSON.stringify(initialVehicleMapStates)));
@@ -483,17 +497,46 @@ function focusVehicle(v: VehicleMapState) {
 
     const marker = vehicleMarkers.get(v.id);
     if (marker) {
+      const trip = getTripForVehicle(v.licensePlate);
+      let tripStatusHtml = '';
+      if (trip) {
+        if (trip.status === 'ACCEPTED') {
+          tripStatusHtml = `<div class="popup-live-row status-accepted">✓ <strong>Tài xế đã nhận chuyến:</strong> ${trip.acceptedAt ? trip.acceptedAt.slice(11) : ''}</div>`;
+        } else if (trip.status === 'ARRIVED') {
+          tripStatusHtml = `<div class="popup-live-row status-arrived">📍 <strong>Xe đã đến nơi:</strong> ${trip.arrivedAt ? trip.arrivedAt.slice(11) : ''}${trip.arrivalNote ? ` (${trip.arrivalNote})` : ''}</div>`;
+        } else if (trip.status === 'INPROGRESS') {
+          tripStatusHtml = `<div class="popup-live-row status-moving">▶ <strong>Đang di chuyển:</strong> ODO xuất bến ${trip.startOdo ? trip.startOdo.toLocaleString() + ' km' : ''}</div>`;
+        } else if (trip.status === 'ASSIGNED') {
+          tripStatusHtml = `<div class="popup-live-row status-assigned">⏳ <strong>Chờ tài xế xác nhận nhận chuyến</strong></div>`;
+        }
+      }
+
       const statusText =
-        v.status === 'RUNNING'
+        trip?.status === 'ACCEPTED'
+          ? 'Tài xế đã nhận chuyến'
+          : trip?.status === 'ARRIVED'
+          ? 'Đã đến địa điểm chỉ định'
+          : v.status === 'RUNNING'
           ? 'Đang di chuyển chở hàng'
           : v.status === 'AVAILABLE'
           ? 'Đang đỗ - Sẵn sàng'
           : 'Bảo dưỡng / Sự cố';
 
+      const badgeClass =
+        trip?.status === 'ACCEPTED'
+          ? 'badge-cyan'
+          : trip?.status === 'ARRIVED'
+          ? 'badge-amber'
+          : v.status === 'RUNNING'
+          ? 'badge-green'
+          : v.status === 'AVAILABLE'
+          ? 'badge-blue'
+          : 'badge-red';
+
       const popupContent = `
         <div class="map-popup-card vehicle-popup">
           <div class="popup-header">
-            <span class="badge ${v.status === 'RUNNING' ? 'badge-green' : v.status === 'AVAILABLE' ? 'badge-blue' : 'badge-red'}">
+            <span class="badge ${badgeClass}">
               ${statusText}
             </span>
             <h4 class="popup-title">${v.licensePlate}</h4>
@@ -502,10 +545,11 @@ function focusVehicle(v: VehicleMapState) {
             <div>👤 <strong>Tài xế:</strong> ${v.driverName}</div>
             <div>📦 <strong>Mô tả:</strong> ${v.cargoDescription || 'Chưa nhận lệnh vận chuyển'}</div>
             ${v.fromHub && v.toHub ? `<div>📍 <strong>Lộ trình:</strong> ${v.fromHub.shortName} ➔ ${v.toHub.shortName}</div>` : ''}
+            ${tripStatusHtml}
           </div>
         </div>
       `;
-      marker.bindPopup(popupContent, { maxWidth: 280, className: 'custom-leaflet-popup' }).openPopup();
+      marker.bindPopup(popupContent, { maxWidth: 300, className: 'custom-leaflet-popup' }).openPopup();
     }
   }
 }
@@ -676,6 +720,21 @@ onUnmounted(() => {
         <span v-if="selectedRoute" class="active-veh-km">
           (Cự ly quy chuẩn: <strong>{{ selectedRoute.distanceKm }} km</strong>)
         </span>
+        <!-- Hiển thị tương tác tài xế trên Top Banner -->
+        <span
+          v-if="getTripForVehicle(selectedVehicle.licensePlate)?.status === 'ACCEPTED'"
+          class="active-trip-status-tag tag-cyan"
+        >
+          <CheckCircle2 :size="13" />
+          <span>Tài xế đã nhận chuyến lúc {{ getTripForVehicle(selectedVehicle.licensePlate)?.acceptedAt?.slice(11) }}</span>
+        </span>
+        <span
+          v-else-if="getTripForVehicle(selectedVehicle.licensePlate)?.status === 'ARRIVED'"
+          class="active-trip-status-tag tag-amber"
+        >
+          <MapPin :size="13" />
+          <span>Xe đã đến nơi lúc {{ getTripForVehicle(selectedVehicle.licensePlate)?.arrivedAt?.slice(11) }}<span v-if="getTripForVehicle(selectedVehicle.licensePlate)?.arrivalNote">: {{ getTripForVehicle(selectedVehicle.licensePlate)?.arrivalNote }}</span></span>
+        </span>
       </div>
       <button class="btn-clear-selection" @click="resetMapView">
         ✕ Bỏ chọn / Hiện tất cả
@@ -764,6 +823,19 @@ onUnmounted(() => {
               </div>
               <div class="item-tags-right">
                 <span
+                  v-if="getTripForVehicle(v.licensePlate)?.status === 'ACCEPTED'"
+                  class="status-pill pill-cyan"
+                >
+                  ✓ Đã nhận chuyến
+                </span>
+                <span
+                  v-else-if="getTripForVehicle(v.licensePlate)?.status === 'ARRIVED'"
+                  class="status-pill pill-amber"
+                >
+                  📍 Đã đến nơi
+                </span>
+                <span
+                  v-else
                   class="status-pill"
                   :class="{
                     'pill-green': v.status === 'RUNNING',
@@ -780,6 +852,31 @@ onUnmounted(() => {
             <div v-if="selectedVehicleId === v.id" class="item-selected-strip">
               <span class="pulse-mini-dot"></span>
               <span class="strip-text">Đang xem sơ đồ lộ trình trên bản đồ</span>
+            </div>
+
+            <!-- Dòng trạng thái tương tác từ Tài xế -->
+            <div v-if="getTripForVehicle(v.licensePlate)" class="driver-trip-status-row">
+              <div
+                v-if="getTripForVehicle(v.licensePlate)?.status === 'ACCEPTED'"
+                class="driver-ack-badge ack-cyan"
+              >
+                <Clock :size="12" />
+                <span>Tài xế nhận chuyến: <strong>{{ getTripForVehicle(v.licensePlate)?.acceptedAt?.slice(11) }}</strong></span>
+              </div>
+              <div
+                v-else-if="getTripForVehicle(v.licensePlate)?.status === 'ARRIVED'"
+                class="driver-ack-badge ack-amber"
+              >
+                <MapPin :size="12" />
+                <span>Đã đến nơi: <strong>{{ getTripForVehicle(v.licensePlate)?.arrivedAt?.slice(11) }}</strong><span v-if="getTripForVehicle(v.licensePlate)?.arrivalNote"> ({{ getTripForVehicle(v.licensePlate)?.arrivalNote }})</span></span>
+              </div>
+              <div
+                v-else-if="getTripForVehicle(v.licensePlate)?.status === 'ASSIGNED'"
+                class="driver-ack-badge ack-gray"
+              >
+                <Clock :size="12" />
+                <span>Chờ tài xế nhận chuyến</span>
+              </div>
             </div>
 
             <!-- Lộ trình Điểm Đi ➔ Điểm Đến & Cự ly quãng đường -->
@@ -1219,6 +1316,54 @@ onUnmounted(() => {
 .pill-green { background: #dcfce7; color: #15803d; }
 .pill-blue { background: #e0f2fe; color: #0369a1; }
 .pill-red { background: #fee2e2; color: #b91c1c; }
+.pill-cyan { background: #cffafe; color: #0891b2; }
+.pill-amber { background: #fef3c7; color: #b45309; }
+
+.active-trip-status-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 12px;
+}
+.tag-cyan {
+  background: #0891b2;
+  color: #ffffff;
+}
+.tag-amber {
+  background: #d97706;
+  color: #ffffff;
+}
+
+.driver-trip-status-row {
+  margin-top: 2px;
+}
+.driver-ack-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.6875rem;
+  padding: 3px 8px;
+  border-radius: 6px;
+  line-height: 1.25;
+}
+.ack-cyan {
+  background: #ecfeff;
+  border: 1px solid #a5f3fc;
+  color: #0e7490;
+}
+.ack-amber {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #b45309;
+}
+.ack-gray {
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  color: #64748b;
+}
 
 .item-selected-strip {
   display: flex;
@@ -1467,5 +1612,41 @@ onUnmounted(() => {
 
 :deep(.route-pin-box.is-end .pin-text strong) {
   color: #dc2626;
+}
+
+:deep(.popup-live-row) {
+  margin-top: 6px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+:deep(.popup-live-row.status-accepted) {
+  background: #ecfeff;
+  color: #0891b2;
+  border: 1px solid #a5f3fc;
+}
+:deep(.popup-live-row.status-arrived) {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+:deep(.popup-live-row.status-moving) {
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+:deep(.popup-live-row.status-assigned) {
+  background: #f8fafc;
+  color: #64748b;
+  border: 1px dashed #cbd5e1;
+}
+:deep(.badge-cyan) {
+  background: #0891b2;
+  color: #ffffff;
+}
+:deep(.badge-amber) {
+  background: #d97706;
+  color: #ffffff;
 }
 </style>

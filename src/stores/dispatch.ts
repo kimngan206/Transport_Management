@@ -16,7 +16,13 @@ export const useDispatchStore = defineStore('dispatch', () => {
 
   // Getters
   const activeTrips = computed(() =>
-    trips.value.filter((t) => t.status === 'ASSIGNED' || t.status === 'INPROGRESS')
+    trips.value.filter(
+      (t) =>
+        t.status === 'ASSIGNED' ||
+        t.status === 'ACCEPTED' ||
+        t.status === 'INPROGRESS' ||
+        t.status === 'ARRIVED'
+    )
   );
 
   const completedTrips = computed(() =>
@@ -42,7 +48,10 @@ export const useDispatchStore = defineStore('dispatch', () => {
     const relatedTrips = trips.value.filter(
       (t) =>
         t.id !== excludeTripId &&
-        (t.status === 'ASSIGNED' || t.status === 'INPROGRESS') &&
+        (t.status === 'ASSIGNED' ||
+          t.status === 'ACCEPTED' ||
+          t.status === 'INPROGRESS' ||
+          t.status === 'ARRIVED') &&
         (t.vehicleId === vehicleId || t.driverId === driverId)
     );
 

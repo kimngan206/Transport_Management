@@ -49,7 +49,25 @@ const router = createRouter({
       path: '/driver-schedule',
       name: 'driver-schedule',
       component: DriverScheduleView,
-      meta: { title: 'Chuyến Của Tôi (Tài Xế) - QL_Điều Vận' },
+      meta: { title: 'Lịch Trình Nhận Xe - QL_Điều Vận' },
+    },
+    {
+      path: '/driver/expenses',
+      name: 'driver-expenses',
+      component: () => import('@/views/driver/DriverExpensesView.vue'),
+      meta: { title: 'Kê Khai Chi Phí & Bằng Chứng Hóa Đơn - QL_Điều Vận' },
+    },
+    {
+      path: '/driver/history',
+      name: 'driver-history',
+      component: () => import('@/views/driver/DriverHistoryView.vue'),
+      meta: { title: 'Lịch Sử Chuyến Xe & Mủ Vận Chuyển - QL_Điều Vận' },
+    },
+    {
+      path: '/driver/incidents',
+      name: 'driver-incidents',
+      component: () => import('@/views/driver/DriverIncidentsView.vue'),
+      meta: { title: 'Báo Cáo Sự Cố Xe & Cứu Hộ - QL_Điều Vận' },
     },
     {
       path: '/fleet',
@@ -127,6 +145,10 @@ router.beforeEach((to) => {
     } else if (authStore.activeRole === 'Dispatcher') {
       if (to.path === '/booking' || to.path === '/approval') {
         return '/dispatch';
+      }
+    } else if (authStore.activeRole === 'Driver') {
+      if (to.path === '/' || to.path === '/booking' || to.path === '/approval' || to.path === '/dispatch' || to.path.startsWith('/maintenance') || to.path.startsWith('/fleet') || to.path === '/system' || to.path === '/reports') {
+        return '/driver-schedule';
       }
     }
   } catch (err) {

@@ -101,6 +101,9 @@ watch(
     if (path.startsWith('/routes') || path.startsWith('/hubs')) {
       openGroups.value.routes = true;
     }
+    if (path.startsWith('/driver')) {
+      openGroups.value.operations = true;
+    }
   },
   { immediate: true }
 );
@@ -206,7 +209,7 @@ const showSection = computed(() => {
       fleet: false,
       routes: false,
       operations: true,
-      maintenance: true,
+      maintenance: false,
       reports: false,
       system: false,
     };
@@ -503,13 +506,26 @@ const showSection = computed(() => {
             <div v-show="openGroups.operations" class="sub-links-list">
               <router-link to="/driver-schedule" class="sub-nav-link" :class="{ active: route.path === '/driver-schedule' }">
                 <span>Lịch trình nhận xe</span>
+                <span v-if="myTripsCount > 0" class="mini-badge badge-green">{{ myTripsCount }}</span>
+              </router-link>
+
+              <router-link to="/driver/expenses" class="sub-nav-link" :class="{ active: route.path === '/driver/expenses' }">
+                <span>Kê khai chi phí & Hóa đơn</span>
+              </router-link>
+
+              <router-link to="/driver/history" class="sub-nav-link" :class="{ active: route.path === '/driver/history' }">
+                <span>Lịch sử chuyến xe</span>
+              </router-link>
+
+              <router-link to="/driver/incidents" class="sub-nav-link" :class="{ active: route.path === '/driver/incidents' }">
+                <span>Báo cáo sự cố xe</span>
               </router-link>
             </div>
           </div>
 
           <!-- SECTION 3: BẢO DƯỠNG & BÁO CÁO -->
           <div
-            v-if="showSection.maintenance || showSection.reports || showSection.operations"
+            v-if="showSection.maintenance || showSection.reports"
             class="menu-section-label"
           >
             Bảo Trì & Báo Cáo

@@ -2,6 +2,8 @@
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { useDispatchStore } from '@/stores/dispatch';
 import MetricCard from '@/components/common/MetricCard.vue';
+import TripExpensesModal from '@/components/common/TripExpensesModal.vue';
+import type { TransportTrip } from '@/types';
 import {
   Fuel,
   Droplet,
@@ -12,6 +14,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   Download,
+  Receipt,
 } from 'lucide-vue-next';
 import Chart from 'chart.js/auto';
 
@@ -20,6 +23,7 @@ const dispatchStore = useDispatchStore();
 // Bộ lọc
 const filterVehicle = ref<string>('ALL');
 const filterTimeRange = ref<string>('ALL');
+const viewExpensesTrip = ref<TransportTrip | null>(null);
 
 // Các chuyến đã hoàn thành
 const completedTrips = computed(() => {
@@ -536,12 +540,13 @@ function exportReportAlert() {
               <th>Dầu Chuẩn</th>
               <th>Dầu Thực Tế</th>
               <th>Chênh Lệch</th>
+              <th>Chi Phí (VNĐ)</th>
               <th>Đánh Giá</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="completedTrips.length === 0">
-              <td colspan="10" class="text-center py-5 text-muted">
+              <td colspan="11" class="text-center py-5 text-muted">
                 Chưa có chuyến đi nào hoàn thành để tạo báo cáo đối chiếu.
               </td>
             </tr>
@@ -586,6 +591,22 @@ function exportReportAlert() {
                 </span>
               </td>
               <td>
+                <div v-if="t.expenses && t.expenses.length > 0" class="flex-col">
+                  <strong class="text-primary">{{ (t.expenses || []).reduce((acc, e) => acc + (e.amount || 0), 0).toLocaleString() }} đ</strong>
+                  <button
+                    type="button"
+                    class="btn-proof-tag mt-1"
+                    :class="t.expenses.every((e) => !!e.receiptImage) ? 'proof-full' : 'proof-partial'"
+                    @click="viewExpensesTrip = t"
+                    title="Xem chi tiết các khoản chi và ảnh chụp hóa đơn bằng chứng"
+                  >
+                    <Receipt :size="12" />
+                    <span>{{ t.expenses.filter((e) => !!e.receiptImage).length }}/{{ t.expenses.length }} Hóa đơn</span>
+                  </button>
+                </div>
+                <span v-else class="text-xs text-muted">0 đ</span>
+              </td>
+              <td>
                 <span
                   class="eval-badge"
                   :class="Number(t.fuelVarianceLiters || 0) <= 0.5 ? 'eval-pass' : 'eval-warn'"
@@ -600,6 +621,13 @@ function exportReportAlert() {
         </table>
       </div>
     </div>
+
+    <!-- Modal Xem Chi tiết & Thẩm định Bằng chứng Chi phí -->
+    <TripExpensesModal
+      v-if="viewExpensesTrip"
+      :trip="viewExpensesTrip"
+      @close="viewExpensesTrip = null"
+    />
   </div>
 </template>
 
@@ -990,6 +1018,41 @@ function exportReportAlert() {
   background: #fef2f2;
   color: #991b1b;
   border: 1px solid #fecaca;
+}
+
+.flex-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.btn-proof-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  width: fit-content;
+  transition: all 0.15s;
+}
+.btn-proof-tag.proof-full {
+  background: #dcfce7;
+  color: #15803d;
+  border-color: #86efac;
+}
+.btn-proof-tag.proof-full:hover {
+  background: #bbf7d0;
+}
+.btn-proof-tag.proof-partial {
+  background: #fef3c7;
+  color: #b45309;
+  border-color: #fde68a;
+}
+.btn-proof-tag.proof-partial:hover {
+  background: #fde68a;
 }
 
 .text-xs { font-size: 0.75rem; }

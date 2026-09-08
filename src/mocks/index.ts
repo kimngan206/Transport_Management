@@ -12,6 +12,11 @@ import type {
   MaintenanceType,
 } from '@/types';
 import type { HubLocation } from '@/types/map';
+import {
+  getPetrolimexReceiptSample,
+  getTollReceiptSample,
+  getWeighStationReceiptSample,
+} from '@/utils/receiptSamples';
 
 // ==========================================
 // 1. DANH MỤC PHÒNG BAN (DEPARTMENTS)
@@ -592,14 +597,7 @@ export const initialTrips: TransportTrip[] = [
     standardDistanceKm: 26.0,
     scheduledStartTime: '2026-09-07 13:30',
     scheduledEndTime: '2026-09-07 16:30',
-    actualStartTime: '2026-09-07 13:45',
-    startOdo: 125620,
-    weightLatex1Kg: 2800, // Khớp với RQ-260907-001 (2.800 kg)
-    weightLatex2Kg: 0,
-    weightLatex3Kg: 0,
-    weightLatexTapKg: 2000, // Khớp với RQ-260907-002 (2.000 kg)
-    totalLatexWeightKg: 4800, // Tổng 4.800 kg
-    status: 'INPROGRESS',
+    status: 'ASSIGNED',
     notes: 'Ghép đơn thu gom mủ nước và mủ chén tạp tại Đội 1',
     expenses: [],
     createdAt: '2026-09-07 13:15',
@@ -663,7 +661,17 @@ export const initialTrips: TransportTrip[] = [
         expenseType: 'Toll',
         amount: 35000,
         receiptNote: 'Vé trạm thu phí ĐT741',
+        receiptImage: getTollReceiptSample('51C-889.26', '35.000 đ', 'Trạm Thu Phí ĐT741 - Đồng Phú'),
         recordedAt: '2026-09-06 08:30',
+      },
+      {
+        id: 11,
+        tripId: 1001,
+        expenseType: 'Fuel',
+        amount: 850000,
+        receiptNote: 'Hóa đơn đổ dầu DO Petrolimex CH12',
+        receiptImage: getPetrolimexReceiptSample('51C-889.26', '850.000 đ', '45.2 Lít'),
+        recordedAt: '2026-09-06 08:45',
       },
     ],
     createdAt: '2026-09-05 17:00',
@@ -705,7 +713,17 @@ export const initialTrips: TransportTrip[] = [
         expenseType: 'Toll',
         amount: 40000,
         receiptNote: 'Vé cầu đường BOT Tân Uyên',
+        receiptImage: getTollReceiptSample('51C-772.18', '40.000 đ', 'Trạm Thu Phí BOT Tân Uyên'),
         recordedAt: '2026-09-06 14:10',
+      },
+      {
+        id: 22,
+        tripId: 1004,
+        expenseType: 'Other',
+        amount: 50000,
+        receiptNote: 'Phí cân xe mủ tại trạm cân TC1',
+        receiptImage: getWeighStationReceiptSample('51C-772.18', '6.500 kg mủ', '50.000 đ'),
+        recordedAt: '2026-09-06 14:30',
       },
     ],
     createdAt: '2026-09-06 11:30',
