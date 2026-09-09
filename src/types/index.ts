@@ -204,6 +204,7 @@ export interface TripExpense {
   amount: number;
   receiptNote?: string;
   receiptImage?: string;
+  receiptImages?: string[]; // Danh sách nhiều ảnh chứng từ / hóa đơn xác minh
   recordedAt: string;
   auditStatus?: 'PENDING' | 'APPROVED' | 'REJECTED';
   auditNote?: string;
@@ -233,6 +234,10 @@ export interface IncidentReport {
   severity: 'Warning' | 'StopOperation';
   status: 'Pending' | 'InRepair' | 'Resolved';
   resolutionNote?: string;
+  location?: string;
+  latitude?: number;
+  longitude?: number;
+  gpsAccuracy?: number;
 }
 
 export interface MaintenanceRecord {

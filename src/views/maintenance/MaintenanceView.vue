@@ -4,7 +4,7 @@ import { useFleetStore } from '@/stores/fleet';
 import { useAuthStore } from '@/stores/auth';
 import { useDialogStore } from '@/stores/dialog';
 import StatusBadge from '@/components/common/StatusBadge.vue';
-import { Wrench, AlertTriangle, ShieldAlert, Plus, Settings } from 'lucide-vue-next';
+import { Wrench, AlertTriangle, ShieldAlert, Plus, Settings, MapPin, ExternalLink, Truck } from 'lucide-vue-next';
 
 const fleetStore = useFleetStore();
 const authStore = useAuthStore();
@@ -301,6 +301,7 @@ function getThreshold(v: any): number {
               <th>Người Báo</th>
               <th>Ngày Ghi Nhận</th>
               <th>Mức Độ Nghiêm Trọng</th>
+              <th>Vị Trí Hiện Trường & GPS</th>
               <th>Mô Tả Hiện Tượng Hư Hỏng</th>
               <th>Trạng Thái Xử Lý</th>
             </tr>
@@ -317,6 +318,34 @@ function getThreshold(v: any): number {
                 >
                   {{ inc.severity === 'StopOperation' ? 'Dừng hoạt động (Stop)' : 'Cảnh báo (Warning)' }}
                 </span>
+              </td>
+              <td>
+                <div class="incident-loc-cell">
+                  <span class="loc-text font-semibold text-xs text-dark">{{ inc.location || 'Dọc đường vận chuyển' }}</span>
+                  <div v-if="inc.latitude && inc.longitude" class="gps-loc-row">
+                    <span class="gps-loc-badge">
+                      <MapPin :size="11" class="text-danger" />
+                      {{ inc.latitude.toFixed(4) }}, {{ inc.longitude.toFixed(4) }}
+                    </span>
+                    <a
+                      :href="`https://www.google.com/maps?q=${inc.latitude},${inc.longitude}`"
+                      target="_blank"
+                      class="link-maps-mini"
+                      title="Mở Google Maps vệ tinh xem hiện trường sự cố"
+                    >
+                      <ExternalLink :size="11" />
+                      <span>Maps</span>
+                    </a>
+                    <router-link
+                      to="/dispatch?view=map"
+                      class="link-dispatch-mini"
+                      title="Xem vị trí xe gặp sự cố trên Bản đồ điều xe"
+                    >
+                      <Truck :size="11" />
+                      <span>Bản đồ xe</span>
+                    </router-link>
+                  </div>
+                </div>
               </td>
               <td>{{ inc.issueDescription }}</td>
               <td>
@@ -713,5 +742,58 @@ function getThreshold(v: any): number {
 }
 .font-mono {
   font-family: monospace;
+}
+
+/* GPS & Vị trí sự cố trong bảng bảo dưỡng */
+.incident-loc-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.gps-loc-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.gps-loc-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #334155;
+}
+.link-maps-mini,
+.link-dispatch-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+.link-maps-mini {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+.link-maps-mini:hover {
+  background: #bae6fd;
+}
+.link-dispatch-mini {
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+.link-dispatch-mini:hover {
+  background: #dcfce7;
 }
 </style>

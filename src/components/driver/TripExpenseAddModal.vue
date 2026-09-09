@@ -44,6 +44,7 @@ const expenseType = ref<TripExpense['expenseType']>('Toll');
 const amount = ref<number>(0);
 const receiptNote = ref<string>('');
 const receiptImage = ref<string | undefined>(undefined);
+const receiptImages = ref<string[]>([]);
 const sampleName = ref<string | undefined>(undefined);
 const previewZoomImage = ref<string | null>(null);
 
@@ -56,7 +57,12 @@ onMounted(() => {
       amount.value = exp.amount;
       receiptNote.value = exp.receiptNote || '';
       receiptImage.value = exp.receiptImage;
-      sampleName.value = exp.receiptImage ? 'Ảnh chứng từ đã lưu' : undefined;
+      receiptImages.value = exp.receiptImages && exp.receiptImages.length > 0
+        ? [...exp.receiptImages]
+        : (exp.receiptImage ? [exp.receiptImage] : []);
+      sampleName.value = receiptImages.value.length > 0
+        ? `${receiptImages.value.length} ảnh bằng chứng đã lưu`
+        : (exp.receiptImage ? 'Ảnh chứng từ đã lưu' : undefined);
     }
   }
 });
@@ -82,15 +88,27 @@ function onAmountInput(event: Event) {
 function onFileInputChange(event: Event) {
   const target = event.target as HTMLInputElement;
   if (!target.files || target.files.length === 0) return;
-  const file = target.files[0];
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    if (e.target?.result) {
-      receiptImage.value = e.target.result as string;
-      sampleName.value = file.name;
-    }
-  };
-  reader.readAsDataURL(file);
+  const files = Array.from(target.files);
+  files.forEach((file) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      if (e.target?.result) {
+        const url = e.target.result as string;
+        receiptImages.value.push(url);
+        if (!receiptImage.value) {
+          receiptImage.value = url;
+        }
+        sampleName.value = `${receiptImages.value.length} ảnh bằng chứng đã chọn`;
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function removeImageAt(idx: number) {
+  receiptImages.value.splice(idx, 1);
+  receiptImage.value = receiptImages.value.length > 0 ? receiptImages.value[0] : undefined;
+  sampleName.value = receiptImages.value.length > 0 ? `${receiptImages.value.length} ảnh bằng chứng` : undefined;
 }
 
 function applySample(type: 'Toll' | 'Fuel' | 'Weigh' | 'Repair') {
@@ -100,24 +118,28 @@ function applySample(type: 'Toll' | 'Fuel' | 'Weigh' | 'Repair') {
     amount.value = 35000;
     receiptNote.value = 'Vé trạm thu phí BOT ĐT741';
     receiptImage.value = getTollReceiptSample(plate, '35.000 đ');
+    receiptImages.value = [getTollReceiptSample(plate, '35.000 đ')];
     sampleName.value = 'Mẫu Vé BOT ĐT741';
   } else if (type === 'Fuel') {
     expenseType.value = 'Fuel';
     amount.value = 850000;
     receiptNote.value = 'Hóa đơn đổ dầu DO Petrolimex';
     receiptImage.value = getPetrolimexReceiptSample(plate, '850.000 đ', '45.2 Lít');
+    receiptImages.value = [getPetrolimexReceiptSample(plate, '850.000 đ', '45.2 Lít')];
     sampleName.value = 'Mẫu HĐ Petrolimex';
   } else if (type === 'Weigh') {
     expenseType.value = 'Other';
     amount.value = 50000;
     receiptNote.value = 'Phiếu cân mủ cao su tiếp nhận';
     receiptImage.value = getWeighStationReceiptSample(plate, '5.200 kg mủ', '50.000 đ');
+    receiptImages.value = [getWeighStationReceiptSample(plate, '5.200 kg mủ', '50.000 đ')];
     sampleName.value = 'Mẫu Phiếu Cân Mủ';
   } else if (type === 'Repair') {
     expenseType.value = 'Repair';
     amount.value = 150000;
     receiptNote.value = 'Vá lốp xe khẩn cấp lưu động';
     receiptImage.value = getRepairReceiptSample(plate, '150.000 đ');
+    receiptImages.value = [getRepairReceiptSample(plate, '150.000 đ')];
     sampleName.value = 'Mẫu Biên Lai Vá Vỏ';
   }
 }
@@ -137,6 +159,7 @@ function handleAddExpense() {
     amount: amount.value,
     receiptNote: receiptNote.value,
     receiptImage: receiptImage.value,
+    receiptImages: receiptImages.value.length > 0 ? receiptImages.value : (receiptImage.value ? [receiptImage.value] : undefined),
   });
 
   if (res.success) {
@@ -145,6 +168,7 @@ function handleAddExpense() {
     amount.value = 0;
     receiptNote.value = '';
     receiptImage.value = undefined;
+    receiptImages.value = [];
     sampleName.value = undefined;
     emit('saved');
   } else {

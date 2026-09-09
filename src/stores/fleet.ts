@@ -170,6 +170,27 @@ export const useFleetStore = defineStore('fleet', () => {
       const v = vehicles.value.find((item) => item.id === payload.vehicleId);
       if (v) v.status = 'Broken';
     }
+
+    // Đồng bộ tức thời vị trí GPS của tài xế sang bản đồ điều xe trực tiếp
+    try {
+      const mapStates = mockStorage.getVehicleMapStates();
+      const targetMapVeh = mapStates.find(
+        (mv: any) => mv.licensePlate === payload.vehiclePlate || mv.id === payload.vehicleId
+      );
+      if (targetMapVeh) {
+        if (payload.latitude && payload.longitude) {
+          targetMapVeh.currentLat = payload.latitude;
+          targetMapVeh.currentLng = payload.longitude;
+        }
+        targetMapVeh.status = 'MAINTENANCE';
+        const locLabel = payload.location ? `[${payload.location}] ` : '';
+        targetMapVeh.cargoDescription = `⚠️ [SỰ CỐ KHẨN CẤP] ${locLabel}${payload.issueDescription}`;
+        mockStorage.saveVehicleMapStates(mapStates);
+      }
+    } catch (err) {
+      console.warn('Lỗi đồng bộ GPS bản đồ:', err);
+    }
+
     saveState();
   }
 

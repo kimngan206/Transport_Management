@@ -284,20 +284,25 @@ export const useDriverStore = defineStore('driver', () => {
       amount: number;
       receiptNote?: string;
       receiptImage?: string;
+      receiptImages?: string[];
     }
   ) {
     const trip = dispatchStore.trips.find((t) => t.id === tripId);
     if (!trip) return { success: false, message: 'Không tìm thấy chuyến xe' };
     if (!trip.expenses) trip.expenses = [];
+    const images = expense.receiptImages && expense.receiptImages.length > 0 
+      ? expense.receiptImages 
+      : (expense.receiptImage ? [expense.receiptImage] : []);
     const newExp: TripExpense = {
       id: Date.now() + Math.floor(Math.random() * 1000),
       tripId: trip.id,
       expenseType: expense.expenseType,
       amount: Number(expense.amount) || 0,
       receiptNote: expense.receiptNote,
-      receiptImage: expense.receiptImage,
+      receiptImage: expense.receiptImage || (images.length > 0 ? images[0] : undefined),
+      receiptImages: images.length > 0 ? images : undefined,
       recordedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
-      auditStatus: expense.receiptImage ? 'APPROVED' : 'PENDING',
+      auditStatus: (expense.receiptImage || images.length > 0) ? 'APPROVED' : 'PENDING',
     };
     trip.expenses.push(newExp);
     dispatchStore.saveState();

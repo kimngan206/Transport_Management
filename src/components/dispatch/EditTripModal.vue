@@ -57,6 +57,22 @@ watch(vehicleId, (newId, oldId) => {
   }
 });
 
+// Kiểm tra xem phương tiện hiện tại của chuyến xe có đang gặp sự cố hỏng hóc hay không
+const currentVehicleIncident = computed(() => {
+  const inc = fleetStore.incidents.find(
+    (i) => (i.vehicleId === props.trip.vehicleId || i.vehiclePlate === props.trip.vehiclePlate) && i.status !== 'Resolved'
+  );
+  if (inc) return inc;
+  const currentVeh = vehicles.value.find((v) => v.id === props.trip.vehicleId);
+  if (currentVeh && (currentVeh.status === 'Broken' || currentVeh.status === 'UnderMaintenance')) {
+    return {
+      issueDescription: 'Phương tiện đang báo sự cố / hỏng hóc / bảo dưỡng',
+      severity: 'StopOperation',
+    } as any;
+  }
+  return null;
+});
+
 function getVehicleStatusLabel(status: string): string {
   switch (status) {
     case 'Available': return 'Sẵn sàng';
@@ -68,10 +84,14 @@ function getVehicleStatusLabel(status: string): string {
 }
 
 function getVehicleTypeLabel(type: string): string {
-  switch (type) {
-    case 'LatexTruck': return 'Xe tải';
-    case 'PassengerCar': return 'Bán tải';
-    case 'MillingMachine': return 'Máy đào';
+  const t = (type || '').toLowerCase();
+  switch (t) {
+    case 'latextruck':
+    case 'truck': return 'Xe tải';
+    case 'passengercar':
+    case 'pickup': return 'Bán tải';
+    case 'millingmachine':
+    case 'excavator': return 'Máy đào';
     default: return type;
   }
 }
@@ -133,6 +153,22 @@ function handleSave() {
           </div>
         </div>
 
+        <!-- Cảnh báo nếu xe của chuyến này đang gặp sự cố cần đổi xe -->
+        <div v-if="currentVehicleIncident" class="px-4 pt-3">
+          <div class="p-3 rounded bg-amber-50 border border-amber-300 text-amber-900 flex items-start gap-2.5">
+            <span class="text-xl leading-none">🚨</span>
+            <div class="text-xs">
+              <strong class="text-red-700 text-sm font-bold">Phương tiện hiện tại ({{ trip.vehiclePlate }}) đang báo sự cố kỹ thuật:</strong>
+              <div class="mt-0.5 text-red-800 font-semibold">
+                {{ currentVehicleIncident.issueDescription || 'Sự cố nổ lốp / hỏng máy dọc đường' }}
+              </div>
+              <div class="mt-1 text-slate-700">
+                👉 <strong>Chỉ dẫn điều xe:</strong> Chọn 1 phương tiện khác đang <strong>Sẵn sàng (Available)</strong> hoặc <strong>Xe thuê ngoài</strong> trong danh sách bên dưới để cứu viện chuyến xe, không làm trễ cam kết giao nhận mủ.
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
           <!-- Col 1: Xe và Lộ trình -->
           <div class="space-y-4">
@@ -144,7 +180,7 @@ function handleSave() {
               <select v-model="vehicleId" class="form-select font-semibold">
                 <option value="" disabled>-- Chọn phương tiện --</option>
                 <option v-for="v in vehicles" :key="v.id" :value="v.id">
-                  {{ v.licensePlate }} ({{ getVehicleTypeLabel(v.vehicleType) }}) - {{ getVehicleStatusLabel(v.status) }}
+                  {{ v.licensePlate }} ({{ getVehicleTypeLabel(v.vehicleType) }}{{ v.isExternal ? ' - Xe ngoài' : '' }}) - {{ getVehicleStatusLabel(v.status) }}
                 </option>
               </select>
             </div>

@@ -67,10 +67,17 @@ const driverAssignmentHistory = computed(() => {
 
 // Dịch loại xe sang tiếng Việt
 function getVehicleTypeLabel(type: string): string {
-  switch (type) {
-    case 'LatexTruck': return 'Xe tải chở mủ';
-    case 'PassengerCar': return 'Bán tải công tác';
-    case 'MillingMachine': return 'Máy đào mương / san ủi';
+  const t = (type || '').toLowerCase();
+  if (props.vehicle?.model?.toLowerCase().includes('bồn')) {
+    return 'Xe bồn chở mủ';
+  }
+  switch (t) {
+    case 'latextruck':
+    case 'truck': return 'Xe tải chở mủ';
+    case 'passengercar':
+    case 'pickup': return 'Bán tải công tác';
+    case 'millingmachine':
+    case 'excavator': return 'Máy đào mương / san ủi';
     default: return type;
   }
 }
@@ -108,8 +115,11 @@ function handleGoToMaintenanceTypes() {
             <h3 class="modal-title">Hồ Sơ Phương Tiện — {{ vehicle.licensePlate }}</h3>
           </div>
           <div class="header-badges">
+            <span class="badge" :class="vehicle.isExternal ? 'badge-warning' : 'badge-completed'">
+              {{ vehicle.isExternal ? 'Xe thuê ngoài' : 'Xe công ty' }}
+            </span>
             <StatusBadge :status="vehicle.status" />
-            <StatusBadge :status="vehicle.maintenanceStatus" type="maintenance" />
+            <StatusBadge v-if="!vehicle.isExternal" :status="vehicle.maintenanceStatus" type="maintenance" />
           </div>
         </div>
         <button class="btn-close" @click="emit('close')">
@@ -253,6 +263,12 @@ function handleGoToMaintenanceTypes() {
               <span>Đặc Tính Kỹ Thuật & Định Mức</span>
             </h5>
             <div class="spec-table">
+              <div class="spec-row">
+                <span class="spec-label">Hình thức sở hữu</span>
+                <span class="spec-val font-semibold" :class="vehicle.isExternal ? 'text-warning' : 'text-success'">
+                  {{ vehicle.isExternal ? '🚚 Xe thuê ngoài' : '🏢 Xe công ty' }}
+                </span>
+              </div>
               <div class="spec-row">
                 <span class="spec-label">Chủng loại xe</span>
                 <span class="spec-val">{{ getVehicleTypeLabel(vehicle.vehicleType) }}</span>

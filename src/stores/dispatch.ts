@@ -314,6 +314,18 @@ export const useDispatchStore = defineStore('dispatch', () => {
       };
     }
 
+    // Cập nhật trạng thái phương tiện
+    const oldVehicleId = trip.vehicleId;
+    if (oldVehicleId !== vehicle.id) {
+      const oldVehicle = fleetStore.vehicles.find((v) => v.id === oldVehicleId);
+      if (oldVehicle && oldVehicle.status === 'OnTrip') {
+        oldVehicle.status = 'Available';
+      }
+      if (vehicle.status === 'Available') {
+        vehicle.status = 'OnTrip';
+      }
+    }
+
     const route = fleetStore.routes.find((r) => r.id === payload.routeId) || fleetStore.routes[0];
 
     // Cập nhật
@@ -331,6 +343,7 @@ export const useDispatchStore = defineStore('dispatch', () => {
     trip.notes = payload.notes;
 
     saveState();
+    fleetStore.saveState();
 
     return {
       success: true,
