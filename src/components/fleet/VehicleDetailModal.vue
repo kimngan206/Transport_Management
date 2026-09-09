@@ -65,6 +65,7 @@ function getVehicleTypeLabel(type: string): string {
     case 'Truck': return 'Xe tải chở mủ';
     case 'Pickup': return 'Bán tải công tác';
     case 'Excavator': return 'Máy đào mương / san ủi';
+    case 'Electric': return 'Xe điện VinFast';
     default: return type;
   }
 }
@@ -271,7 +272,11 @@ function handleGoToMaintenanceTypes() {
                   <span v-if="vehicle.passengerCapacity">({{ vehicle.passengerCapacity }} chỗ ngồi)</span>
                 </span>
               </div>
-              <div v-if="vehicle.vehicleType !== 'Excavator'" class="spec-row">
+              <div v-if="vehicle.vehicleType === 'Electric'" class="spec-row">
+                <span class="spec-label">Định mức tiêu hao điện</span>
+                <span class="spec-val"><strong>{{ vehicle.fuelQuotaEmpty }}</strong> kWh/km</span>
+              </div>
+              <div v-else-if="vehicle.vehicleType !== 'Excavator'" class="spec-row">
                 <span class="spec-label">Định mức không tải (NLP)</span>
                 <span class="spec-val"><strong>{{ vehicle.fuelQuotaEmpty }}</strong> L/km</span>
               </div>
@@ -282,6 +287,10 @@ function handleGoToMaintenanceTypes() {
               <div v-if="vehicle.vehicleType === 'Excavator'" class="spec-row">
                 <span class="spec-label">Định mức giờ máy</span>
                 <span class="spec-val"><strong>{{ vehicle.hourMeterQuota }}</strong> L/giờ</span>
+              </div>
+              <div v-if="vehicle.fuelFormulaText" class="spec-row">
+                <span class="spec-label">Công thức hao phí</span>
+                <span class="spec-val text-xs">{{ vehicle.fuelFormulaText }}</span>
               </div>
             </div>
           </div>

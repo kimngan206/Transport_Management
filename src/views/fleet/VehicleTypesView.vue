@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { useFleetStore } from '@/stores/fleet';
+import FormulaBuilder from '@/components/common/FormulaBuilder.vue';
 import type { VehicleCategory, VehicleType } from '@/types';
 import {
   Truck,
@@ -31,11 +32,14 @@ const formGroup = ref<'Vận tải mủ' | 'Cơ giới nông trường' | 'Công
 const formVehicleType = ref<VehicleType>('Truck');
 const formCapacityTons = ref<number | undefined>(5.0);
 const formSeats = ref<number | undefined>(undefined);
-const formFuelQuotaType = ref<'L_PER_KM' | 'L_PER_TON_KM' | 'L_PER_HOUR'>('L_PER_TON_KM');
+const formFuelQuotaType = ref<'L_PER_KM' | 'L_PER_TON_KM' | 'L_PER_HOUR' | 'KWH_PER_KM'>('L_PER_TON_KM');
 const formDefaultQuotaEmpty = ref<number>(0.25);
 const formDefaultQuotaLoaded = ref<number | undefined>(0.02);
 const formDescription = ref('');
+const formFuelFormulaText = ref('');
 const formIsActive = ref(true);
+const showFormulaModal = ref(false);
+const formulaEditorDraft = ref('');
 
 // Thống kê nhanh
 const totalCategories = computed(() => fleetStore.vehicleCategories.length);
@@ -45,6 +49,7 @@ function countVehiclesForCategory(category: VehicleCategory): number {
   return fleetStore.vehicles.filter((v) => {
     if (category.vehicleTypeCode === 'Excavator') return v.vehicleType === 'Excavator';
     if (category.vehicleTypeCode === 'Pickup') return v.vehicleType === 'Pickup';
+    if (category.vehicleTypeCode === 'Electric') return v.vehicleType === 'Electric';
     // Truck: chia thành xe tải hoặc xe bồn téc theo model/tải trọng
     if (category.code === 'TANKER_LATEX') {
       return v.vehicleType === 'Truck' && (v.capacityTons >= 7.0 || v.model.toLowerCase().includes('bồn'));
@@ -83,6 +88,7 @@ function openAddModal() {
   formDefaultQuotaEmpty.value = 0.25;
   formDefaultQuotaLoaded.value = 0.02;
   formDescription.value = '';
+  formFuelFormulaText.value = '';
   formIsActive.value = true;
   showModal.value = true;
 }
@@ -96,36 +102,63 @@ function openEditModal(category: VehicleCategory) {
   formCapacityTons.value = category.standardCapacityTons;
   formSeats.value = category.standardSeats;
   formFuelQuotaType.value = category.fuelQuotaType;
+  applyVehicleTypeDefaults(formVehicleType.value);
   formDefaultQuotaEmpty.value = category.defaultQuotaEmpty;
   formDefaultQuotaLoaded.value = category.defaultQuotaLoaded;
   formDescription.value = category.description;
+  formFuelFormulaText.value = category.fuelFormulaText || '';
   formIsActive.value = category.isActive;
   showModal.value = true;
 }
 
-function onGroupChange() {
-  if (formGroup.value === 'Vận tải mủ') {
-    formVehicleType.value = 'Truck';
+function openFormulaEditor() {
+  formulaEditorDraft.value = formFuelFormulaText.value;
+  showFormulaModal.value = true;
+}
+
+function saveFormulaFromModal() {
+  formFuelFormulaText.value = formulaEditorDraft.value.trim();
+  showFormulaModal.value = false;
+}
+
+function applyVehicleTypeDefaults(type: VehicleType) {
+  if (type === 'Truck') {
     formFuelQuotaType.value = 'L_PER_TON_KM';
     formDefaultQuotaEmpty.value = 0.25;
     formDefaultQuotaLoaded.value = 0.02;
     formCapacityTons.value = 5.0;
     formSeats.value = undefined;
-  } else if (formGroup.value === 'Cơ giới nông trường') {
-    formVehicleType.value = 'Excavator';
+  } else if (type === 'Excavator') {
     formFuelQuotaType.value = 'L_PER_HOUR';
     formDefaultQuotaEmpty.value = 14.5;
     formDefaultQuotaLoaded.value = undefined;
     formCapacityTons.value = 20.0;
     formSeats.value = undefined;
+  } else if (type === 'Electric') {
+    formFuelQuotaType.value = 'KWH_PER_KM';
+    formDefaultQuotaEmpty.value = 0.18;
+    formDefaultQuotaLoaded.value = undefined;
+    formCapacityTons.value = 0.8;
+    formSeats.value = 5;
   } else {
-    formVehicleType.value = 'Pickup';
     formFuelQuotaType.value = 'L_PER_KM';
     formDefaultQuotaEmpty.value = 0.10;
     formDefaultQuotaLoaded.value = 0.005;
     formCapacityTons.value = 0.8;
     formSeats.value = 5;
   }
+}
+
+function onGroupChange() {
+  if (formGroup.value === 'Vận tải mủ') {
+    formVehicleType.value = 'Truck';
+  } else if (formGroup.value === 'Cơ giới nông trường') {
+    formVehicleType.value = 'Excavator';
+  } else {
+    formVehicleType.value = 'Pickup';
+  }
+
+  applyVehicleTypeDefaults(formVehicleType.value);
 }
 
 function saveCategory() {
@@ -144,6 +177,7 @@ function saveCategory() {
     fuelQuotaType: formFuelQuotaType.value,
     defaultQuotaEmpty: Number(formDefaultQuotaEmpty.value) || 0,
     defaultQuotaLoaded: formDefaultQuotaLoaded.value ? Number(formDefaultQuotaLoaded.value) : undefined,
+    fuelFormulaText: formFuelFormulaText.value.trim() || undefined,
     description: formDescription.value.trim(),
     isActive: formIsActive.value,
   };
@@ -359,6 +393,16 @@ function deleteCategory(category: VehicleCategory) {
           </div>
 
           <div class="form-item">
+            <label class="form-label">Loại Xe</label>
+            <select v-model="formVehicleType" class="form-select">
+              <option value="Truck">Xe tải</option>
+              <option value="Pickup">Xe bán tải</option>
+              <option value="Excavator">Máy đào / cơ giới nông trường</option>
+              <option value="Electric">Xe điện VinFast</option>
+            </select>
+          </div>
+
+          <div class="form-item">
             <label class="form-label">Mô Tả Nhiệm Vụ & Phạm Vi Áp Dụng</label>
             <textarea
               v-model="formDescription"
@@ -366,6 +410,21 @@ function deleteCategory(category: VehicleCategory) {
               class="form-textarea"
               placeholder="Mô tả phạm vi hoạt động của loại xe, phục vụ chuyên chở mủ hay công tác nông trường..."
             ></textarea>
+          </div>
+
+          <div class="form-item">
+            <label class="form-label">Công Thức Hao Phí / Tiêu Hao</label>
+            <div class="formula-action-row">
+              <button type="button" class="btn btn-secondary btn-small" @click="openFormulaEditor">
+                Sửa công thức
+              </button>
+            </div>
+            <div v-if="formFuelFormulaText" class="formula-preview-box">
+              {{ formFuelFormulaText }}
+            </div>
+            <div v-else class="formula-preview-box empty">
+              Chưa có công thức
+            </div>
           </div>
 
           <div class="form-switch-row">
@@ -384,6 +443,31 @@ function deleteCategory(category: VehicleCategory) {
           <button class="btn btn-primary" @click="saveCategory">
             <span>{{ editingCategory ? 'Lưu Thay Đổi' : 'Thêm Loại Xe' }}</span>
           </button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showFormulaModal" class="modal-backdrop" @click.self="showFormulaModal = false">
+      <div class="modal-card formula-modal-card">
+        <div class="modal-header">
+          <div class="modal-title-box">
+            <Truck :size="18" class="text-success" />
+            <h3>Sửa Công Thức Hao Phí / Tiêu Hao</h3>
+          </div>
+          <button class="btn-close" @click="showFormulaModal = false">✕</button>
+        </div>
+
+        <div class="modal-body">
+          <FormulaBuilder
+            v-model="formulaEditorDraft"
+            label="Công Thức Hao Phí / Tiêu Hao"
+            placeholder="Ví dụ: StandardDistanceKm × ElectricNormPerKm"
+          />
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn btn-secondary" @click="showFormulaModal = false">Hủy</button>
+          <button class="btn btn-primary" @click="saveFormulaFromModal">Lưu Công Thức</button>
         </div>
       </div>
     </div>
@@ -814,6 +898,15 @@ function deleteCategory(category: VehicleCategory) {
   max-height: 90vh;
 }
 
+.formula-modal-card {
+  max-width: 900px;
+  max-height: 90vh;
+}
+
+.formula-modal-card .modal-body {
+  max-height: calc(90vh - 132px);
+}
+
 .modal-header {
   padding: 16px 20px;
   border-bottom: 1px solid var(--border-subtle);
@@ -850,7 +943,10 @@ function deleteCategory(category: VehicleCategory) {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  flex: 1 1 auto;
+  min-height: 0;
 }
+
 
 .form-grid-2 {
   display: grid;

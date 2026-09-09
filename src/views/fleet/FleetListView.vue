@@ -6,6 +6,7 @@ import { useDialogStore } from '@/stores/dialog';
 import { mockStorage } from '@/services/mockStorage';
 import type { Vehicle, Driver, VehicleCategory } from '@/types';
 import StatusBadge from '@/components/common/StatusBadge.vue';
+import FormulaBuilder from '@/components/common/FormulaBuilder.vue';
 import VehicleDetailModal from '@/components/fleet/VehicleDetailModal.vue';
 import DriverDetailModal from '@/components/fleet/DriverDetailModal.vue';
 import {
@@ -81,6 +82,7 @@ function countVehiclesForCat(category: any): number {
   return fleetStore.vehicles.filter((v) => {
     if (category.vehicleTypeCode === 'Excavator') return v.vehicleType === 'Excavator';
     if (category.vehicleTypeCode === 'Pickup') return v.vehicleType === 'Pickup';
+    if (category.vehicleTypeCode === 'Electric') return v.vehicleType === 'Electric';
     if (category.code === 'TANKER_LATEX') return v.vehicleType === 'Truck' && v.model.toLowerCase().includes('bồn');
     if (category.code === 'TRUCK_HEAVY_15T') return v.vehicleType === 'Truck' && (v.capacityTons || 0) >= 15;
     if (category.code === 'TRUCK_MEDIUM_8T') return v.vehicleType === 'Truck' && (v.capacityTons || 0) >= 8 && (v.capacityTons || 0) < 15;
@@ -122,6 +124,8 @@ function getVehicleTypeLabel(type: string): string {
       return 'Bán tải';
     case 'Excavator':
       return 'Máy đào';
+    case 'Electric':
+      return 'Xe điện';
     default:
       return type;
   }
@@ -145,13 +149,16 @@ function getDriverEmploymentStatusLabel(status: string): string {
 const showAddVehModal = ref(false);
 const editingVehicle = ref<Vehicle | null>(null);
 const newVehPlate = ref('');
-const newVehType = ref<'Truck' | 'Pickup' | 'Excavator'>('Truck');
+const newVehType = ref<'Truck' | 'Pickup' | 'Excavator' | 'Electric'>('Truck');
 const newVehModel = ref('');
 const newVehCapacity = ref(5.0);
 const newVehEmptyQuota = ref(0.25);
 const newVehLoadedQuota = ref(0.02);
+const newVehFormulaText = ref('');
 const newVehOdo = ref(10000);
 const newVehDriverId = ref<number | ''>('');
+const showVehFormulaModal = ref(false);
+const vehFormulaDraft = ref('');
 
 function openAddVehicleModal() {
   editingVehicle.value = null;
@@ -161,6 +168,7 @@ function openAddVehicleModal() {
   newVehCapacity.value = 5.0;
   newVehEmptyQuota.value = 0.25;
   newVehLoadedQuota.value = 0.02;
+  newVehFormulaText.value = '';
   newVehOdo.value = 10000;
   newVehDriverId.value = '';
   showAddVehModal.value = true;
@@ -174,12 +182,23 @@ function openEditVehicleModal(vehicle: Vehicle) {
   newVehCapacity.value = vehicle.capacityTons;
   newVehEmptyQuota.value = vehicle.fuelQuotaEmpty;
   newVehLoadedQuota.value = vehicle.fuelQuotaLoaded;
+  newVehFormulaText.value = vehicle.fuelFormulaText || '';
   newVehOdo.value = vehicle.currentOdoKm;
   newVehDriverId.value = vehicle.assignedDriverId || '';
   if (selectedVehicleForDetail.value) {
     selectedVehicleForDetail.value = null;
   }
   showAddVehModal.value = true;
+}
+
+function openVehicleFormulaEditor() {
+  vehFormulaDraft.value = newVehFormulaText.value;
+  showVehFormulaModal.value = true;
+}
+
+function saveVehicleFormula() {
+  newVehFormulaText.value = vehFormulaDraft.value.trim();
+  showVehFormulaModal.value = false;
 }
 
 function handleSaveVehicle() {
@@ -200,6 +219,7 @@ function handleSaveVehicle() {
       capacityTons: Number(newVehCapacity.value),
       fuelQuotaEmpty: Number(newVehEmptyQuota.value),
       fuelQuotaLoaded: Number(newVehLoadedQuota.value),
+      fuelFormulaText: newVehFormulaText.value.trim() || undefined,
       currentOdoKm: Number(newVehOdo.value),
       assignedDriverId: selectedDriver ? selectedDriver.id : undefined,
       assignedDriverName: selectedDriver ? selectedDriver.fullName : undefined,
@@ -214,6 +234,7 @@ function handleSaveVehicle() {
       capacityTons: Number(newVehCapacity.value),
       fuelQuotaEmpty: Number(newVehEmptyQuota.value),
       fuelQuotaLoaded: Number(newVehLoadedQuota.value),
+      fuelFormulaText: newVehFormulaText.value.trim() || undefined,
       currentOdoKm: Number(newVehOdo.value),
       status: 'Available',
       maintenanceStatus: 'Normal',
@@ -256,9 +277,12 @@ const editingCategory = ref<VehicleCategory | null>(null);
 const newCatCode = ref('');
 const newCatName = ref('');
 const newCatGroup = ref<'Vận tải mủ' | 'Cơ giới nông trường' | 'Công tác & Kỹ thuật'>('Vận tải mủ');
-const newCatVehType = ref<'Truck' | 'Pickup' | 'Excavator'>('Truck');
+const newCatVehType = ref<'Truck' | 'Pickup' | 'Excavator' | 'Electric'>('Truck');
 const newCatDesc = ref('');
+const newCatFuelFormulaText = ref('');
 const newCatIsActive = ref(true);
+const showCatFormulaModal = ref(false);
+const catFormulaDraft = ref('');
 
 function openAddCategoryModal() {
   editingCategory.value = null;
@@ -267,6 +291,7 @@ function openAddCategoryModal() {
   newCatGroup.value = 'Vận tải mủ';
   newCatVehType.value = 'Truck';
   newCatDesc.value = '';
+  newCatFuelFormulaText.value = '';
   newCatIsActive.value = true;
   showAddCatModal.value = true;
 }
@@ -278,8 +303,19 @@ function openEditCategoryModal(cat: VehicleCategory) {
   newCatGroup.value = cat.group;
   newCatVehType.value = cat.vehicleTypeCode;
   newCatDesc.value = cat.description || '';
+  newCatFuelFormulaText.value = cat.fuelFormulaText || '';
   newCatIsActive.value = cat.isActive;
   showAddCatModal.value = true;
+}
+
+function openCategoryFormulaEditor() {
+  catFormulaDraft.value = newCatFuelFormulaText.value;
+  showCatFormulaModal.value = true;
+}
+
+function saveCategoryFormula() {
+  newCatFuelFormulaText.value = catFormulaDraft.value.trim();
+  showCatFormulaModal.value = false;
 }
 
 function handleSaveCategory() {
@@ -297,6 +333,7 @@ function handleSaveCategory() {
       name: catName,
       group: newCatGroup.value,
       vehicleTypeCode: newCatVehType.value,
+      fuelFormulaText: newCatFuelFormulaText.value.trim() || undefined,
       description: newCatDesc.value.trim(),
       isActive: newCatIsActive.value,
     });
@@ -307,8 +344,9 @@ function handleSaveCategory() {
       name: catName,
       group: newCatGroup.value,
       vehicleTypeCode: newCatVehType.value,
-      defaultQuotaEmpty: newCatVehType.value === 'Excavator' ? 14.5 : newCatVehType.value === 'Truck' ? 0.25 : 0.1,
-      fuelQuotaType: newCatVehType.value === 'Excavator' ? 'L_PER_HOUR' : newCatVehType.value === 'Truck' ? 'L_PER_TON_KM' : 'L_PER_KM',
+      defaultQuotaEmpty: newCatVehType.value === 'Excavator' ? 14.5 : newCatVehType.value === 'Truck' ? 0.25 : newCatVehType.value === 'Electric' ? 0.18 : 0.1,
+      fuelQuotaType: newCatVehType.value === 'Excavator' ? 'L_PER_HOUR' : newCatVehType.value === 'Truck' ? 'L_PER_TON_KM' : newCatVehType.value === 'Electric' ? 'KWH_PER_KM' : 'L_PER_KM',
+      fuelFormulaText: newCatFuelFormulaText.value.trim() || undefined,
       description: newCatDesc.value.trim(),
       isActive: newCatIsActive.value,
     });
@@ -591,7 +629,11 @@ function handleAddHandover() {
                 <span v-if="v.passengerCapacity" class="text-muted text-xs"> ({{ v.passengerCapacity }} chỗ)</span>
               </td>
               <td>
-                <div v-if="v.vehicleType !== 'Excavator'" class="flex-col text-xs">
+                <div v-if="v.vehicleType === 'Electric'" class="flex-col text-xs">
+                  <span>Tiêu hao điện: <strong>{{ v.fuelQuotaEmpty }} kWh/km</strong></span>
+                  <span v-if="v.fuelFormulaText" class="text-muted">{{ v.fuelFormulaText }}</span>
+                </div>
+                <div v-else-if="v.vehicleType !== 'Excavator'" class="flex-col text-xs">
                   <span>Không tải: <strong>{{ v.fuelQuotaEmpty }} L/km</strong></span>
                   <span>Có tải: <strong>{{ v.fuelQuotaLoaded }} L/t.km</strong></span>
                 </div>
@@ -888,12 +930,27 @@ function handleAddHandover() {
               <input v-model.number="newVehCapacity" type="number" step="0.5" class="form-input" />
             </div>
             <div class="form-group">
-              <label class="form-label">NLP (L/km)</label>
+              <label class="form-label">NLP / Định mức cơ bản</label>
               <input v-model.number="newVehEmptyQuota" type="number" step="0.01" class="form-input" />
             </div>
             <div class="form-group">
-              <label class="form-label">NLC (L/tấn.km)</label>
+              <label class="form-label">NLC / Định mức có tải</label>
               <input v-model.number="newVehLoadedQuota" type="number" step="0.005" class="form-input" />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Công thức hao phí / tiêu hao theo mong muốn</label>
+            <div class="formula-action-row">
+              <button type="button" class="btn btn-secondary btn-small" @click="openVehicleFormulaEditor">
+                Sửa công thức
+              </button>
+            </div>
+            <div v-if="newVehFormulaText" class="formula-preview-box">
+              {{ newVehFormulaText }}
+            </div>
+            <div v-else class="formula-preview-box empty">
+              Chưa có công thức
             </div>
           </div>
 
@@ -956,6 +1013,21 @@ function handleAddHandover() {
           </div>
 
           <div class="form-group">
+            <label class="form-label">Công thức hao phí tiêu chuẩn của loại xe</label>
+            <div class="formula-action-row">
+              <button type="button" class="btn btn-secondary btn-small" @click="openCategoryFormulaEditor">
+                Sửa công thức
+              </button>
+            </div>
+            <div v-if="newCatFuelFormulaText" class="formula-preview-box">
+              {{ newCatFuelFormulaText }}
+            </div>
+            <div v-else class="formula-preview-box empty">
+              Chưa có công thức
+            </div>
+          </div>
+
+          <div class="form-group">
             <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
               <input type="checkbox" v-model="newCatIsActive" />
               <span>Kích hoạt loại xe này trong hệ thống</span>
@@ -968,6 +1040,44 @@ function handleAddHandover() {
           <button class="btn btn-primary" @click="handleSaveCategory">
             {{ editingCategory ? 'Lưu Thay Đổi' : 'Lưu Loại Xe' }}
           </button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showVehFormulaModal" class="modal-backdrop" @click.self="showVehFormulaModal = false">
+      <div class="modal-content formula-modal-content">
+        <div class="modal-header">
+          <h3 class="modal-title">Sửa Công Thức Hao Phí / Tiêu Hao</h3>
+        </div>
+        <div class="modal-body">
+          <FormulaBuilder
+            v-model="vehFormulaDraft"
+            label="Công thức hao phí / tiêu hao theo mong muốn"
+            placeholder="Ví dụ: (StandardDistanceKm × NLP) + ((TotalWeightKg / 1000) × StandardDistanceKm × NLC)"
+          />
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" @click="showVehFormulaModal = false">Hủy</button>
+          <button class="btn btn-primary" @click="saveVehicleFormula">Lưu Công Thức</button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showCatFormulaModal" class="modal-backdrop" @click.self="showCatFormulaModal = false">
+      <div class="modal-content formula-modal-content">
+        <div class="modal-header">
+          <h3 class="modal-title">Sửa Công Thức Hao Phí Tiêu Chuẩn Của Loại Xe</h3>
+        </div>
+        <div class="modal-body">
+          <FormulaBuilder
+            v-model="catFormulaDraft"
+            label="Công thức hao phí tiêu chuẩn của loại xe"
+            placeholder="Ví dụ: StandardDistanceKm × ElectricNormPerKm"
+          />
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" @click="showCatFormulaModal = false">Hủy</button>
+          <button class="btn btn-primary" @click="saveCategoryFormula">Lưu Công Thức</button>
         </div>
       </div>
     </div>
@@ -1299,6 +1409,45 @@ function handleAddHandover() {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+.btn-small {
+  padding: 7px 12px;
+  font-size: 0.82rem;
+}
+
+.formula-action-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
+.formula-preview-box {
+  min-height: 42px;
+  border: 1px solid #e5c39b;
+  border-radius: 10px;
+  background: #fffaf3;
+  color: #7c2d12;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.formula-preview-box.empty {
+  color: #a16207;
+  font-style: italic;
+}
+
+.formula-modal-content {
+  max-width: 900px;
+  max-height: 90vh;
+}
+
+.formula-modal-content .modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: calc(90vh - 132px);
 }
 
 .btn-outline {

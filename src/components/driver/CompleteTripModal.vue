@@ -51,8 +51,6 @@ const latexScrapKg = ref<number>(200);
 const startHour = ref<number>(vehicle?.currentOperatingHours || 4820);
 const endHour = ref<number>((vehicle?.currentOperatingHours || 4820) + 4);
 
-// Nhiên liệu thực tế
-const actualFuel = ref<number>(10.5);
 const notes = ref<string>('Hoàn thành chuyến đi an toàn');
 const errorMsg = ref<string>('');
 const previewProofModalImage = ref<string | null>(null);
@@ -205,10 +203,6 @@ const calculatedFuelLiters = computed(() => {
   return 0;
 });
 
-const fuelVariance = computed(() => {
-  return Number((Number(actualFuel.value || 0) - calculatedFuelLiters.value).toFixed(2));
-});
-
 function handleComplete() {
   errorMsg.value = '';
 
@@ -220,7 +214,7 @@ function handleComplete() {
 
   const res = driverStore.completeTrip(props.trip.id, {
     endOdo: Number(endOdo.value),
-    actualFuelFilledLiters: Number(actualFuel.value),
+    actualFuelFilledLiters: Number(calculatedFuelLiters.value),
     weightLatex1Kg: Number(latexLiquidKg.value),
     weightLatex2Kg: 0,
     weightLatex3Kg: 0,
@@ -341,18 +335,6 @@ function handleComplete() {
             <div class="calc-item">
               <span class="calc-label">Dầu tiêu chuẩn:</span>
               <span class="calc-val text-primary">{{ calculatedFuelLiters }} Lít</span>
-            </div>
-
-            <div class="calc-item">
-              <span class="calc-label">Dầu thực tế đổ (Lít):</span>
-              <input v-model.number="actualFuel" type="number" step="0.1" class="form-input fuel-input text-end" />
-            </div>
-
-            <div class="calc-item">
-              <span class="calc-label">Chênh lệch (Variance):</span>
-              <span class="calc-val" :class="fuelVariance > 0 ? 'text-danger' : 'text-success'">
-                {{ fuelVariance > 0 ? '+' : '' }}{{ fuelVariance }} Lít
-              </span>
             </div>
           </div>
           <span class="form-hint mt-2">

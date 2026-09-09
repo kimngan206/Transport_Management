@@ -281,6 +281,20 @@ export const initialVehicleCategories: VehicleCategory[] = [
     description: 'Máy kéo rơ-moóc bánh lốp di chuyển sâu trong đường đất dốc lô cao su để gom thùng mủ về trạm tập kết',
     isActive: true,
   },
+  {
+    id: 6,
+    code: 'VINFAST_ELECTRIC',
+    name: 'Xe điện VinFast',
+    group: 'Công tác & Kỹ thuật',
+    vehicleTypeCode: 'Electric',
+    standardCapacityTons: 0.8,
+    standardSeats: 5,
+    fuelQuotaType: 'KWH_PER_KM',
+    defaultQuotaEmpty: 0.18,
+    fuelFormulaText: 'Tiêu hao = quãng đường chạy × 0.18 kWh/km',
+    description: 'Xe điện VinFast phục vụ công tác kiểm tra, điều phối và đưa đón cán bộ kỹ thuật trong nội bộ',
+    isActive: true,
+  },
 ];
 
 // ==========================================
@@ -357,6 +371,25 @@ export const initialVehicles: Vehicle[] = [
     assignedDriverId: 104,
     assignedDriverName: 'Đỗ Văn Máy',
     assignedDriverPhone: '0977 888 999',
+  },
+  {
+    id: 5,
+    licensePlate: 'VF-01',
+    vehicleType: 'Electric',
+    model: 'VinFast VF 5',
+    capacityTons: 0.8,
+    passengerCapacity: 5,
+    fuelQuotaEmpty: 0.18,
+    fuelQuotaLoaded: 0,
+    fuelFormulaText: 'Tiêu hao = quãng đường chạy × 0.18 kWh/km',
+    currentOdoKm: 8120,
+    status: 'Available',
+    maintenanceStatus: 'Normal',
+    lastMaintenanceOdo: 7800,
+    lastMaintenanceDate: '2026-08-19',
+    assignedDriverId: 103,
+    assignedDriverName: 'Lê Văn Tài',
+    assignedDriverPhone: '0909 555 789',
   },
 ];
 

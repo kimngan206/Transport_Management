@@ -23,7 +23,7 @@ export interface Department {
   managerId: number;
 }
 
-export type VehicleType = 'Truck' | 'Pickup' | 'Excavator';
+export type VehicleType = 'Truck' | 'Pickup' | 'Excavator' | 'Electric';
 export type VehicleOperationalStatus = 'Available' | 'OnTrip' | 'UnderMaintenance' | 'Broken';
 export type MaintenanceStatus = 'Normal' | 'Due' | 'Overdue';
 
@@ -35,9 +35,10 @@ export interface VehicleCategory {
   vehicleTypeCode: VehicleType;
   standardCapacityTons?: number;
   standardSeats?: number;
-  fuelQuotaType: 'L_PER_KM' | 'L_PER_TON_KM' | 'L_PER_HOUR';
+  fuelQuotaType: 'L_PER_KM' | 'L_PER_TON_KM' | 'L_PER_HOUR' | 'KWH_PER_KM';
   defaultQuotaEmpty: number;
   defaultQuotaLoaded?: number;
+  fuelFormulaText?: string;
   description: string;
   isActive: boolean;
 }
@@ -52,6 +53,7 @@ export interface Vehicle {
   fuelQuotaEmpty: number; // NLP: Lít/km không tải (ví dụ 0.25 L/km)
   fuelQuotaLoaded: number; // NLC: Lít/tấn.km có tải (ví dụ 0.02 L/tấn.km)
   hourMeterQuota?: number; // Lít/giờ đối với xe xúc
+  fuelFormulaText?: string; // Công thức hao phí nhiên liệu / điện theo mong muốn của người quản lý
   currentOdoKm: number;
   currentOperatingHours?: number; // Giờ máy hiện tại (xe xúc)
   status: VehicleOperationalStatus;
@@ -152,7 +154,7 @@ export interface TransportTrip {
   startOdo?: number;
   endOdo?: number;
   actualDistanceKm?: number;
-  
+
   // Sản lượng mủ (đặc thù xe tải chở mủ cao su)
   weightLatex1Kg?: number; // Mủ nước 1
   weightLatex2Kg?: number; // Mủ nước 2
