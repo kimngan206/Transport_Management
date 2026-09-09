@@ -42,10 +42,13 @@ export const STORAGE_KEYS = {
   CURRENT_USER_ID: 'qldv_current_user_id',
   ACTIVE_ROLE: 'qldv_active_role',
   HUBS: 'qldv_hubs',
+  HANDOVERS: 'qldv_handovers',
+  DRIVER_INCIDENTS: 'qldv_driver_incidents',
+  ECOTECH_ROUTES: 'qldv_ecotech_routes',
   DATA_VERSION: 'qldv_data_version',
 } as const;
 
-const CURRENT_DATA_VERSION = 'v3.7_standardize_doi_naming';
+const CURRENT_DATA_VERSION = 'v3.8_storage_persistence';
 
 // ==========================================
 // 1. COOKIE STORAGE HELPERS (Chỉ lưu session/role ngắn, < 100 bytes)
@@ -104,6 +107,9 @@ export function cleanupBloatedCookies(): void {
     STORAGE_KEYS.MAINTENANCES,
     STORAGE_KEYS.MAINTENANCE_TYPES,
     STORAGE_KEYS.HUBS,
+    STORAGE_KEYS.HANDOVERS,
+    STORAGE_KEYS.DRIVER_INCIDENTS,
+    STORAGE_KEYS.ECOTECH_ROUTES,
   ];
   heavyCookieKeys.forEach((key) => deleteCookie(key));
 }
@@ -145,16 +151,14 @@ function getFromStorage<T>(key: string, defaultValue: T): T {
     }
   }
 
-  if (!valStr) return defaultValue;
+  // Chưa từng có dữ liệu trong bất kỳ tầng storage nào -> nạp giá trị mặc định ban đầu
+  if (valStr === null || valStr === undefined) {
+    saveToStorage(key, defaultValue);
+    return defaultValue;
+  }
 
   try {
     const parsed = JSON.parse(valStr);
-
-    // Self-healing: nếu defaultValue là mảng có dữ liệu mẫu nhưng parsed lại rỗng hoặc null, tự khôi phục dữ liệu mẫu
-    if (Array.isArray(defaultValue) && defaultValue.length > 0 && Array.isArray(parsed) && parsed.length === 0) {
-      saveToStorage(key, defaultValue);
-      return defaultValue;
-    }
 
     // Đồng bộ ngược lại cho LocalStorage và SessionStorage nếu thiếu (Self-healing)
     try {
@@ -223,42 +227,44 @@ function removeFromAllTiers(key: string): void {
 // ==========================================
 // 3. DATA INTEGRITY & MIGRATION
 // ==========================================
+function initIfMissing<T>(key: string, defaultData: T) {
+  const existing =
+    (typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null) ||
+    (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(key) : null);
+  if (!existing) {
+    saveToStorage(key, defaultData);
+  }
+}
+
 function checkAndMigrateStorage() {
   try {
-    const savedVer =
-      (typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.DATA_VERSION) : null) ||
-      (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(STORAGE_KEYS.DATA_VERSION) : null) ||
-      getCookie(STORAGE_KEYS.DATA_VERSION);
+    // Dọn dẹp cookie nặng nếu có
+    cleanupBloatedCookies();
 
-    if (savedVer !== CURRENT_DATA_VERSION) {
-      // Dọn dẹp cookie nặng
-      cleanupBloatedCookies();
+    // Bảo tồn dữ liệu người dùng đã thao tác: CHỈ khởi tạo dữ liệu mẫu cho các bảng chưa từng tồn tại
+    initIfMissing(STORAGE_KEYS.USERS, initialUsers);
+    initIfMissing(STORAGE_KEYS.DEPARTMENTS, initialDepartments);
+    initIfMissing(STORAGE_KEYS.DRIVERS, initialDrivers);
+    initIfMissing(STORAGE_KEYS.VEHICLE_CATEGORIES, initialVehicleCategories);
+    initIfMissing(STORAGE_KEYS.VEHICLES, initialVehicles);
+    initIfMissing(STORAGE_KEYS.ROUTES, initialStandardRoutes);
+    initIfMissing(STORAGE_KEYS.REQUESTS, initialRequests);
+    initIfMissing(STORAGE_KEYS.TRIPS, initialTrips);
+    initIfMissing(STORAGE_KEYS.INCIDENTS, initialIncidents);
+    initIfMissing(STORAGE_KEYS.MAINTENANCES, initialMaintenanceRecords);
+    initIfMissing(STORAGE_KEYS.MAINTENANCE_TYPES, initialMaintenanceTypes);
+    initIfMissing(STORAGE_KEYS.HUBS, initialEcotechHubs);
 
-      // Nạp bộ dữ liệu chuẩn hóa đồng bộ 100% vào LocalStorage và SessionStorage
-      saveToStorage(STORAGE_KEYS.USERS, initialUsers);
-      saveToStorage(STORAGE_KEYS.DEPARTMENTS, initialDepartments);
-      saveToStorage(STORAGE_KEYS.DRIVERS, initialDrivers);
-      saveToStorage(STORAGE_KEYS.VEHICLE_CATEGORIES, initialVehicleCategories);
-      saveToStorage(STORAGE_KEYS.VEHICLES, initialVehicles);
-      saveToStorage(STORAGE_KEYS.ROUTES, initialStandardRoutes);
-      saveToStorage(STORAGE_KEYS.REQUESTS, initialRequests);
-      saveToStorage(STORAGE_KEYS.TRIPS, initialTrips);
-      saveToStorage(STORAGE_KEYS.INCIDENTS, initialIncidents);
-      saveToStorage(STORAGE_KEYS.MAINTENANCES, initialMaintenanceRecords);
-      saveToStorage(STORAGE_KEYS.MAINTENANCE_TYPES, initialMaintenanceTypes);
-      saveToStorage(STORAGE_KEYS.HUBS, initialEcotechHubs);
-
-      // Cập nhật phiên bản
-      if (typeof localStorage !== 'undefined') localStorage.setItem(STORAGE_KEYS.DATA_VERSION, CURRENT_DATA_VERSION);
-      if (typeof sessionStorage !== 'undefined') sessionStorage.setItem(STORAGE_KEYS.DATA_VERSION, CURRENT_DATA_VERSION);
-      setCookie(STORAGE_KEYS.DATA_VERSION, CURRENT_DATA_VERSION, 365);
-    }
+    // Cập nhật phiên bản mà không xóa đè dữ liệu của người dùng
+    if (typeof localStorage !== 'undefined') localStorage.setItem(STORAGE_KEYS.DATA_VERSION, CURRENT_DATA_VERSION);
+    if (typeof sessionStorage !== 'undefined') sessionStorage.setItem(STORAGE_KEYS.DATA_VERSION, CURRENT_DATA_VERSION);
+    setCookie(STORAGE_KEYS.DATA_VERSION, CURRENT_DATA_VERSION, 365);
   } catch (e) {
     console.warn('Lỗi kiểm tra migration storage:', e);
   }
 }
 
-// Kích hoạt migration
+// Kích hoạt migration an toàn
 checkAndMigrateStorage();
 
 // ==========================================
@@ -269,6 +275,8 @@ export const mockStorage = {
   setCookie,
   deleteCookie,
   cleanupBloatedCookies,
+  saveToStorage,
+  getFromStorage,
 
   resetAll() {
     Object.values(STORAGE_KEYS).forEach((k) => {
@@ -382,18 +390,6 @@ export const mockStorage = {
       saveToStorage(STORAGE_KEYS.TRIPS, initialTrips);
       return [...initialTrips];
     }
-    // Đảm bảo chuyến 1002 có trạng thái ASSIGNED ban đầu để trải nghiệm trọn vẹn luồng nhận chuyến
-    const t1002 = res.find((t) => t.id === 1002);
-    if (t1002 && !t1002.acceptedAt && t1002.status === 'INPROGRESS') {
-      t1002.status = 'ASSIGNED';
-      saveToStorage(STORAGE_KEYS.TRIPS, res);
-    }
-    const t1001 = res.find((t) => t.id === 1001);
-    if (t1001 && t1001.expenses && (!t1001.expenses[0] || !t1001.expenses[0].receiptImage)) {
-      const init1001 = initialTrips.find((t) => t.id === 1001);
-      if (init1001) t1001.expenses = JSON.parse(JSON.stringify(init1001.expenses));
-      saveToStorage(STORAGE_KEYS.TRIPS, res);
-    }
     return res;
   },
   saveTrips(data: TransportTrip[]) {
@@ -480,6 +476,47 @@ export const mockStorage = {
   },
   saveHubs<T>(data: T[]) {
     saveToStorage(STORAGE_KEYS.HUBS, data);
+  },
+
+  // BÀN GIAO MƯỢN TRẢ XE (HANDOVERS)
+  getHandovers<T = any>(defaultHandovers: T[] = []): T[] {
+    const res = getFromStorage<T[]>(STORAGE_KEYS.HANDOVERS, defaultHandovers);
+    if (!Array.isArray(res)) {
+      saveToStorage(STORAGE_KEYS.HANDOVERS, defaultHandovers);
+      return [...defaultHandovers];
+    }
+    return res;
+  },
+  saveHandovers<T = any>(data: T[]) {
+    saveToStorage(STORAGE_KEYS.HANDOVERS, data);
+  },
+
+  // SỰ CỐ TÀI XẾ BÁO CÁO (DRIVER INCIDENTS)
+  getDriverIncidents<T = any>(defaultIncidents: T[] = []): T[] {
+    const res = getFromStorage<T[]>(STORAGE_KEYS.DRIVER_INCIDENTS, defaultIncidents);
+    if (!Array.isArray(res)) {
+      saveToStorage(STORAGE_KEYS.DRIVER_INCIDENTS, defaultIncidents);
+      return [...defaultIncidents];
+    }
+    return res;
+  },
+  saveDriverIncidents<T = any>(data: T[]) {
+    saveToStorage(STORAGE_KEYS.DRIVER_INCIDENTS, data);
+  },
+
+  // TUYẾN ĐƯỜNG BẢN ĐỒ ECOTECH (ROUTE PATHS GIS)
+  getEcotechRoutes<T = any>(defaultRoutes: T[] = []): T[] {
+    const res = getFromStorage<T[]>(STORAGE_KEYS.ECOTECH_ROUTES, defaultRoutes);
+    if (!Array.isArray(res) || res.length === 0) {
+      if (defaultRoutes.length > 0) {
+        saveToStorage(STORAGE_KEYS.ECOTECH_ROUTES, defaultRoutes);
+      }
+      return [...defaultRoutes];
+    }
+    return res;
+  },
+  saveEcotechRoutes<T = any>(data: T[]) {
+    saveToStorage(STORAGE_KEYS.ECOTECH_ROUTES, data);
   },
 
   getStorageHealth() {

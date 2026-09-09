@@ -53,8 +53,8 @@ export function deleteEcotechHub(hubId: string) {
   }
 }
 
-// Danh mục các tuyến đường quy chuẩn (BR-10) với waypoints GPS
-export const ECOTECH_ROUTES: RoutePath[] = [
+// Danh mục các tuyến đường quy chuẩn mặc định (BR-10) với waypoints GPS
+const defaultEcotechRoutes: RoutePath[] = [
   {
     id: 1,
     code: 'TC1-D1-TC1',
@@ -128,6 +128,8 @@ export const ECOTECH_ROUTES: RoutePath[] = [
   },
 ];
 
+export const ECOTECH_ROUTES: RoutePath[] = mockStorage.getEcotechRoutes(defaultEcotechRoutes);
+
 // Tính khoảng cách cự ly giữa 2 điểm GPS (km) áp dụng hệ số đường đất/dốc nông trường cao su (1.25)
 export function calculateHaversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371; // Bán kính trái đất (km)
@@ -146,6 +148,7 @@ export function addEcotechRoute(newRoute: RoutePath) {
   const exists = ECOTECH_ROUTES.some((r) => r.code === newRoute.code);
   if (!exists) {
     ECOTECH_ROUTES.push(newRoute);
+    mockStorage.saveEcotechRoutes(ECOTECH_ROUTES);
   }
 }
 

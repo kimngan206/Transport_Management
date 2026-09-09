@@ -3,6 +3,7 @@ import { ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useFleetStore } from '@/stores/fleet';
 import { useDialogStore } from '@/stores/dialog';
+import { mockStorage } from '@/services/mockStorage';
 import type { Vehicle, Driver, VehicleCategory } from '@/types';
 import StatusBadge from '@/components/common/StatusBadge.vue';
 import VehicleDetailModal from '@/components/fleet/VehicleDetailModal.vue';
@@ -49,7 +50,7 @@ watch(
 );
 
 // Danh sách bàn giao mượn trả xe (US-28)
-const handoverList = ref([
+const defaultHandovers = [
   {
     id: 1,
     vehiclePlate: '51C-889.26',
@@ -72,7 +73,8 @@ const handoverList = ref([
     conditionNotes: 'Đã trả xe nguyên trạng về bãi đỗ văn phòng công ty',
     status: 'Đã trả',
   },
-]);
+];
+const handoverList = ref(mockStorage.getHandovers(defaultHandovers));
 
 // Helper đếm số xe theo loại xe
 function countVehiclesForCat(category: any): number {
@@ -400,6 +402,7 @@ function handleSaveDriver() {
         v.assignedDriverPhone = newDriverPhone.value.trim();
       }
     });
+    fleetStore.saveState();
 
     dialog.showSuccess(`Đã cập nhật hồ sơ tài xế [${driverName}] thành công!`, 'Cập Nhật Thành Công');
   } else {
@@ -445,6 +448,7 @@ function handleDeleteDriver(driver: Driver) {
         assignedVeh.assignedDriverId = undefined;
         assignedVeh.assignedDriverName = undefined;
         assignedVeh.assignedDriverPhone = undefined;
+        fleetStore.saveState();
       }
       fleetStore.deleteDriver(driver.id);
       dialog.showSuccess(`Đã xóa tài xế [${driver.fullName}] khỏi hệ thống!`, 'Xóa Thành Công');
@@ -480,6 +484,7 @@ function handleAddHandover() {
     conditionNotes: newHandoverNotes.value.trim() || 'Xe bàn giao nguyên trạng hoạt động tốt',
     status: 'Đang mượn',
   });
+  mockStorage.saveHandovers(handoverList.value);
   showAddHandoverModal.value = false;
   dialog.showSuccess(`Phiếu bàn giao xe [${plate}] cho tài xế [${driver}] đã được lập thành công!`, 'Lập Phiếu Bàn Giao Thành Công');
 }

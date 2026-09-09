@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useAuthStore } from '@/stores/auth';
+import { useFleetStore } from '@/stores/fleet';
 import { useDialogStore } from '@/stores/dialog';
+import { mockStorage } from '@/services/mockStorage';
 import {
   AlertTriangle,
   Wrench,
@@ -13,6 +15,7 @@ import {
 } from 'lucide-vue-next';
 
 const authStore = useAuthStore();
+const fleetStore = useFleetStore();
 const dialog = useDialogStore();
 
 interface DriverIncident {
@@ -29,7 +32,7 @@ interface DriverIncident {
   repairNote?: string;
 }
 
-const incidents = ref<DriverIncident[]>([
+const defaultIncidents: DriverIncident[] = [
   {
     id: 1,
     reportCode: 'INC-260907-001',
@@ -55,7 +58,9 @@ const incidents = ref<DriverIncident[]>([
     reportedAt: '2026-09-05 06:45',
     repairNote: 'Thợ điện tại xưởng đã thay bóng đèn xi-nhan dự phòng.',
   },
-]);
+];
+
+const incidents = ref<DriverIncident[]>(mockStorage.getDriverIncidents(defaultIncidents));
 
 // Form gửi báo cáo mới
 const showCreateModal = ref(false);
@@ -89,7 +94,7 @@ function handleCreateIncident() {
   const newId = Date.now();
   const code = `INC-${new Date().toISOString().slice(2, 10).replace(/-/g, '')}-${String(incidents.value.length + 1).padStart(3, '0')}`;
 
-  incidents.value.unshift({
+  const newReport: DriverIncident = {
     id: newId,
     reportCode: code,
     vehiclePlate: newVehiclePlate.value,
@@ -100,9 +105,24 @@ function handleCreateIncident() {
     photoUrl: newPhotoUrl.value,
     status: 'REPORTED',
     reportedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
+  };
+
+  incidents.value.unshift(newReport);
+  mockStorage.saveDriverIncidents(incidents.value);
+
+  // Đồng bộ sang kho dữ liệu sự cố toàn hệ thống để Đội bảo dưỡng & Điều phối tiếp nhận
+  const targetVeh = fleetStore.vehicles.find((v) => v.licensePlate === newVehiclePlate.value);
+  fleetStore.reportIncident({
+    vehicleId: targetVeh ? targetVeh.id : 1,
+    vehiclePlate: newVehiclePlate.value,
+    reportedByDriverId: authStore.currentUser.driverId || 101,
+    driverName: authStore.currentUser.fullName,
+    reportDate: new Date().toISOString().slice(0, 10),
+    issueDescription: `[${newLocation.value}] ${newDescription.value}`,
+    severity: (newSeverity.value === 'Critical' || newSeverity.value === 'High') ? 'StopOperation' : 'Warning',
   });
 
-  dialog.showSuccess(`Đã gửi báo cáo sự cố ${code} đến Đội bảo dưỡng & Điều phối viên!`, 'Báo Cáo Thành Công');
+  dialog.showSuccess(`Đã gửi báo cáo sự cố ${code} đến Đội bảo dưỡng & Điều phối viên thành công!`, 'Báo Cáo Thành Công');
   showCreateModal.value = false;
   // Reset form
   newLocation.value = '';

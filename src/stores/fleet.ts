@@ -148,6 +148,19 @@ export const useFleetStore = defineStore('fleet', () => {
     saveState();
   }
 
+  function updateRoute(route: StandardRoute) {
+    const idx = routes.value.findIndex((r) => r.id === route.id);
+    if (idx !== -1) {
+      routes.value[idx] = { ...route };
+      saveState();
+    }
+  }
+
+  function deleteRoute(id: number) {
+    routes.value = routes.value.filter((r) => r.id !== id);
+    saveState();
+  }
+
   function addVehicle(vehicle: Omit<Vehicle, 'id'>) {
     const newVeh: Vehicle = {
       ...vehicle,
@@ -262,6 +275,8 @@ export const useFleetStore = defineStore('fleet', () => {
     reportIncident,
     recordMaintenance,
     addRoute,
+    updateRoute,
+    deleteRoute,
     addVehicle,
     updateVehicle,
     deleteVehicle,
@@ -275,6 +290,7 @@ export const useFleetStore = defineStore('fleet', () => {
     updateMaintenanceType,
     deleteMaintenanceType,
     toggleMaintenanceTypeStatus,
+    saveState,
   };
 });
 

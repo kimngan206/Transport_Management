@@ -58,6 +58,8 @@ export const useDriverStore = defineStore('driver', () => {
       );
     }
 
+    dispatchStore.saveState();
+
     return {
       success: true,
       message: `Đã xác nhận nhận chuyến ${trip.tripCode}! Thông tin đã được gửi tới Điều phối viên.`,
@@ -107,6 +109,8 @@ export const useDriverStore = defineStore('driver', () => {
       );
     }
 
+    dispatchStore.saveState();
+
     return {
       success: true,
       message: `Đã bắt đầu chuyến xe ${trip.tripCode}! Chúc tài xế thượng lộ bình an.`,
@@ -139,6 +143,8 @@ export const useDriverStore = defineStore('driver', () => {
         `Tài xế báo cáo xe đã đến điểm chỉ định lúc ${nowStr.slice(11)}${note ? ` (${note})` : ''}.`
       );
     }
+
+    dispatchStore.saveState();
 
     return {
       success: true,
@@ -263,6 +269,8 @@ export const useDriverStore = defineStore('driver', () => {
       );
     }
 
+    dispatchStore.saveState();
+
     return {
       success: true,
       message: `Đã hoàn thành chuyến ${trip.tripCode}! Dầu tiêu chuẩn: ${calculatedFuel}L, Thực tế: ${actualFuel}L (Chênh lệch: ${fuelVariance > 0 ? '+' : ''}${fuelVariance}L).`,
@@ -292,6 +300,7 @@ export const useDriverStore = defineStore('driver', () => {
       auditStatus: expense.receiptImage ? 'APPROVED' : 'PENDING',
     };
     trip.expenses.push(newExp);
+    dispatchStore.saveState();
     return { success: true, message: 'Đã kê khai chi phí & lưu bằng chứng thành công!', expense: newExp };
   }
 
@@ -301,6 +310,7 @@ export const useDriverStore = defineStore('driver', () => {
     const idx = trip.expenses.findIndex((e) => e.id === expenseId);
     if (idx !== -1) {
       trip.expenses.splice(idx, 1);
+      dispatchStore.saveState();
       return { success: true, message: 'Đã xóa khoản chi' };
     }
     return { success: false, message: 'Không tìm thấy khoản chi' };
@@ -313,6 +323,7 @@ export const useDriverStore = defineStore('driver', () => {
     if (!exp) return { success: false, message: 'Không tìm thấy khoản chi' };
     exp.auditStatus = status;
     if (note !== undefined) exp.auditNote = note;
+    dispatchStore.saveState();
     return { success: true, message: 'Đã cập nhật trạng thái thẩm định bằng chứng chi phí' };
   }
 

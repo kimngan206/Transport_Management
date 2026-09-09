@@ -256,5 +256,7 @@ export const useBookingStore = defineStore('booking', () => {
     rejectRequest,
     cancelRequest,
     updateRequestStatus,
+    saveState,
   };
 });
+

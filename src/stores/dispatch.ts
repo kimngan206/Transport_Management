@@ -273,5 +273,7 @@ export const useDispatchStore = defineStore('dispatch', () => {
     checkResourceConflict,
     validateBatchingConditions,
     dispatchTrip,
+    saveState,
   };
 });
+
