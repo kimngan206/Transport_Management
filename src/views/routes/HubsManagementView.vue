@@ -88,63 +88,31 @@ const streetAddress = ref<string>('Đường nội bộ nông trường');
 const isGeocoding = ref<boolean>(false);
 const geocodeSource = ref<'nominatim' | 'administrative' | 'manual' | 'fallback'>('administrative');
 const showManualCoords = ref<boolean>(false);
-
-// Danh sách Quận/Huyện theo Tỉnh đã chọn
-const currentDistricts = computed<DistrictItem[]>(() => {
-  const p = VIETNAM_PROVINCES.find((item) => item.name === selectedProvince.value);
-  return p ? p.districts : [];
-});
-
-// Danh sách Xã/Phường theo Huyện đã chọn
-const currentWards = computed<WardItem[]>(() => {
-  const d = currentDistricts.value.find((item) => item.name === selectedDistrict.value);
-  return d ? d.wards : [];
-});
-
 // Mini Map trong modal định vị
 const miniMapContainer = ref<HTMLElement | null>(null);
 let miniMapInstance: any = null;
 let miniMapMarker: any = null;
 
 function updateFullAddress() {
-  const parts = [
-    streetAddress.value.trim(),
-    selectedWard.value.trim(),
-    selectedDistrict.value.trim(),
-    selectedProvince.value.trim(),
-  ].filter(Boolean);
-  formAddress.value = parts.join(', ');
+  const s = streetAddress.value.trim();
+  const w = selectedWard.value.trim();
+  const d = selectedDistrict.value.trim();
+  const p = selectedProvince.value.trim();
+  
+  const parts = [s];
+  if (w && !s.includes(w)) parts.push(w);
+  if (d && !s.includes(d)) parts.push(d);
+  if (p && !s.includes(p)) parts.push(p);
+  
+  formAddress.value = parts.filter(Boolean).join(', ');
 }
 
-function handleProvinceChange() {
-  if (currentDistricts.value.length > 0) {
-    selectedDistrict.value = currentDistricts.value[0].name;
-    if (currentWards.value.length > 0) {
-      selectedWard.value = currentWards.value[0].name;
-    } else {
-      selectedWard.value = '';
-    }
-  } else {
-    selectedDistrict.value = '';
-    selectedWard.value = '';
-  }
+function handleAddressBlur() {
   updateFullAddress();
-  triggerGeocode(true);
-}
-
-function handleDistrictChange() {
-  if (currentWards.value.length > 0) {
-    selectedWard.value = currentWards.value[0].name;
-  } else {
-    selectedWard.value = '';
-  }
-  updateFullAddress();
-  triggerGeocode(true);
-}
-
-function handleWardChange() {
-  updateFullAddress();
-  triggerGeocode(true);
+  if (geocodeDebounceTimer) clearTimeout(geocodeDebounceTimer);
+  geocodeDebounceTimer = setTimeout(() => {
+    triggerGeocode(false);
+  }, 500);
 }
 
 let geocodeDebounceTimer: any = null;
@@ -261,44 +229,17 @@ function updateMiniMapPosition() {
 
 function parseExistingAddress(addr: string) {
   if (!addr) return;
-  const raw = addr.toLowerCase();
-
-  // Tìm Tỉnh
-  const foundProv = VIETNAM_PROVINCES.find((p) => {
-    const cleanName = p.name.replace('Tỉnh ', '').replace('Thành phố ', '').toLowerCase();
-    return raw.includes(p.name.toLowerCase()) || raw.includes(cleanName);
-  });
-
-  if (foundProv) {
-    selectedProvince.value = foundProv.name;
-
-    // Tìm Huyện
-    const foundDist = foundProv.districts.find((d) => {
-      const cleanName = d.name.replace('Huyện ', '').replace('Thị xã ', '').replace('Thành phố ', '').replace('Quận ', '').toLowerCase();
-      return raw.includes(d.name.toLowerCase()) || raw.includes(cleanName);
-    });
-
-    if (foundDist) {
-      selectedDistrict.value = foundDist.name;
-
-      // Tìm Xã
-      const foundWard = foundDist.wards.find((w) => {
-        const cleanName = w.name.replace('Xã ', '').replace('Phường ', '').replace('Thị trấn ', '').toLowerCase();
-        return raw.includes(w.name.toLowerCase()) || raw.includes(cleanName);
-      });
-
-      if (foundWard) {
-        selectedWard.value = foundWard.name;
-      }
-    }
-  }
-
-  // Tách lấy street address
   const tokens = addr.split(',').map((t) => t.trim());
-  if (tokens.length > 0) {
-    streetAddress.value = tokens[0];
+  if (tokens.length >= 4) {
+    selectedProvince.value = tokens.pop() || '';
+    selectedDistrict.value = tokens.pop() || '';
+    selectedWard.value = tokens.pop() || '';
+    streetAddress.value = tokens.join(', ');
   } else {
     streetAddress.value = addr;
+    selectedProvince.value = '';
+    selectedDistrict.value = '';
+    selectedWard.value = '';
   }
 }
 
@@ -726,42 +667,36 @@ onUnmounted(() => {
             <!-- Hàng 1: Tỉnh / Thành phố - Quận / Huyện - Phường / Xã -->
             <div class="grid-3 mb-2">
               <div class="form-group mb-0">
-                <label class="form-label">Tỉnh / Thành phố <span class="required">*</span></label>
-                <select
+                <label class="form-label">Tỉnh / Thành phố / Quốc gia <span class="required">*</span></label>
+                <input
+                  type="text"
                   v-model="selectedProvince"
-                  @change="handleProvinceChange"
-                  class="form-select font-semibold"
-                >
-                  <option v-for="prov in VIETNAM_PROVINCES" :key="prov.id" :value="prov.name">
-                    {{ prov.name }}
-                  </option>
-                </select>
+                  @blur="handleAddressBlur"
+                  class="form-input font-semibold"
+                  placeholder="VD: Tỉnh Kratie, Campuchia"
+                />
               </div>
 
               <div class="form-group mb-0">
-                <label class="form-label">Quận / Huyện <span class="required">*</span></label>
-                <select
+                <label class="form-label">Quận / Huyện</label>
+                <input
+                  type="text"
                   v-model="selectedDistrict"
-                  @change="handleDistrictChange"
-                  class="form-select font-semibold"
-                >
-                  <option v-for="dist in currentDistricts" :key="dist.id" :value="dist.name">
-                    {{ dist.name }}
-                  </option>
-                </select>
+                  @blur="handleAddressBlur"
+                  class="form-input font-semibold"
+                  placeholder="VD: Huyện Snuol"
+                />
               </div>
 
               <div class="form-group mb-0">
-                <label class="form-label">Phường / Xã / Thị trấn <span class="required">*</span></label>
-                <select
+                <label class="form-label">Phường / Xã / Thị trấn</label>
+                <input
+                  type="text"
                   v-model="selectedWard"
-                  @change="handleWardChange"
-                  class="form-select font-semibold"
-                >
-                  <option v-for="ward in currentWards" :key="ward.id" :value="ward.name">
-                    {{ ward.name }}
-                  </option>
-                </select>
+                  @blur="handleAddressBlur"
+                  class="form-input font-semibold"
+                  placeholder="VD: Xã 2 Thôn Khsach L'ea"
+                />
               </div>
             </div>
 

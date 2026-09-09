@@ -22,9 +22,8 @@ const router = createRouter({
     },
     {
       path: '/',
-      name: 'dashboard',
-      component: DashboardView,
-      meta: { title: 'Dashboard - QL_Điều Vận' },
+      name: 'root',
+      redirect: '/booking',
     },
     {
       path: '/booking',

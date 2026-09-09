@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
 import type { HubLocation, VehicleMapState } from '@/types/map';
 import { ECOTECH_HUBS, ECOTECH_ROUTES, initialVehicleMapStates } from '@/mocks/mapData';
 import { useDispatchStore } from '@/stores/dispatch';
+import { mockStorage } from '@/services/mockStorage';
 import {
   Truck,
   MapPin,
@@ -40,7 +41,7 @@ function getTripForVehicle(vehiclePlate?: string) {
 }
 
 // Danh sách trạng thái xe động
-const vehicleMapStates = ref<VehicleMapState[]>(JSON.parse(JSON.stringify(initialVehicleMapStates)));
+const vehicleMapStates = ref<VehicleMapState[]>(mockStorage.getVehicleMapStates(initialVehicleMapStates));
 
 // Xe đang được chọn
 const selectedVehicle = computed(() => {
@@ -898,7 +899,7 @@ onUnmounted(() => {
             <!-- Thông tin tài xế & loại xe -->
             <div class="item-meta">
               <span>Tài xế: <strong>{{ v.driverName }}</strong></span>
-              <span class="model-badge">{{ v.vehicleType === 'Truck' ? 'Xe tải' : v.vehicleType === 'Pickup' ? 'Bán tải' : 'Máy đào' }}</span>
+              <span class="model-badge">{{ v.vehicleType === 'LatexTruck' ? 'Xe tải' : v.vehicleType === 'PassengerCar' ? 'Bán tải' : 'Máy đào' }}</span>
             </div>
 
             <!-- Hàng hóa mô tả -->

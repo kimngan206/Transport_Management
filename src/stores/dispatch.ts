@@ -4,6 +4,7 @@ import { mockStorage } from '@/services/mockStorage';
 import { useBookingStore } from './booking';
 import { useFleetStore } from './fleet';
 import type { TransportTrip, TransportRequest } from '@/types';
+import { areRequestsRouteCompatible } from '@/utils/routeMatcher';
 
 export const useDispatchStore = defineStore('dispatch', () => {
   const trips = ref<TransportTrip[]>(mockStorage.getTrips());
@@ -120,21 +121,17 @@ export const useDispatchStore = defineStore('dispatch', () => {
       }
     }
 
-    // Điều kiện 3: Chung cung đường
-    const firstRouteId = requestList[0].standardRouteId;
-    const firstFrom = requestList[0].fromLocation;
-    const firstTo = requestList[0].toLocation;
-    const isSameRoute = requestList.every(
-      (r) =>
-        (firstRouteId && r.standardRouteId === firstRouteId) ||
-        (r.fromLocation === firstFrom && r.toLocation === firstTo)
+    // Điều kiện 3: Chung cung đường / tương thích lộ trình quy chuẩn
+    const firstReq = requestList[0];
+    const isSameRoute = requestList.every((r) =>
+      areRequestsRouteCompatible(firstReq, r, fleetStore.routes)
     );
     if (!isSameRoute) {
-      errors.push('Điều kiện 3 không đạt: Các yêu cầu phải đi cùng một cung đường / lộ trình!');
+      errors.push('Điều kiện 3 không đạt: Các yêu cầu phải đi cùng một cung đường / lộ trình tương thích!');
     }
 
     // Điều kiện 4: Không vượt sức chứa / tải trọng
-    if (targetVehicle.vehicleType === 'Truck') {
+    if (targetVehicle.vehicleType === 'LatexTruck') {
       const totalWeightKg = requestList.reduce((acc, r) => acc + (r.estimatedWeightKg || 0), 0);
       const maxCapacityKg = targetVehicle.capacityTons * 1000;
       if (totalWeightKg > maxCapacityKg) {
@@ -142,7 +139,7 @@ export const useDispatchStore = defineStore('dispatch', () => {
           `Điều kiện 4 không đạt: Tổng tải trọng ghép (${totalWeightKg.toLocaleString()} kg) vượt quá sức chứa xe (${maxCapacityKg.toLocaleString()} kg)!`
         );
       }
-    } else if (targetVehicle.vehicleType === 'Pickup') {
+    } else if (targetVehicle.vehicleType === 'PassengerCar') {
       const totalPassengers = requestList.reduce((acc, r) => acc + (r.passengersCount || 1), 0);
       const maxPassengers = targetVehicle.passengerCapacity || 5;
       if (totalPassengers > maxPassengers) {
@@ -247,14 +244,15 @@ export const useDispatchStore = defineStore('dispatch', () => {
     trips.value.unshift(newTrip);
     saveState();
 
-    // Cập nhật trạng thái các request sang DISPATCHED
+    // Cập nhật trạng thái các request sang DISPATCHED và gán lộ trình quy chuẩn
     for (const reqId of payload.requestIds) {
       bookingStore.updateRequestStatus(
         reqId,
         'DISPATCHED',
         payload.dispatcherName,
-        `Đã phân công xe [${vehicle.licensePlate}] và tài xế [${driver.fullName}] trong chuyến [${tripCode}]`,
-        newTrip.id
+        `Đã phân công xe [${vehicle.licensePlate}] và tài xế [${driver.fullName}] theo tuyến quy chuẩn [${route.name}] (${route.standardDistanceKm} km) trong chuyến [${tripCode}]`,
+        newTrip.id,
+        route.id
       );
     }
 
@@ -262,6 +260,95 @@ export const useDispatchStore = defineStore('dispatch', () => {
       success: true,
       message: `Đã tạo thành công chuyến xe ${tripCode} với ${payload.requestIds.length} yêu cầu được ghép!`,
       data: newTrip,
+    };
+  }
+
+  // Cập nhật thông tin chuyến xe
+  function updateTrip(payload: {
+    tripId: number;
+    vehicleId: number;
+    driverId: number;
+    routeId: number;
+    scheduledStartTime: string;
+    scheduledEndTime: string;
+    notes?: string;
+  }): { success: boolean; message: string; data?: TransportTrip } {
+    const trip = trips.value.find(t => t.id === payload.tripId);
+    if (!trip) {
+      return { success: false, message: 'Không tìm thấy chuyến xe' };
+    }
+
+    // Kiểm tra tài xế
+    const driver = fleetStore.drivers.find((d) => d.id === payload.driverId);
+    if (!driver) {
+      return { success: false, message: 'Không tìm thấy tài xế' };
+    }
+    if (driver.employmentStatus !== 'Active') {
+      return { success: false, message: 'Tài xế đang nghỉ phép hoặc tạm dừng hoạt động' };
+    }
+    if (new Date(driver.licenseExpiryDate).getTime() < new Date().getTime()) {
+      return { success: false, message: 'Bằng lái của tài xế đã hết hạn sử dụng!' };
+    }
+
+    // Kiểm tra xe
+    const vehicle = fleetStore.vehicles.find((v) => v.id === payload.vehicleId);
+    if (!vehicle) {
+      return { success: false, message: 'Không tìm thấy phương tiện' };
+    }
+    if (vehicle.status === 'Broken' || vehicle.status === 'UnderMaintenance') {
+      return { success: false, message: 'Phương tiện đang hỏng hoặc bảo dưỡng, không thể điều phối!' };
+    }
+
+    // Kiểm tra trùng lịch buffer 30 phút (loại trừ chuyến hiện tại)
+    const conflictCheck = checkResourceConflict(
+      payload.vehicleId,
+      payload.driverId,
+      payload.scheduledStartTime,
+      payload.scheduledEndTime,
+      payload.tripId
+    );
+    if (conflictCheck.hasConflict) {
+      return {
+        success: false,
+        message: `Xung đột lịch điều phối: ${conflictCheck.reason}`,
+      };
+    }
+
+    // Cập nhật trạng thái phương tiện
+    const oldVehicleId = trip.vehicleId;
+    if (oldVehicleId !== vehicle.id) {
+      const oldVehicle = fleetStore.vehicles.find((v) => v.id === oldVehicleId);
+      if (oldVehicle && oldVehicle.status === 'OnTrip') {
+        oldVehicle.status = 'Available';
+      }
+      if (vehicle.status === 'Available') {
+        vehicle.status = 'OnTrip';
+      }
+    }
+
+    const route = fleetStore.routes.find((r) => r.id === payload.routeId) || fleetStore.routes[0];
+
+    // Cập nhật
+    trip.vehicleId = vehicle.id;
+    trip.vehiclePlate = vehicle.licensePlate;
+    trip.vehicleType = vehicle.vehicleType;
+    trip.driverId = driver.id;
+    trip.driverName = driver.fullName;
+    trip.driverPhone = driver.phone;
+    trip.routeId = route.id;
+    trip.routeName = route.name;
+    trip.standardDistanceKm = route.standardDistanceKm;
+    trip.scheduledStartTime = payload.scheduledStartTime;
+    trip.scheduledEndTime = payload.scheduledEndTime;
+    trip.notes = payload.notes;
+
+    saveState();
+    fleetStore.saveState();
+
+    return {
+      success: true,
+      message: `Đã cập nhật thông tin chuyến xe ${trip.tripCode} thành công!`,
+      data: trip,
     };
   }
 
@@ -273,6 +360,7 @@ export const useDispatchStore = defineStore('dispatch', () => {
     checkResourceConflict,
     validateBatchingConditions,
     dispatchTrip,
+    updateTrip,
     saveState,
   };
 });

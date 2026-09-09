@@ -82,7 +82,7 @@ export const useDriverStore = defineStore('driver', () => {
     if (!vehicle) return { success: false, message: 'Không tìm thấy phương tiện' };
 
     // Validation: StartOdo >= Vehicle.CurrentOdoKm (chống gian lận/nhập sai)
-    if (vehicle.vehicleType !== 'Excavator' && startOdo < vehicle.currentOdoKm) {
+    if (vehicle.vehicleType !== 'MillingMachine' && startOdo < vehicle.currentOdoKm) {
       return {
         success: false,
         message: `Chỉ số ODO xuất phát (${startOdo.toLocaleString()} km) không được nhỏ hơn ODO hiện tại của xe (${vehicle.currentOdoKm.toLocaleString()} km)!`,
@@ -181,7 +181,7 @@ export const useDriverStore = defineStore('driver', () => {
     const startOdo = trip.startOdo || vehicle.currentOdoKm;
 
     // Rule 18: EndOdo > StartOdo
-    if (vehicle.vehicleType !== 'Excavator' && payload.endOdo <= startOdo) {
+    if (vehicle.vehicleType !== 'MillingMachine' && payload.endOdo <= startOdo) {
       return {
         success: false,
         message: `Chỉ số ODO về bến (${payload.endOdo.toLocaleString()} km) phải lớn hơn ODO xuất phát (${startOdo.toLocaleString()} km)!`,
@@ -189,7 +189,7 @@ export const useDriverStore = defineStore('driver', () => {
     }
 
     const nowStr = new Date().toISOString().slice(0, 16).replace('T', ' ');
-    const distanceKm = vehicle.vehicleType === 'Excavator' ? 0 : payload.endOdo - startOdo;
+    const distanceKm = vehicle.vehicleType === 'MillingMachine' ? 0 : payload.endOdo - startOdo;
 
     // Tính tổng khối lượng mủ (US-23)
     const latex1 = Number(payload.weightLatex1Kg) || 0;
@@ -202,13 +202,13 @@ export const useDriverStore = defineStore('driver', () => {
     let calculatedFuel = 0;
     const distanceForFuel = trip.standardDistanceKm || distanceKm;
 
-    if (vehicle.vehicleType === 'Truck') {
+    if (vehicle.vehicleType === 'LatexTruck') {
       const emptyFuel = distanceForFuel * (vehicle.fuelQuotaEmpty || 0.25);
       const loadedFuel = (totalWeightKg / 1000) * distanceForFuel * (vehicle.fuelQuotaLoaded || 0.02);
       calculatedFuel = Number((emptyFuel + loadedFuel).toFixed(2));
-    } else if (vehicle.vehicleType === 'Pickup') {
+    } else if (vehicle.vehicleType === 'PassengerCar') {
       calculatedFuel = Number((distanceForFuel * (vehicle.fuelQuotaEmpty || 0.1)).toFixed(2));
-    } else if (vehicle.vehicleType === 'Excavator') {
+    } else if (vehicle.vehicleType === 'MillingMachine') {
       const hours = (payload.endHourMeter || 0) - (payload.startHourMeter || 0);
       calculatedFuel = Number((Math.max(0, hours) * (vehicle.fuelQuotaEmpty || 12.0)).toFixed(2));
     }
@@ -251,7 +251,7 @@ export const useDriverStore = defineStore('driver', () => {
     }
 
     // Cập nhật ODO xe và kiểm tra cảnh báo bảo dưỡng
-    if (vehicle.vehicleType !== 'Excavator') {
+    if (vehicle.vehicleType !== 'MillingMachine') {
       fleetStore.updateVehicleOdo(vehicle.id, payload.endOdo);
     }
 
@@ -284,20 +284,25 @@ export const useDriverStore = defineStore('driver', () => {
       amount: number;
       receiptNote?: string;
       receiptImage?: string;
+      receiptImages?: string[];
     }
   ) {
     const trip = dispatchStore.trips.find((t) => t.id === tripId);
     if (!trip) return { success: false, message: 'Không tìm thấy chuyến xe' };
     if (!trip.expenses) trip.expenses = [];
+    const images = expense.receiptImages && expense.receiptImages.length > 0 
+      ? expense.receiptImages 
+      : (expense.receiptImage ? [expense.receiptImage] : []);
     const newExp: TripExpense = {
       id: Date.now() + Math.floor(Math.random() * 1000),
       tripId: trip.id,
       expenseType: expense.expenseType,
       amount: Number(expense.amount) || 0,
       receiptNote: expense.receiptNote,
-      receiptImage: expense.receiptImage,
+      receiptImage: expense.receiptImage || (images.length > 0 ? images[0] : undefined),
+      receiptImages: images.length > 0 ? images : undefined,
       recordedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
-      auditStatus: expense.receiptImage ? 'APPROVED' : 'PENDING',
+      auditStatus: (expense.receiptImage || images.length > 0) ? 'APPROVED' : 'PENDING',
     };
     trip.expenses.push(newExp);
     dispatchStore.saveState();

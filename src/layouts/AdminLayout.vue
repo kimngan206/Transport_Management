@@ -345,14 +345,6 @@ const showSection = computed(() => {
         </div>
 
         <nav class="sidebar-nav-scroll">
-          <!-- SECTION 1: TỔNG QUAN -->
-          <template v-if="showSection.dashboard">
-            <div class="menu-section-label">Trung Tâm Điều Hành</div>
-            <router-link to="/" class="nav-root-link" :class="{ active: route.path === '/' }" :title="'Dashboard Sản Lượng & Xe'">
-              <LayoutDashboard :size="17" class="nav-icon" />
-              <span>Dashboard Sản Lượng & Xe</span>
-            </router-link>
-          </template>
 
           <!-- SECTION 2: NGHIỆP VỤ ĐIỀU ĐỘ -->
           <div
@@ -362,12 +354,12 @@ const showSection = computed(() => {
             Nghiệp Vụ Điều Độ
           </div>
 
-          <!-- 1. ĐẶT XE ĐI LẠI & MỦ -->
+          <!-- 1. YÊU CẦU ĐẶT XE -->
           <div v-if="showSection.booking" class="menu-group">
-            <button class="group-btn" @click="toggleGroup('booking')" :title="'Đặt Xe Đi Lại & Chở Mủ'">
+            <button class="group-btn" @click="toggleGroup('booking')" :title="'Yêu cầu đặt xe'">
               <span class="group-btn-title">
                 <CalendarCheck :size="17" class="nav-icon" />
-                <span>Đặt Xe Đi Lại & Chở Mủ</span>
+                <span>Yêu cầu đặt xe</span>
               </span>
               <div class="group-btn-right">
                 <ChevronDown v-if="openGroups.booking" :size="13" />
@@ -379,9 +371,16 @@ const showSection = computed(() => {
               <router-link
                 to="/booking"
                 class="sub-nav-link"
-                :class="{ active: route.path === '/booking' }"
+                :class="{ active: route.path === '/booking' && route.query.type !== 'factory' }"
               >
-                <span>Tạo yêu cầu & Theo dõi</span>
+                <span>Đặt xe Đội</span>
+              </router-link>
+              <router-link
+                to="/booking?type=factory"
+                class="sub-nav-link"
+                :class="{ active: route.path === '/booking' && route.query.type === 'factory' }"
+              >
+                <span>Đặt xe Nhà máy</span>
               </router-link>
             </div>
           </div>
@@ -402,12 +401,12 @@ const showSection = computed(() => {
             </button>
 
             <div v-show="openGroups.dispatch" class="sub-links-list">
-              <router-link to="/dispatch" class="sub-nav-link" :class="{ active: route.path === '/dispatch' && (!route.query.view || route.query.view === 'map') }">
-                <span>Bản đồ & Lộ trình xe</span>
-              </router-link>
               <router-link to="/dispatch?view=board" class="sub-nav-link" :class="{ active: route.path === '/dispatch' && route.query.view === 'board' }">
                 <span>Duyệt & Ghép thẻ xe</span>
                 <span v-if="pendingCount > 0" class="mini-badge badge-amber">{{ pendingCount }}</span>
+              </router-link>
+              <router-link to="/dispatch" class="sub-nav-link" :class="{ active: route.path === '/dispatch' && (!route.query.view || route.query.view === 'map') }">
+                <span>Bản đồ & Lộ trình xe</span>
               </router-link>
             </div>
           </div>
@@ -488,9 +487,9 @@ const showSection = computed(() => {
                 <span>Kê khai chi phí & Hóa đơn</span>
               </router-link>
 
-              <router-link to="/driver/history" class="sub-nav-link" :class="{ active: route.path === '/driver/history' }">
+              <!-- <router-link to="/driver/history" class="sub-nav-link" :class="{ active: route.path === '/driver/history' }">
                 <span>Lịch sử chuyến xe</span>
-              </router-link>
+              </router-link> -->
 
               <router-link to="/driver/incidents" class="sub-nav-link" :class="{ active: route.path === '/driver/incidents' }">
                 <span>Báo cáo sự cố xe</span>

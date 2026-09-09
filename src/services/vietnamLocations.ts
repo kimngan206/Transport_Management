@@ -630,7 +630,7 @@ export async function smartGeocodeAddress(
 
     const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
       query
-    )}&limit=1&countrycodes=vn`;
+    )}&limit=1`;
 
     const res = await fetch(url, {
       signal: controller.signal,

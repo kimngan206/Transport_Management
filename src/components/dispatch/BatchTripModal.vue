@@ -1,12 +1,24 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useBookingStore } from '@/stores/booking';
 import { useFleetStore } from '@/stores/fleet';
 import { useDispatchStore } from '@/stores/dispatch';
 import { useAuthStore } from '@/stores/auth';
 import { useDialogStore } from '@/stores/dialog';
 import type { TransportRequest } from '@/types';
-import { X, Layers, CheckCircle2, AlertCircle, Truck, UserCheck } from 'lucide-vue-next';
+import { suggestOptimalRoute, areRequestsRouteCompatible } from '@/utils/routeMatcher';
+import {
+  X,
+  Layers,
+  CheckCircle2,
+  AlertCircle,
+  Truck,
+  UserCheck,
+  Navigation,
+  Sparkles,
+  MapPin,
+  Route,
+} from 'lucide-vue-next';
 
 const props = defineProps<{
   initialSelectedRequests?: TransportRequest[];
@@ -46,6 +58,13 @@ const selectedVehicle = computed(() => {
   return fleetStore.vehicles.find((v) => v.id === Number(vehicleId.value));
 });
 
+// Tự động gán tài xế khi chọn phương tiện
+watch(vehicleId, (newId) => {
+  if (newId && selectedVehicle.value && selectedVehicle.value.assignedDriverId) {
+    driverId.value = selectedVehicle.value.assignedDriverId;
+  }
+});
+
 function getVehicleStatusLabel(status: string): string {
   switch (status) {
     case 'Available': return 'Sẵn sàng';
@@ -58,8 +77,11 @@ function getVehicleStatusLabel(status: string): string {
 
 function getVehicleTypeLabel(type: string): string {
   switch (type) {
+    case 'LatexTruck':
     case 'Truck': return 'Xe tải';
+    case 'PassengerCar':
     case 'Pickup': return 'Bán tải';
+    case 'MillingMachine':
     case 'Excavator': return 'Máy đào';
     default: return type;
   }
@@ -78,14 +100,51 @@ const totalPassengers = computed(() => {
   return currentSelectedRequests.value.reduce((acc, r) => acc + (r.passengersCount || 0), 0);
 });
 
-// Tuyến đường đề xuất (lấy từ request đầu tiên nếu có)
-const proposedRoute = computed(() => {
-  if (currentSelectedRequests.value.length === 0) return fleetStore.routes[0];
-  const first = currentSelectedRequests.value[0];
-  if (first.standardRouteId) {
-    return fleetStore.routes.find((r) => r.id === first.standardRouteId) || fleetStore.routes[0];
+// Gợi ý lộ trình quy chuẩn thông minh dựa trên địa điểm xuất phát và điểm đến
+const routeMatchResult = computed(() => {
+  if (currentSelectedRequests.value.length === 0) {
+    return {
+      route: fleetStore.routes[0],
+      score: 0,
+      reason: 'Chưa chọn yêu cầu nào',
+      matchedFromHub: null,
+      matchedToHub: null,
+    };
   }
-  return fleetStore.routes[0];
+  const first = currentSelectedRequests.value[0];
+  if ((first.vehicleType as string) === 'PassengerCar' || (first.vehicleType as string) === 'Pickup') {
+    return {
+      route: fleetStore.routes.find(r => r.id === 999) || fleetStore.routes[0],
+      score: 100,
+      reason: 'Tuyến đường tùy chỉnh theo yêu cầu',
+      matchedFromHub: null,
+      matchedToHub: null,
+    };
+  }
+  return suggestOptimalRoute(fleetStore.routes, first.fromLocation, first.toLocation);
+});
+
+// Tuyến đường quy chuẩn đang chọn (mặc định lấy theo gợi ý xuất phát từ điểm đi gần nhất)
+const selectedRouteId = ref<number>(routeMatchResult.value.route?.id || fleetStore.routes[0]?.id || 1);
+
+// Tự động cập nhật tuyến gợi ý khi danh sách yêu cầu thay đổi
+watch(
+  () => routeMatchResult.value.route?.id,
+  (newId) => {
+    if (newId) {
+      selectedRouteId.value = newId;
+    }
+  },
+  { immediate: true }
+);
+
+// Tuyến đường hiệu lực của chuyến xe
+const activeRoute = computed(() => {
+  return (
+    fleetStore.routes.find((r) => r.id === selectedRouteId.value) ||
+    routeMatchResult.value.route ||
+    fleetStore.routes[0]
+  );
 });
 
 // Giờ xuất phát dự kiến
@@ -118,18 +177,16 @@ const condition2_TimeDiff = computed(() => {
 const condition3_SameRoute = computed(() => {
   if (currentSelectedRequests.value.length <= 1) return true;
   const first = currentSelectedRequests.value[0];
-  return currentSelectedRequests.value.every(
-    (r) =>
-      (first.standardRouteId && r.standardRouteId === first.standardRouteId) ||
-      (r.fromLocation === first.fromLocation && r.toLocation === first.toLocation)
+  return currentSelectedRequests.value.every((r) =>
+    areRequestsRouteCompatible(first, r, fleetStore.routes)
   );
 });
 
 const condition4_Capacity = computed(() => {
   if (!selectedVehicle.value) return true;
-  if (selectedVehicle.value.vehicleType === 'Truck') {
+  if (selectedVehicle.value.vehicleType === 'LatexTruck') {
     return totalWeightKg.value <= selectedVehicle.value.capacityTons * 1000;
-  } else if (selectedVehicle.value.vehicleType === 'Pickup') {
+  } else if (selectedVehicle.value.vehicleType === 'PassengerCar') {
     return totalPassengers.value <= (selectedVehicle.value.passengerCapacity || 5);
   }
   return true;
@@ -186,7 +243,7 @@ function handleDispatch() {
     vehicleId: Number(vehicleId.value),
     driverId: Number(driverId.value),
     requestIds: selectedRequestIds.value,
-    routeId: proposedRoute.value.id,
+    routeId: activeRoute.value.id,
     scheduledStartTime: scheduledStartTime.value,
     scheduledEndTime: scheduledEndTime.value,
     notes: notes.value,
@@ -299,8 +356,75 @@ function handleDispatch() {
           </div>
         </div>
 
-        <!-- Bước 2: Chọn phương tiện & tài xế -->
-        <div class="grid-2 mt-4">
+        <!-- Bước 2: Lộ trình quy chuẩn gợi ý tự động từ điểm đi -->
+        <div class="section-box route-box mt-3">
+          <div class="route-box-header">
+            <h4 class="section-header mb-0">
+              <Navigation :size="16" class="text-primary" />
+              <span>2. Lộ trình quy chuẩn gợi ý tự động từ điểm đi</span>
+            </h4>
+            <span v-if="selectedRouteId === routeMatchResult.route?.id" class="badge-ai-suggest">
+              <Sparkles :size="13" /> Gợi ý tối ưu từ điểm đi gần nhất
+            </span>
+          </div>
+
+          <p v-if="currentSelectedRequests.length > 0" class="route-match-hint">
+            Dựa trên yêu cầu từ <strong>{{ currentSelectedRequests[0].fromLocation }}</strong>
+            <span v-if="currentSelectedRequests[0].toLocation"> ➔ <strong>{{ currentSelectedRequests[0].toLocation }}</strong></span>:
+            <span v-if="(currentSelectedRequests[0].vehicleType as string) === 'PassengerCar' || (currentSelectedRequests[0].vehicleType as string) === 'Pickup'">
+              Vì đây là yêu cầu cho xe chở người / xe công tác, hệ thống tự động áp dụng Lộ trình tùy chỉnh.
+            </span>
+            <span v-else>
+              Hệ thống đã tự động tra cứu danh mục tuyến quy chuẩn và gợi ý tuyến tối ưu xuất phát từ trạm/nông trường gần nhất.
+            </span>
+          </p>
+
+          <div class="form-group mb-3">
+            <label class="form-label font-bold">
+              <span>Tuyến đường quy chuẩn áp dụng:</span>
+            </label>
+            <select v-model="selectedRouteId" class="form-select">
+              <option
+                v-for="r in fleetStore.routes"
+                :key="r.id"
+                :value="r.id"
+              >
+                {{ r.routeCode }} - {{ r.name }} ({{ r.standardDistanceKm }} km) {{ r.id === routeMatchResult.route?.id ? '★ [Khớp nhất]' : '' }}
+              </option>
+            </select>
+          </div>
+
+          <!-- Chi tiết lộ trình quy chuẩn -->
+          <div v-if="activeRoute" class="route-detail-card">
+            <div class="route-detail-main">
+              <div class="route-name-row">
+                <span class="route-code-badge">{{ activeRoute.routeCode }}</span>
+                <strong class="route-name-title">{{ activeRoute.name }}</strong>
+              </div>
+              <div class="route-points-row">
+                <span class="point-chip start">
+                  <MapPin :size="12" /> Điểm xuất phát: <strong>{{ activeRoute.startPoint }}</strong>
+                </span>
+                <span class="point-arrow">➔</span>
+                <span class="point-chip end">
+                  <MapPin :size="12" /> Điểm đến: <strong>{{ activeRoute.endPoint }}</strong>
+                </span>
+              </div>
+              <div v-if="activeRoute.description" class="route-description-text">
+                <Route :size="12" />
+                <span>{{ activeRoute.description }}</span>
+              </div>
+            </div>
+
+            <div class="route-distance-badge">
+              <div class="dist-val">{{ activeRoute.standardDistanceKm }} <span class="dist-unit">km</span></div>
+              <div class="dist-lbl">Cự ly định mức</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bước 3: Chọn phương tiện & tài xế -->
+        <div class="grid-2 mt-3">
           <div class="form-group">
             <label class="form-label">
               <Truck :size="15" />
@@ -508,5 +632,138 @@ function handleDispatch() {
 .font-bold { font-weight: 700; }
 .text-success { color: #16a34a; }
 .text-info { color: #0284c7; }
+.mt-3 { margin-top: 12px; }
 .mt-4 { margin-top: 16px; }
+.mb-0 { margin-bottom: 0; }
+.mb-2 { margin-bottom: 8px; }
+.mb-3 { margin-bottom: 12px; }
+
+/* Styles cho Lộ trình quy chuẩn gợi ý */
+.route-box {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+.route-box-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.badge-ai-suggest {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  border: 1px solid #86efac;
+}
+.route-match-hint {
+  font-size: 0.75rem;
+  color: #166534;
+  margin-bottom: 10px;
+  line-height: 1.4;
+}
+.route-detail-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: white;
+  border: 1px solid #cbd5e1;
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+.route-detail-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.route-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.route-code-badge {
+  background: #1e293b;
+  color: white;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+.route-name-title {
+  font-size: 0.875rem;
+  color: #0f172a;
+}
+.route-points-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 0.75rem;
+}
+.point-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #f1f5f9;
+  padding: 2px 8px;
+  border-radius: 4px;
+  color: #334155;
+}
+.point-chip.start {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+.point-chip.end {
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+}
+.point-arrow {
+  color: #94a3b8;
+  font-weight: 700;
+}
+.route-description-text {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.7188rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+.route-distance-badge {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 14px;
+  text-align: center;
+  min-width: 90px;
+}
+.dist-val {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #059669;
+  line-height: 1;
+}
+.dist-unit {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+}
+.dist-lbl {
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
 </style>

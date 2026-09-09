@@ -12,6 +12,13 @@ import {
   Clock,
   PhoneCall,
   X,
+  MapPin,
+  Crosshair,
+  RefreshCw,
+  Loader2,
+  ExternalLink,
+  AlertCircle,
+  Navigation,
 } from 'lucide-vue-next';
 
 const authStore = useAuthStore();
@@ -25,6 +32,9 @@ interface DriverIncident {
   incidentType: 'Tire' | 'Engine' | 'Electrical' | 'Tank' | 'Collision' | 'Other';
   severity: 'Low' | 'Medium' | 'High' | 'Critical';
   location: string;
+  latitude?: number;
+  longitude?: number;
+  gpsAccuracy?: number;
   description: string;
   photoUrl?: string;
   status: 'REPORTED' | 'IN_REPAIR' | 'RESOLVED';
@@ -39,7 +49,10 @@ const defaultIncidents: DriverIncident[] = [
     vehiclePlate: '51C-889.26',
     incidentType: 'Tire',
     severity: 'Medium',
-    location: 'Km 24 - ĐT741, gần Trạm thu phí',
+    location: 'Km 24 - ĐT741, gần Trạm thu phí Tân Uyên',
+    latitude: 11.542318,
+    longitude: 106.634120,
+    gpsAccuracy: 12,
     description: 'Bánh sau bên phụ bị xì lốp, đã gọi vá xe lưu động khẩn cấp để tiếp tục hành trình chở mủ.',
     photoUrl: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200" viewBox="0 0 300 200"><rect width="100%" height="100%" fill="%23fee2e2"/><text x="50%" y="45%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="bold" fill="%23dc2626">ẢNH HIỆN TRƯỜNG SỰ CỐ</text><text x="50%" y="65%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="12" fill="%23b91c1c">Xì lốp sau - 51C-889.26</text></svg>',
     status: 'RESOLVED',
@@ -52,7 +65,10 @@ const defaultIncidents: DriverIncident[] = [
     vehiclePlate: '51C-889.26',
     incidentType: 'Electrical',
     severity: 'Low',
-    location: 'Tại Nông trường 1',
+    location: 'Tại Nông trường Cao su 1 - Lô C2',
+    latitude: 11.564500,
+    longitude: 106.689000,
+    gpsAccuracy: 8,
     description: 'Đèn xi-nhan bên trái chập chờn lúc nhận xe đầu ca sáng.',
     status: 'RESOLVED',
     reportedAt: '2026-09-05 06:45',
@@ -71,6 +87,134 @@ const newLocation = ref('');
 const newDescription = ref('');
 const newPhotoUrl = ref<string | undefined>();
 const previewZoom = ref<string | null>(null);
+
+// Tọa độ GPS & Định vị vệ tinh thực tế của tài xế
+const gpsStatus = ref<'idle' | 'locating' | 'success' | 'error'>('idle');
+const gpsLat = ref<number | null>(null);
+const gpsLng = ref<number | null>(null);
+const gpsAccuracy = ref<number | null>(null);
+const gpsAddress = ref('');
+const gpsErrorMessage = ref('');
+const gpsCapturedAt = ref('');
+
+// Ước tính mốc địa lý trên tuyến đường Ecotech ĐT741 để hỗ trợ gợi ý địa chỉ
+function estimateLandmark(lat: number, lng: number): string {
+  const landmarks = [
+    { name: 'Km 14 - ĐT741, gần Cầu Sông Bé', lat: 11.452, lng: 106.581 },
+    { name: 'Km 18 - ĐT741, gần Trạm cân TC1', lat: 11.5124, lng: 106.6213 },
+    { name: 'Km 24 - ĐT741, gần Trạm thu phí Tân Uyên', lat: 11.5423, lng: 106.6341 },
+    { name: 'Km 32 - ĐT741, đoạn ngã ba Đồng Phú', lat: 11.589, lng: 106.712 },
+    { name: 'Khu vực Nông trường 1 - Lô C5', lat: 11.5645, lng: 106.689 },
+    { name: 'Khu vực Nông trường 2 - Đội sản xuất 3', lat: 11.6021, lng: 106.734 },
+    { name: 'Gần Nhà máy Chế biến Mủ Phú Riềng', lat: 11.642, lng: 106.789 },
+  ];
+
+  let nearest = landmarks[0];
+  let minDistance = Infinity;
+
+  for (const lm of landmarks) {
+    const dist = Math.hypot(lm.lat - lat, lm.lng - lng);
+    if (dist < minDistance) {
+      minDistance = dist;
+      nearest = lm;
+    }
+  }
+
+  if (minDistance < 0.15) {
+    return nearest.name;
+  }
+  return `Tọa độ GPS ${lat.toFixed(5)}°B, ${lng.toFixed(5)}°Đ`;
+}
+
+// Bắt vị trí GPS vệ tinh thực tế của thiết bị tài xế
+function captureGpsLocation() {
+  gpsStatus.value = 'locating';
+  gpsErrorMessage.value = '';
+
+  if (!('geolocation' in navigator)) {
+    gpsStatus.value = 'error';
+    gpsErrorMessage.value = 'Trình duyệt/thiết bị này không hỗ trợ định vị GPS (Geolocation API).';
+    fallbackSimulatedGps();
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      const lat = Number(position.coords.latitude.toFixed(6));
+      const lng = Number(position.coords.longitude.toFixed(6));
+      const acc = Math.round(position.coords.accuracy || 10);
+
+      gpsLat.value = lat;
+      gpsLng.value = lng;
+      gpsAccuracy.value = acc;
+      gpsStatus.value = 'success';
+      gpsCapturedAt.value = new Date().toLocaleTimeString('vi-VN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      });
+
+      const suggestedLandmark = estimateLandmark(lat, lng);
+      gpsAddress.value = suggestedLandmark;
+      if (!newLocation.value || newLocation.value.startsWith('Km ') || newLocation.value.startsWith('Tọa độ')) {
+        newLocation.value = `${suggestedLandmark} (GPS: ${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+      }
+    },
+    (error) => {
+      console.warn('Lỗi bắt GPS thực tế:', error);
+      let errMsg = 'Không nhận được tín hiệu GPS vệ tinh từ thiết bị.';
+      if (error.code === error.PERMISSION_DENIED) {
+        errMsg = 'Tài xế chưa cấp quyền truy cập vị trí (Vui lòng bấm Cho phép/Allow vị trí trong trình duyệt).';
+      } else if (error.code === error.POSITION_UNAVAILABLE) {
+        errMsg = 'Không xác định được vị trí GPS (Thiết bị có thể đang mất sóng vệ tinh).';
+      } else if (error.code === error.TIMEOUT) {
+        errMsg = 'Quá thời gian chờ phản hồi từ cảm biến GPS.';
+      }
+      gpsErrorMessage.value = errMsg;
+      gpsStatus.value = 'error';
+
+      // Fallback thông minh theo vị trí xe trên tuyến ĐT741
+      fallbackSimulatedGps();
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 0,
+    }
+  );
+}
+
+function fallbackSimulatedGps() {
+  try {
+    const mapStates = mockStorage.getVehicleMapStates();
+    const vState = mapStates.find((m: any) => m.licensePlate === newVehiclePlate.value);
+    const fallbackLat = vState?.currentLat || 11.542318;
+    const fallbackLng = vState?.currentLng || 106.634120;
+
+    gpsLat.value = fallbackLat;
+    gpsLng.value = fallbackLng;
+    gpsAccuracy.value = 15;
+    gpsCapturedAt.value = new Date().toLocaleTimeString('vi-VN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+    const landmark = estimateLandmark(fallbackLat, fallbackLng);
+    gpsAddress.value = landmark;
+    if (!newLocation.value) {
+      newLocation.value = `${landmark} (GPS: ${fallbackLat.toFixed(4)}, ${fallbackLng.toFixed(4)})`;
+    }
+  } catch (e) {
+    gpsLat.value = 11.542318;
+    gpsLng.value = 106.634120;
+    gpsAccuracy.value = 15;
+  }
+}
+
+function openCreateModal() {
+  showCreateModal.value = true;
+  captureGpsLocation();
+}
 
 function onFileSelected(event: Event) {
   const target = event.target as HTMLInputElement;
@@ -101,6 +245,9 @@ function handleCreateIncident() {
     incidentType: newIncidentType.value,
     severity: newSeverity.value,
     location: newLocation.value,
+    latitude: gpsLat.value || undefined,
+    longitude: gpsLng.value || undefined,
+    gpsAccuracy: gpsAccuracy.value || undefined,
     description: newDescription.value,
     photoUrl: newPhotoUrl.value,
     status: 'REPORTED',
@@ -120,14 +267,26 @@ function handleCreateIncident() {
     reportDate: new Date().toISOString().slice(0, 10),
     issueDescription: `[${newLocation.value}] ${newDescription.value}`,
     severity: (newSeverity.value === 'Critical' || newSeverity.value === 'High') ? 'StopOperation' : 'Warning',
+    location: newLocation.value,
+    latitude: gpsLat.value || undefined,
+    longitude: gpsLng.value || undefined,
+    gpsAccuracy: gpsAccuracy.value || undefined,
   });
 
-  dialog.showSuccess(`Đã gửi báo cáo sự cố ${code} đến Đội bảo dưỡng & Điều phối viên thành công!`, 'Báo Cáo Thành Công');
+  const gpsNotice = gpsLat.value && gpsLng.value
+    ? ` Đã gửi kèm tọa độ GPS vệ tinh (${gpsLat.value.toFixed(4)}, ${gpsLng.value.toFixed(4)}) cho bên điều xe trên bản đồ.`
+    : '';
+
+  dialog.showSuccess(`Đã gửi báo cáo sự cố ${code} đến Đội bảo dưỡng & Điều phối viên thành công!${gpsNotice}`, 'Báo Cáo Thành Công');
   showCreateModal.value = false;
   // Reset form
   newLocation.value = '';
   newDescription.value = '';
   newPhotoUrl.value = undefined;
+  gpsStatus.value = 'idle';
+  gpsLat.value = null;
+  gpsLng.value = null;
+  gpsAccuracy.value = null;
 }
 
 function getIncidentTypeName(type: DriverIncident['incidentType']) {
@@ -167,7 +326,7 @@ function getSeverityBadge(sev: DriverIncident['severity']) {
       </div>
 
       <div class="header-actions">
-        <button class="btn btn-danger" @click="showCreateModal = true">
+        <button class="btn btn-danger" @click="openCreateModal">
           <AlertTriangle :size="16" />
           <span>+ Báo Cáo Sự Cố Xe Khẩn Cấp</span>
         </button>
@@ -224,7 +383,21 @@ function getSeverityBadge(sev: DriverIncident['severity']) {
                 </span>
               </td>
               <td>
-                <span class="text-xs font-semibold">{{ inc.location }}</span>
+                <div class="location-cell">
+                  <span class="text-xs font-semibold text-dark">{{ inc.location }}</span>
+                  <div v-if="inc.latitude && inc.longitude" class="gps-cell-badge">
+                    <MapPin :size="11" class="text-danger" />
+                    <span class="gps-val">{{ inc.latitude.toFixed(4) }}, {{ inc.longitude.toFixed(4) }}</span>
+                    <a
+                      :href="`https://www.google.com/maps?q=${inc.latitude},${inc.longitude}`"
+                      target="_blank"
+                      class="maps-ext-link"
+                      title="Mở tọa độ GPS trên Google Maps"
+                    >
+                      <ExternalLink :size="11" />
+                    </a>
+                  </div>
+                </div>
               </td>
               <td>
                 <div class="desc-cell">
@@ -302,14 +475,83 @@ function getSeverityBadge(sev: DriverIncident['severity']) {
               </select>
             </div>
 
-            <div class="form-group">
-              <label class="form-label">Vị trí gặp sự cố <span class="required">*</span></label>
+            <div class="form-group location-gps-group">
+              <div class="flex-between mb-1">
+                <label class="form-label mb-0">
+                  <span>Vị trí gặp sự cố</span>
+                  <span class="required"> *</span>
+                </label>
+                <button
+                  type="button"
+                  class="btn-gps-action"
+                  :class="{ 'is-locating': gpsStatus === 'locating', 'is-success': gpsStatus === 'success' }"
+                  :disabled="gpsStatus === 'locating'"
+                  @click="captureGpsLocation"
+                  title="Bắt tọa độ GPS vệ tinh thực tế của điện thoại"
+                >
+                  <Loader2 v-if="gpsStatus === 'locating'" :size="13" class="spin" />
+                  <RefreshCw v-else-if="gpsStatus === 'success'" :size="13" />
+                  <Crosshair v-else :size="13" />
+                  <span>{{ gpsStatus === 'locating' ? 'Đang dò GPS...' : gpsStatus === 'success' ? 'Lấy lại GPS' : 'Bắt vị trí GPS' }}</span>
+                </button>
+              </div>
+
               <input
                 v-model="newLocation"
                 type="text"
                 class="form-input"
                 placeholder="VD: Km 18 ĐT741, gần cầu vượt..."
               />
+
+              <!-- Hộp trạng thái & tọa độ GPS thực tế của tài xế -->
+              <div v-if="gpsStatus === 'locating'" class="gps-status-card is-loading">
+                <div class="flex-center gap-2">
+                  <Loader2 :size="14" class="spin text-primary" />
+                  <span class="text-xs font-semibold text-primary">Đang kích hoạt cảm biến GPS thiết bị & dò sóng vệ tinh...</span>
+                </div>
+              </div>
+
+              <div v-else-if="gpsLat && gpsLng" class="gps-status-card is-active">
+                <div class="gps-card-top">
+                  <div class="gps-badge-live">
+                    <span class="live-dot-pulse"></span>
+                    <span class="text-xs font-bold text-success">Đã Bắt Tọa Độ GPS Vệ Tinh</span>
+                    <span v-if="gpsAccuracy" class="accuracy-tag">±{{ gpsAccuracy }}m</span>
+                  </div>
+                  <span v-if="gpsCapturedAt" class="gps-time-text">Lúc {{ gpsCapturedAt }}</span>
+                </div>
+
+                <div class="gps-coords-display">
+                  <MapPin :size="14" class="text-danger" />
+                  <code class="gps-coords-val">{{ gpsLat.toFixed(6) }}, {{ gpsLng.toFixed(6) }}</code>
+                  <a
+                    :href="`https://www.google.com/maps?q=${gpsLat},${gpsLng}`"
+                    target="_blank"
+                    class="btn-maps-preview"
+                    title="Mở Google Maps vệ tinh xem hiện trường"
+                  >
+                    <ExternalLink :size="12" />
+                    <span>Xem Google Maps</span>
+                  </a>
+                </div>
+
+                <div v-if="gpsErrorMessage" class="gps-fallback-hint">
+                  <AlertCircle :size="12" class="text-amber" />
+                  <span class="text-xs text-muted">{{ gpsErrorMessage }}</span>
+                </div>
+              </div>
+
+              <div v-else-if="gpsStatus === 'error'" class="gps-status-card is-error">
+                <div class="flex-between">
+                  <div class="flex-center gap-1 text-danger text-xs font-semibold">
+                    <AlertTriangle :size="14" />
+                    <span>{{ gpsErrorMessage || 'Chưa nhận được tín hiệu GPS vệ tinh' }}</span>
+                  </div>
+                  <button type="button" class="btn btn-outline btn-xs" @click="captureGpsLocation">
+                    Thử lại
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -504,7 +746,7 @@ function getSeverityBadge(sev: DriverIncident['severity']) {
 .pill-amber { background: #fef3c7; color: #b45309; }
 .pill-red { background: #fee2e2; color: #991b1b; }
 
-.modal-md { max-width: 580px; width: 95%; }
+.modal-md { max-width: 750px; width: 95%; }
 .hidden-input { display: none; }
 .upload-btn { cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
 .proof-box-preview {
@@ -551,5 +793,173 @@ function getSeverityBadge(sev: DriverIncident['severity']) {
 .lightbox-img {
   width: 100%;
   border-radius: 8px;
+}
+
+/* GPS Location styling */
+.location-gps-group {
+  position: relative;
+}
+.btn-gps-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #f0fdf4;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.btn-gps-action:hover {
+  background: #dcfce7;
+  border-color: #86efac;
+}
+.btn-gps-action.is-locating {
+  background: #eff6ff;
+  color: #2563eb;
+  border-color: #bfdbfe;
+  cursor: wait;
+}
+.btn-gps-action.is-success {
+  background: #ecfdf5;
+  color: #059669;
+}
+.gps-status-card {
+  margin-top: 6px;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.75rem;
+  transition: all 0.2s ease;
+}
+.gps-status-card.is-loading {
+  background: #f0f9ff;
+  border: 1px dashed #7dd3fc;
+}
+.gps-status-card.is-active {
+  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+  border: 1px solid #86efac;
+  box-shadow: 0 1px 3px rgba(16, 185, 129, 0.08);
+}
+.gps-status-card.is-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+}
+.gps-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.gps-badge-live {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.live-dot-pulse {
+  width: 8px;
+  height: 8px;
+  background: #10b981;
+  border-radius: 50%;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  animation: gpsPulse 1.8s infinite;
+}
+@keyframes gpsPulse {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+.accuracy-tag {
+  background: #d1fae5;
+  color: #065f46;
+  font-size: 0.625rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.gps-time-text {
+  font-size: 0.6875rem;
+  color: #64748b;
+}
+.gps-coords-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.gps-coords-val {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #0f172a;
+  background: #ffffff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid #cbd5e1;
+}
+.btn-maps-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #0284c7;
+  font-weight: 600;
+  font-size: 0.6875rem;
+  text-decoration: none;
+  background: #e0f2fe;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+.btn-maps-preview:hover {
+  background: #bae6fd;
+  color: #0369a1;
+}
+.gps-fallback-hint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+/* Location cell in table */
+.location-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.gps-cell-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  padding: 1px 6px;
+  width: fit-content;
+}
+.gps-cell-badge .gps-val {
+  font-family: ui-monospace, SFMono-Regular, monospace;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #334155;
+}
+.maps-ext-link {
+  color: #0284c7;
+  display: inline-flex;
+  align-items: center;
+  transition: color 0.15s;
+}
+.maps-ext-link:hover {
+  color: #0369a1;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 </style>

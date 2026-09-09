@@ -2,10 +2,10 @@
 import { ref, computed } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { useBookingStore } from '@/stores/booking';
-import { useFleetStore } from '@/stores/fleet';
 import { useDialogStore } from '@/stores/dialog';
+import { mockStorage } from '@/services/mockStorage';
 import type { VehicleType } from '@/types';
-import { X, AlertCircle, CheckCircle2, Clock } from 'lucide-vue-next';
+import { X, AlertCircle, CheckCircle2, Clock, MapPin, Compass } from 'lucide-vue-next';
 
 const emit = defineEmits<{
   (e: 'close'): void;
@@ -14,17 +14,57 @@ const emit = defineEmits<{
 
 const authStore = useAuthStore();
 const bookingStore = useBookingStore();
-const fleetStore = useFleetStore();
 const dialog = useDialogStore();
 
 // Form state
-const vehicleType = ref<VehicleType>('Truck');
-const standardRouteId = ref<number | ''>(1);
-const fromLocation = ref<string>('Trạm cân 1');
-const toLocation = ref<string>('Đội 1');
+const vehicleType = ref<VehicleType>('LatexTruck');
+const locations = ref<string[]>(['Trạm cân 1']);
+const currentLocationInput = ref<string>('');
+
+// Thuộc tính riêng cho PassengerCar
+const pickupTime = ref<string>('');
+const dropoffTime = ref<string>('');
+const contactPerson = ref<string>('');
+const contactPhone = ref<string>('');
+
+function addLocation() {
+  const val = currentLocationInput.value.trim();
+  if (val && !locations.value.includes(val)) {
+    locations.value.push(val);
+  }
+  currentLocationInput.value = '';
+}
+
+function removeLocation(index: number) {
+  locations.value.splice(index, 1);
+}
+
+function addQuickLocation(loc: string) {
+  if (!locations.value.includes(loc)) {
+    locations.value.push(loc);
+  }
+}
 const purpose = ref<string>('Vận chuyển mủ cao su ca thu hoạch ngày lẻ');
 const estimatedWeightKg = ref<number>(2500);
 const passengersCount = ref<number>(3);
+
+// Danh sách các điểm trạm / đội sản xuất gợi ý cho Requester
+const popularHubs = computed(() => {
+  const hubs = mockStorage.getHubs();
+  if (hubs && hubs.length > 0) {
+    return hubs.map((h: any) => h.shortName || h.name);
+  }
+  return [
+    'Trạm cân 1',
+    'Đội 1',
+    'Đội 2',
+    'Đội 3',
+    'Đội 4',
+    'Đội 5',
+    'Nhà máy chế biến ECOTECH 2A',
+    'Văn phòng Công ty',
+  ];
+});
 
 // Helper default times (tự động tìm khung giờ trống hợp lệ: sau hiện tại ít nhất 30 phút và không trùng các chuyến đã duyệt)
 function getNextValidTimeSlot(): { start: string; end: string } {
@@ -81,17 +121,6 @@ function setQuickSlot(type: 'today_next' | 'tomorrow_morning' | 'tomorrow_aftern
   }
 }
 
-// Khi đổi tuyến chuẩn thì tự động điền From & To
-function handleRouteChange() {
-  if (standardRouteId.value) {
-    const r = fleetStore.routes.find((item) => item.id === Number(standardRouteId.value));
-    if (r) {
-      fromLocation.value = r.startPoint;
-      toLocation.value = r.endPoint;
-    }
-  }
-}
-
 // Live Validation: Rule 30 phút
 const rule30Status = computed(() => {
   if (!startTime.value) return { valid: false, text: 'Chưa chọn giờ' };
@@ -122,8 +151,8 @@ const conflictStatus = computed(() => {
 function handleSubmit() {
   errorMsg.value = '';
 
-  if (!fromLocation.value || !toLocation.value || !startTime.value || !endTime.value) {
-    dialog.showWarning('Vui lòng điền đầy đủ các thông tin bắt buộc: điểm đi, điểm đến và thời gian!', 'Thiếu Thông Tin Bắt Buộc', 'Kiểm tra lại');
+  if (locations.value.length === 0 || !startTime.value || !endTime.value) {
+    dialog.showWarning('Vui lòng điền đầy đủ các thông tin bắt buộc: ít nhất 1 địa điểm và thời gian!', 'Thiếu Thông Tin Bắt Buộc', 'Kiểm tra lại');
     return;
   }
 
@@ -146,12 +175,15 @@ function handleSubmit() {
     vehicleType: vehicleType.value,
     startTime: startTime.value.replace('T', ' '),
     endTime: endTime.value.replace('T', ' '),
-    fromLocation: fromLocation.value,
-    toLocation: toLocation.value,
-    standardRouteId: standardRouteId.value ? Number(standardRouteId.value) : undefined,
+    fromLocation: locations.value.join(' ➔ '),
+    toLocation: 'Chờ xếp tuyến',
     purpose: purpose.value,
-    estimatedWeightKg: vehicleType.value === 'Truck' ? Number(estimatedWeightKg.value) : undefined,
-    passengersCount: vehicleType.value === 'Pickup' ? Number(passengersCount.value) : undefined,
+    estimatedWeightKg: vehicleType.value === 'LatexTruck' ? Number(estimatedWeightKg.value) : undefined,
+    passengersCount: vehicleType.value === 'PassengerCar' ? Number(passengersCount.value) : undefined,
+    pickupTime: vehicleType.value === 'PassengerCar' ? pickupTime.value.replace('T', ' ') : undefined,
+    dropoffTime: vehicleType.value === 'PassengerCar' ? dropoffTime.value.replace('T', ' ') : undefined,
+    contactPerson: vehicleType.value === 'PassengerCar' ? contactPerson.value : undefined,
+    contactPhone: vehicleType.value === 'PassengerCar' ? contactPhone.value : undefined,
   });
 
   if (!res.success) {
@@ -189,36 +221,63 @@ function handleSubmit() {
           Người yêu cầu: <strong>{{ authStore.currentUser.fullName }}</strong> ({{ authStore.currentUser.departmentName }})
         </div>
 
-        <div class="grid-2">
-          <div class="form-group">
-            <label class="form-label">Loại phương tiện <span class="required">*</span></label>
-            <select v-model="vehicleType" class="form-select">
-              <option value="Truck">Xe tải chở mủ cao su</option>
-              <option value="Pickup">Xe bán tải đưa đón / công tác</option>
-              <option value="Excavator">Xe máy xúc nông trường</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Tuyến đường quy chuẩn</label>
-            <select v-model="standardRouteId" @change="handleRouteChange" class="form-select">
-              <option value="">-- Tuyến tự do ngoài danh mục --</option>
-              <option v-for="r in fleetStore.routes" :key="r.id" :value="r.id">
-                {{ r.routeCode }} - {{ r.name }} ({{ r.standardDistanceKm }} km)
-              </option>
-            </select>
-          </div>
+        <!-- 1. Loại phương tiện yêu cầu -->
+        <div class="form-group">
+          <label class="form-label">Loại phương tiện yêu cầu <span class="required">*</span></label>
+          <select v-model="vehicleType" class="form-select">
+            <option value="LatexTruck">Xe tải chở mủ cao su (Bồn inox / Mui bạt)</option>
+            <option value="PassengerCar">Xe bán tải đưa đón / công tác nông trường (5 chỗ)</option>
+            <option value="MillingMachine">Xe máy xúc nông trường (Đào mương vườn cây)</option>
+          </select>
         </div>
 
-        <div class="grid-2">
+        <!-- 2. Chọn địa điểm yêu cầu (Không cần chọn lộ trình, bên điều phối sẽ tự động gợi ý) -->
+        <div class="route-select-box">
           <div class="form-group">
-            <label class="form-label">Điểm xuất phát <span class="required">*</span></label>
-            <input v-model="fromLocation" type="text" class="form-input" placeholder="Ví dụ: Trạm cân 1" />
+            <label class="form-label">
+              <MapPin :size="14" class="text-primary" />
+              <span>Các địa điểm yêu cầu <span class="required">*</span></span>
+            </label>
+
+            <!-- Hiển thị các địa điểm đã chọn -->
+            <div v-if="locations.length > 0" class="location-chips">
+              <span v-for="(loc, index) in locations" :key="index" class="loc-tag">
+                {{ loc }}
+                <X :size="14" class="remove-loc" @click="removeLocation(index)" />
+              </span>
+            </div>
+
+            <div class="input-with-btn">
+              <input
+                v-model="currentLocationInput"
+                list="hub-options"
+                type="text"
+                class="form-input"
+                placeholder="Chọn hoặc nhập thêm địa điểm và nhấn Enter..."
+                @keydown.enter.prevent="addLocation"
+              />
+              <button type="button" class="btn btn-secondary" @click="addLocation" style="padding: 0 16px;">Thêm</button>
+            </div>
+            
+            <datalist id="hub-options">
+              <option v-for="hub in popularHubs" :key="'hub-' + hub" :value="hub" />
+            </datalist>
           </div>
 
-          <div class="form-group">
-            <label class="form-label">Điểm đến <span class="required">*</span></label>
-            <input v-model="toLocation" type="text" class="form-input" placeholder="Ví dụ: Đội 1" />
+          <!-- Nút chọn nhanh địa điểm phổ biến -->
+          <div class="quick-locations-bar">
+            <span class="quick-loc-label">Thêm nhanh:</span>
+            <button type="button" class="btn-loc-chip" @click="addQuickLocation('Trạm cân 1')">+ Trạm cân 1</button>
+            <button type="button" class="btn-loc-chip" @click="addQuickLocation('Đội 1')">+ Đội 1</button>
+            <button type="button" class="btn-loc-chip" @click="addQuickLocation('Đội 2')">+ Đội 2</button>
+            <button type="button" class="btn-loc-chip" @click="addQuickLocation('Nhà máy chế biến ECOTECH 2A')">+ Nhà máy</button>
+            <button type="button" class="btn-loc-chip" @click="addQuickLocation('Văn phòng Công ty')">+ Văn phòng</button>
+          </div>
+
+          <!-- Banner giải thích rõ ràng theo quy chuẩn -->
+          <div class="route-hint-banner">
+            <Compass :size="15" class="text-primary" />
+            <span>Người đặt xe chỉ cần chọn địa điểm. Lộ trình quy chuẩn tối ưu sẽ được Bộ phận Điều phối tự động gợi ý và xếp tuyến khi duyệt.</span>
           </div>
         </div>
 
@@ -263,15 +322,39 @@ function handleSubmit() {
         </div>
 
         <!-- Tùy biến theo loại xe -->
-        <div v-if="vehicleType === 'Truck'" class="form-group">
+        <div v-if="vehicleType === 'LatexTruck'" class="form-group">
           <label class="form-label">Khối lượng mủ dự kiến (kg) <span class="required">*</span></label>
           <input v-model.number="estimatedWeightKg" type="number" step="100" min="100" class="form-input" />
           <span class="form-hint">Khối lượng này sẽ dùng để kiểm tra sức chứa khi điều phối ghép chuyến và tính định mức dầu.</span>
         </div>
 
-        <div v-else-if="vehicleType === 'Pickup'" class="form-group">
-          <label class="form-label">Số người tham gia công tác <span class="required">*</span></label>
-          <input v-model.number="passengersCount" type="number" min="1" max="5" class="form-input" />
+        <div v-else-if="vehicleType === 'PassengerCar'" class="passenger-car-fields">
+          <div class="grid-2">
+            <div class="form-group">
+              <label class="form-label">Giờ đón (Pick-up) <span class="required">*</span></label>
+              <input v-model="pickupTime" type="datetime-local" class="form-input" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Giờ trả (Drop-off) <span class="required">*</span></label>
+              <input v-model="dropoffTime" type="datetime-local" class="form-input" />
+            </div>
+          </div>
+          
+          <div class="grid-2">
+            <div class="form-group">
+              <label class="form-label">Người liên hệ <span class="required">*</span></label>
+              <input v-model="contactPerson" type="text" class="form-input" placeholder="Tên người điều phối đoàn / liên hệ" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">SĐT liên hệ <span class="required">*</span></label>
+              <input v-model="contactPhone" type="text" class="form-input" placeholder="09xxxxxxx" />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Số người tham gia công tác <span class="required">*</span></label>
+            <input v-model.number="passengersCount" type="number" min="1" class="form-input" />
+          </div>
         </div>
 
         <div class="form-group">
@@ -383,5 +466,90 @@ function handleSubmit() {
 .modal-lg {
   max-width: 860px !important;
   width: 95vw;
+}
+
+/* Route Select Box Styles */
+.route-select-box {
+  background: #fafafa;
+  border: 1px solid #e5e7eb;
+  border-radius: var(--radius-md, 8px);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.route-select-box .grid-2 {
+  margin-bottom: 12px;
+}
+.quick-locations-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.quick-loc-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+}
+.btn-loc-chip {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.btn-loc-chip:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+.route-hint-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e3a8a;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm, 4px);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+.location-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.loc-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #e0f2fe;
+  color: #0369a1;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm, 4px);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  border: 1px solid #bae6fd;
+}
+.remove-loc {
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+.remove-loc:hover {
+  opacity: 1;
+  color: #dc2626;
+}
+.input-with-btn {
+  display: flex;
+  gap: 8px;
+}
+.input-with-btn .form-input {
+  flex: 1;
 }
 </style>

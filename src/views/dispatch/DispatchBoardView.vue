@@ -6,11 +6,12 @@ import { useBookingStore } from '@/stores/booking';
 import { useDispatchStore } from '@/stores/dispatch';
 import { useFleetStore } from '@/stores/fleet';
 import { useDialogStore } from '@/stores/dialog';
-import type { TransportRequest } from '@/types';
+import type { TransportRequest, TransportTrip } from '@/types';
 import StatusBadge from '@/components/common/StatusBadge.vue';
 import BatchTripModal from '@/components/dispatch/BatchTripModal.vue';
 import FleetDispatchMap from '@/components/dispatch/FleetDispatchMap.vue';
 import TripExpensesModal from '@/components/common/TripExpensesModal.vue';
+import EditTripModal from '@/components/dispatch/EditTripModal.vue';
 import {
   Layers,
   Truck,
@@ -24,6 +25,7 @@ import {
   Check,
   X,
   Clock,
+  Edit2,
 } from 'lucide-vue-next';
 
 const route = useRoute();
@@ -34,6 +36,7 @@ const dispatchStore = useDispatchStore();
 const fleetStore = useFleetStore();
 const dialog = useDialogStore();
 const viewExpensesTrip = ref<any>(null);
+const editingTrip = ref<TransportTrip | null>(null);
 const fleetMapRef = ref<InstanceType<typeof FleetDispatchMap> | null>(null);
 
 // Chế độ xem: 'map' (Bản đồ & Lộ trình GPS) hoặc 'board' (Bảng thẻ Kanban 3 cột)
@@ -167,6 +170,30 @@ function openBatchGeneral() {
   showBatchModal.value = true;
 }
 
+// Kiểm tra chuyến xe có đang bị ảnh hưởng bởi sự cố phương tiện dọc đường không
+function getTripIncident(trip: TransportTrip) {
+  const inc = fleetStore.incidents.find(
+    (i) => (i.vehicleId === trip.vehicleId || i.vehiclePlate === trip.vehiclePlate) && i.status !== 'Resolved'
+  );
+  if (inc) return inc;
+  const veh = fleetStore.vehicles.find((v) => v.id === trip.vehicleId);
+  if (veh && (veh.status === 'Broken' || veh.status === 'UnderMaintenance')) {
+    return {
+      issueDescription: 'Phương tiện đang hỏng hóc / bảo dưỡng',
+      severity: 'StopOperation',
+      locationGps: undefined,
+    } as any;
+  }
+  return null;
+}
+
+const tripsWithIncidents = computed(() => {
+  return trips.value.filter((t) => {
+    if (t.status === 'COMPLETED' || t.status === 'CANCELLED') return false;
+    return !!getTripIncident(t);
+  });
+});
+
 // Chuyển đổi trạng thái xe sang tiếng Việt
 function getVehicleStatusLabel(status: string): string {
   switch (status) {
@@ -185,12 +212,16 @@ function getVehicleStatusLabel(status: string): string {
 
 // Chuyển đổi loại xe sang tiếng Việt
 function getVehicleTypeLabel(type: string): string {
-  switch (type) {
-    case 'Truck':
+  const t = (type || '').toLowerCase();
+  switch (t) {
+    case 'latextruck':
+    case 'truck':
       return 'Xe tải';
-    case 'Pickup':
+    case 'passengercar':
+    case 'pickup':
       return 'Bán tải';
-    case 'Excavator':
+    case 'millingmachine':
+    case 'excavator':
       return 'Máy đào';
     default:
       return type;
@@ -415,7 +446,7 @@ function getVehicleTypeLabel(type: string): string {
             </div>
 
             <div class="veh-metrics">
-              <span v-if="v.vehicleType !== 'Excavator'">
+              <span v-if="v.vehicleType !== 'MillingMachine'">
                 ODO: <strong>{{ v.currentOdoKm.toLocaleString() }} km</strong>
               </span>
               <span v-else>
@@ -477,6 +508,32 @@ function getVehicleTypeLabel(type: string): string {
         <h3 class="card-title">Danh Sách Các Chuyến Xe Đã Phân Công & Ghép Chuyến</h3>
       </div>
 
+      <!-- Banner cảnh báo sự cố dọc đường cần điều xe thay thế -->
+      <div v-if="tripsWithIncidents.length > 0" class="incident-dispatch-banner">
+        <div class="banner-left">
+          <span class="banner-pulse">🚨</span>
+          <div>
+            <div class="banner-title">
+              Cảnh báo sự cố dọc đường: Có {{ tripsWithIncidents.length }} chuyến xe đang chạy gặp sự cố!
+            </div>
+            <div class="banner-sub">
+              Phương tiện nổ lốp / hỏng máy làm gián đoạn lịch trình. Điều phối viên vui lòng bấm <strong>"Đổi xe khác"</strong> để cử phương tiện thay thế kịp thời, không làm trễ cam kết giao nhận mủ.
+            </div>
+          </div>
+        </div>
+        <div class="banner-btns">
+          <button
+            v-for="t in tripsWithIncidents"
+            :key="t.id"
+            class="btn btn-xs btn-danger flex items-center gap-1.5 font-bold shadow-sm"
+            @click="editingTrip = t"
+          >
+            <Truck :size="14" />
+            <span>Đổi xe cho chuyến {{ t.tripCode }} ({{ t.vehiclePlate }})</span>
+          </button>
+        </div>
+      </div>
+
       <div class="table-container">
         <table class="table">
           <thead>
@@ -490,21 +547,36 @@ function getVehicleTypeLabel(type: string): string {
               <th>Sản Lượng Mủ (kg)</th>
               <th>Chi Phí & Bằng Chứng</th>
               <th>Trạng Thái</th>
+              <th class="text-center">Thao Tác</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="trips.length === 0">
-              <td colspan="9" class="text-center py-5 text-muted">
+              <td colspan="10" class="text-center py-5 text-muted">
                 Chưa có chuyến xe nào được điều phối.
               </td>
             </tr>
 
-            <tr v-for="t in trips" :key="t.id">
-              <td><strong>{{ t.tripCode }}</strong></td>
+            <tr
+              v-for="t in trips"
+              :key="t.id"
+              :class="{ 'trip-incident-row': !!getTripIncident(t) }"
+            >
+              <td>
+                <strong>{{ t.tripCode }}</strong>
+              </td>
               <td>
                 <div class="flex-col">
                   <strong>{{ t.vehiclePlate }}</strong>
                   <span class="text-xs text-muted">{{ getVehicleTypeLabel(t.vehicleType) }}</span>
+                  <div
+                    v-if="getTripIncident(t)"
+                    class="trip-incident-pill"
+                    :title="getTripIncident(t)?.issueDescription"
+                  >
+                    <AlertCircle :size="11" />
+                    <span>{{ getTripIncident(t)?.issueDescription || 'Sự cố dọc đường' }}</span>
+                  </div>
                 </div>
               </td>
               <td>
@@ -552,6 +624,27 @@ function getVehicleTypeLabel(type: string): string {
               <td>
                 <StatusBadge :status="t.status" />
               </td>
+              <td>
+                <div class="flex items-center justify-center gap-1">
+                  <button
+                    v-if="getTripIncident(t)"
+                    class="btn btn-xs btn-danger flex items-center gap-1 font-bold whitespace-nowrap shadow-sm"
+                    @click="editingTrip = t"
+                    title="Phương tiện gặp sự cố! Bấm để điều xe khác thay thế ngay"
+                  >
+                    <Truck :size="13" />
+                    <span>Đổi xe khác</span>
+                  </button>
+                  <button
+                    v-else
+                    class="btn btn-icon btn-sm text-primary"
+                    @click="editingTrip = t"
+                    title="Sửa thông tin điều động"
+                  >
+                    <Edit2 :size="15" />
+                  </button>
+                </div>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -564,6 +657,14 @@ function getVehicleTypeLabel(type: string): string {
       :initial-selected-requests="preselectedRequests"
       @close="showBatchModal = false"
       @dispatched="showBatchModal = false"
+    />
+
+    <!-- Modal Sửa Chuyến Xe -->
+    <EditTripModal
+      v-if="editingTrip"
+      :trip="editingTrip"
+      @close="editingTrip = null"
+      @updated="editingTrip = null"
     />
 
     <!-- Modal Xem Chi tiết & Thẩm định Bằng chứng Chi phí -->
@@ -1075,7 +1176,70 @@ function getVehicleTypeLabel(type: string): string {
   color: #dc2626;
 }
 
+/* Cảnh báo sự cố điều vận */
+.incident-dispatch-banner {
+  background: #fef2f2;
+  border: 1.5px solid #f87171;
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  margin: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  box-shadow: 0 2px 6px rgba(220, 38, 38, 0.08);
+}
+.banner-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.banner-pulse {
+  font-size: 1.5rem;
+  animation: pulse 1.5s infinite;
+}
+.banner-title {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #991b1b;
+}
+.banner-sub {
+  font-size: 0.775rem;
+  color: #7f1d1d;
+  margin-top: 2px;
+}
+.banner-btns {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.trip-incident-row {
+  background-color: #fff5f5 !important;
+}
+.trip-incident-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 9999px;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.15); opacity: 0.85; }
+}
+
 @media (max-width: 1024px) {
   .dispatch-board-grid { grid-template-columns: 1fr; }
+  .incident-dispatch-banner { flex-direction: column; align-items: flex-start; }
 }
 </style>

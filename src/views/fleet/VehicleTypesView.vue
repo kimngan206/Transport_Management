@@ -29,7 +29,7 @@ const editingCategory = ref<VehicleCategory | null>(null);
 const formCode = ref('');
 const formName = ref('');
 const formGroup = ref<'Vận tải mủ' | 'Cơ giới nông trường' | 'Công tác & Kỹ thuật'>('Vận tải mủ');
-const formVehicleType = ref<VehicleType>('Truck');
+const formVehicleType = ref<VehicleType>('LatexTruck');
 const formCapacityTons = ref<number | undefined>(5.0);
 const formSeats = ref<number | undefined>(undefined);
 const formFuelQuotaType = ref<'L_PER_KM' | 'L_PER_TON_KM' | 'L_PER_HOUR' | 'KWH_PER_KM'>('L_PER_TON_KM');
@@ -47,14 +47,13 @@ const totalCategories = computed(() => fleetStore.vehicleCategories.length);
 // Đếm số xe thực tế trong đội xe tương ứng với từng loại xe
 function countVehiclesForCategory(category: VehicleCategory): number {
   return fleetStore.vehicles.filter((v) => {
-    if (category.vehicleTypeCode === 'Excavator') return v.vehicleType === 'Excavator';
-    if (category.vehicleTypeCode === 'Pickup') return v.vehicleType === 'Pickup';
-    if (category.vehicleTypeCode === 'Electric') return v.vehicleType === 'Electric';
+    if (category.vehicleTypeCode === 'MillingMachine') return v.vehicleType === 'MillingMachine';
+    if (category.vehicleTypeCode === 'PassengerCar') return v.vehicleType === 'PassengerCar';
     // Truck: chia thành xe tải hoặc xe bồn téc theo model/tải trọng
     if (category.code === 'TANKER_LATEX') {
-      return v.vehicleType === 'Truck' && (v.capacityTons >= 7.0 || v.model.toLowerCase().includes('bồn'));
+      return v.vehicleType === 'LatexTruck' && (v.capacityTons >= 7.0 || v.model.toLowerCase().includes('bồn'));
     }
-    return v.vehicleType === 'Truck' && !v.model.toLowerCase().includes('bồn');
+    return v.vehicleType === 'LatexTruck' && !v.model.toLowerCase().includes('bồn');
   }).length;
 }
 
@@ -81,7 +80,7 @@ function openAddModal() {
   formCode.value = '';
   formName.value = '';
   formGroup.value = 'Vận tải mủ';
-  formVehicleType.value = 'Truck';
+  formVehicleType.value = 'LatexTruck';
   formCapacityTons.value = 5.0;
   formSeats.value = undefined;
   formFuelQuotaType.value = 'L_PER_TON_KM';
@@ -123,12 +122,16 @@ function saveFormulaFromModal() {
 
 function applyVehicleTypeDefaults(type: VehicleType) {
   if (type === 'Truck') {
+function onGroupChange() {
+  if (formGroup.value === 'Vận tải mủ') {
+    formVehicleType.value = 'LatexTruck';
     formFuelQuotaType.value = 'L_PER_TON_KM';
     formDefaultQuotaEmpty.value = 0.25;
     formDefaultQuotaLoaded.value = 0.02;
     formCapacityTons.value = 5.0;
     formSeats.value = undefined;
-  } else if (type === 'Excavator') {
+  } else if (formGroup.value === 'Cơ giới nông trường') {
+    formVehicleType.value = 'MillingMachine';
     formFuelQuotaType.value = 'L_PER_HOUR';
     formDefaultQuotaEmpty.value = 14.5;
     formDefaultQuotaLoaded.value = undefined;
@@ -141,6 +144,7 @@ function applyVehicleTypeDefaults(type: VehicleType) {
     formCapacityTons.value = 0.8;
     formSeats.value = 5;
   } else {
+    formVehicleType.value = 'PassengerCar';
     formFuelQuotaType.value = 'L_PER_KM';
     formDefaultQuotaEmpty.value = 0.10;
     formDefaultQuotaLoaded.value = 0.005;

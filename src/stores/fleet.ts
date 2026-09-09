@@ -9,12 +9,14 @@ import type {
   IncidentReport,
   MaintenanceRecord,
   MaintenanceType,
+  VehicleAssignmentHistory,
 } from '@/types';
 
 export const useFleetStore = defineStore('fleet', () => {
   const vehicles = ref<Vehicle[]>(mockStorage.getVehicles());
   const vehicleCategories = ref<VehicleCategory[]>(mockStorage.getVehicleCategories());
   const drivers = ref<Driver[]>(mockStorage.getDrivers());
+  const driverAssignments = ref<VehicleAssignmentHistory[]>(mockStorage.getDriverAssignments());
   const routes = ref<StandardRoute[]>(mockStorage.getRoutes());
   const incidents = ref<IncidentReport[]>(mockStorage.getIncidents());
   const maintenances = ref<MaintenanceRecord[]>(mockStorage.getMaintenanceRecords());
@@ -25,29 +27,33 @@ export const useFleetStore = defineStore('fleet', () => {
     mockStorage.saveVehicles(vehicles.value);
     mockStorage.saveVehicleCategories(vehicleCategories.value);
     mockStorage.saveDrivers(drivers.value);
+    mockStorage.saveDriverAssignments(driverAssignments.value);
     mockStorage.saveRoutes(routes.value);
     mockStorage.saveIncidents(incidents.value);
     mockStorage.saveMaintenanceRecords(maintenances.value);
     mockStorage.saveMaintenanceTypes(maintenanceTypes.value);
   }
 
-  // Lấy ngưỡng chu kỳ bảo dưỡng định kỳ cấu hình trong Danh mục loại bảo dưỡng
+  // Lấy ngưỡng chu kỳ bảo dưỡng định kỳ cấu hình trong Danh mục loại bảo dưỡng cho từng xe cụ thể
   function getVehicleMaintenanceThreshold(vehicle: Vehicle): number {
-    if (vehicle.vehicleType === 'Excavator') {
+    if (vehicle.vehicleType === 'MillingMachine') {
       const exType = maintenanceTypes.value.find(
-        (m) => m.isActive && m.applicableVehicleType === 'Excavator' && m.cycleHours
+        (m) =>
+          m.isActive &&
+          m.cycleHours &&
+          (m.assignedVehicleIds?.includes(vehicle.id) || !m.assignedVehicleIds || m.assignedVehicleIds.length === 0)
       );
       return exType?.cycleHours || 500;
     }
 
-    // Tìm gói bảo dưỡng định kỳ đang kích hoạt áp dụng cho loại xe này hoặc 'All'
+    // Tìm gói bảo dưỡng định kỳ đang kích hoạt áp dụng cho chính chiếc xe này
     const applicable = maintenanceTypes.value
       .filter(
         (m) =>
           m.isActive &&
           m.group === 'Bảo dưỡng định kỳ' &&
           m.cycleKm &&
-          (m.applicableVehicleType === vehicle.vehicleType || m.applicableVehicleType === 'All')
+          (m.assignedVehicleIds?.includes(vehicle.id) || !m.assignedVehicleIds || m.assignedVehicleIds.length === 0)
       )
       .sort((a, b) => (a.cycleKm || 0) - (b.cycleKm || 0));
 
@@ -76,7 +82,54 @@ export const useFleetStore = defineStore('fleet', () => {
     return drivers.value.filter((d) => d.employmentStatus === 'Active' && !d.isCurrentlyOnTrip);
   });
 
+  const getDriverAssignmentsByVehicleId = (vehicleId: number) => {
+    return driverAssignments.value
+      .filter(a => a.vehicleId === vehicleId)
+      .sort((a, b) => new Date(b.assignedFrom).getTime() - new Date(a.assignedFrom).getTime());
+  };
+
   // Actions
+  function assignDriverToVehicle(vehicleId: number, driverId: number | null, notes?: string) {
+    const now = new Date().toISOString().slice(0, 10);
+    
+    // Close active assignment if any
+    const activeAssignment = driverAssignments.value.find(
+      (a) => a.vehicleId === vehicleId && !a.assignedTo
+    );
+    if (activeAssignment) {
+      if (activeAssignment.driverId === driverId) return;
+      activeAssignment.assignedTo = now;
+    }
+    
+    const vehicle = vehicles.value.find((v) => v.id === vehicleId);
+    if (!vehicle) return;
+
+    if (driverId !== null) {
+      const driver = drivers.value.find((d) => d.id === driverId);
+      if (driver) {
+        const newAssignment: VehicleAssignmentHistory = {
+          id: Date.now(),
+          vehicleId,
+          driverId,
+          driverName: driver.fullName,
+          assignedFrom: now,
+          notes,
+        };
+        driverAssignments.value.unshift(newAssignment);
+        
+        vehicle.assignedDriverId = driver.id;
+        vehicle.assignedDriverName = driver.fullName;
+        vehicle.assignedDriverPhone = driver.phone;
+      }
+    } else {
+      vehicle.assignedDriverId = undefined;
+      vehicle.assignedDriverName = undefined;
+      vehicle.assignedDriverPhone = undefined;
+    }
+    
+    saveState();
+  }
+
   function updateVehicleOdo(vehicleId: number, newOdo: number) {
     const v = vehicles.value.find((item) => item.id === vehicleId);
     if (!v) return;
@@ -117,6 +170,27 @@ export const useFleetStore = defineStore('fleet', () => {
       const v = vehicles.value.find((item) => item.id === payload.vehicleId);
       if (v) v.status = 'Broken';
     }
+
+    // Đồng bộ tức thời vị trí GPS của tài xế sang bản đồ điều xe trực tiếp
+    try {
+      const mapStates = mockStorage.getVehicleMapStates();
+      const targetMapVeh = mapStates.find(
+        (mv: any) => mv.licensePlate === payload.vehiclePlate || mv.id === payload.vehicleId
+      );
+      if (targetMapVeh) {
+        if (payload.latitude && payload.longitude) {
+          targetMapVeh.currentLat = payload.latitude;
+          targetMapVeh.currentLng = payload.longitude;
+        }
+        targetMapVeh.status = 'MAINTENANCE';
+        const locLabel = payload.location ? `[${payload.location}] ` : '';
+        targetMapVeh.cargoDescription = `⚠️ [SỰ CỐ KHẨN CẤP] ${locLabel}${payload.issueDescription}`;
+        mockStorage.saveVehicleMapStates(mapStates);
+      }
+    } catch (err) {
+      console.warn('Lỗi đồng bộ GPS bản đồ:', err);
+    }
+
     saveState();
   }
 
@@ -161,13 +235,14 @@ export const useFleetStore = defineStore('fleet', () => {
     saveState();
   }
 
-  function addVehicle(vehicle: Omit<Vehicle, 'id'>) {
+  function addVehicle(vehicle: Omit<Vehicle, 'id'> & { id?: number }) {
     const newVeh: Vehicle = {
       ...vehicle,
-      id: Date.now(),
+      id: vehicle.id || Date.now(),
     };
     vehicles.value.push(newVeh);
     saveState();
+    return newVeh;
   }
 
   function updateVehicle(vehicle: Vehicle) {
@@ -230,7 +305,8 @@ export const useFleetStore = defineStore('fleet', () => {
   function addMaintenanceType(item: Omit<MaintenanceType, 'id'>) {
     const newItem: MaintenanceType = {
       ...item,
-      id: Date.now(),
+      id: Math.max(0, ...maintenanceTypes.value.map((m) => m.id)) + 1,
+      assignedVehicleIds: item.assignedVehicleIds ?? [],
     };
     maintenanceTypes.value.push(newItem);
     saveState();
@@ -257,10 +333,19 @@ export const useFleetStore = defineStore('fleet', () => {
     }
   }
 
+  function assignVehiclesToMaintenanceType(maintenanceTypeId: number, vehicleIds: number[]) {
+    const item = maintenanceTypes.value.find((m) => m.id === maintenanceTypeId);
+    if (item) {
+      item.assignedVehicleIds = vehicleIds;
+      saveState();
+    }
+  }
+
   return {
     vehicles,
     vehicleCategories,
     drivers,
+    driverAssignments,
     routes,
     incidents,
     maintenances,
@@ -269,6 +354,8 @@ export const useFleetStore = defineStore('fleet', () => {
     availableVehicles,
     dueMaintenanceVehicles,
     activeDrivers,
+    getDriverAssignmentsByVehicleId,
+    assignDriverToVehicle,
     updateVehicleOdo,
     setVehicleStatus,
     setDriverStatus,
@@ -290,6 +377,7 @@ export const useFleetStore = defineStore('fleet', () => {
     updateMaintenanceType,
     deleteMaintenanceType,
     toggleMaintenanceTypeStatus,
+    assignVehiclesToMaintenanceType,
     saveState,
   };
 });

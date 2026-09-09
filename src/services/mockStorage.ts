@@ -11,6 +11,7 @@ import {
   initialMaintenanceRecords,
   initialMaintenanceTypes,
   initialEcotechHubs,
+  initialVehicleAssignments,
 } from '@/mocks';
 import type {
   User,
@@ -24,6 +25,7 @@ import type {
   IncidentReport,
   MaintenanceRecord,
   MaintenanceType,
+  VehicleAssignmentHistory,
 } from '@/types';
 import type { HubLocation } from '@/types/map';
 
@@ -45,6 +47,8 @@ export const STORAGE_KEYS = {
   HANDOVERS: 'qldv_handovers',
   DRIVER_INCIDENTS: 'qldv_driver_incidents',
   ECOTECH_ROUTES: 'qldv_ecotech_routes',
+  DRIVER_ASSIGNMENTS: 'qldv_driver_assignments',
+  VEHICLE_MAP_STATES: 'qldv_vehicle_map_states',
   DATA_VERSION: 'qldv_data_version',
 } as const;
 
@@ -110,6 +114,7 @@ export function cleanupBloatedCookies(): void {
     STORAGE_KEYS.HANDOVERS,
     STORAGE_KEYS.DRIVER_INCIDENTS,
     STORAGE_KEYS.ECOTECH_ROUTES,
+    STORAGE_KEYS.DRIVER_ASSIGNMENTS,
   ];
   heavyCookieKeys.forEach((key) => deleteCookie(key));
 }
@@ -254,6 +259,7 @@ function checkAndMigrateStorage() {
     initIfMissing(STORAGE_KEYS.MAINTENANCES, initialMaintenanceRecords);
     initIfMissing(STORAGE_KEYS.MAINTENANCE_TYPES, initialMaintenanceTypes);
     initIfMissing(STORAGE_KEYS.HUBS, initialEcotechHubs);
+    initIfMissing(STORAGE_KEYS.DRIVER_ASSIGNMENTS, initialVehicleAssignments);
 
     // Cập nhật phiên bản mà không xóa đè dữ liệu của người dùng
     if (typeof localStorage !== 'undefined') localStorage.setItem(STORAGE_KEYS.DATA_VERSION, CURRENT_DATA_VERSION);
@@ -295,6 +301,7 @@ export const mockStorage = {
     saveToStorage(STORAGE_KEYS.MAINTENANCES, initialMaintenanceRecords);
     saveToStorage(STORAGE_KEYS.MAINTENANCE_TYPES, initialMaintenanceTypes);
     saveToStorage(STORAGE_KEYS.HUBS, initialEcotechHubs);
+    saveToStorage(STORAGE_KEYS.DRIVER_ASSIGNMENTS, initialVehicleAssignments);
     saveToStorage(STORAGE_KEYS.CURRENT_USER_ID, 3, true);
     saveToStorage(STORAGE_KEYS.ACTIVE_ROLE, 'Dispatcher', true);
 
@@ -325,10 +332,30 @@ export const mockStorage = {
   },
 
   getVehicles(): Vehicle[] {
-    const res = getFromStorage(STORAGE_KEYS.VEHICLES, initialVehicles);
+    let res = getFromStorage<Vehicle[]>(STORAGE_KEYS.VEHICLES, initialVehicles);
     if (!Array.isArray(res) || res.length === 0) {
       saveToStorage(STORAGE_KEYS.VEHICLES, initialVehicles);
       return [...initialVehicles];
+    }
+    // Auto-migrate: nếu dữ liệu hiện tại chưa có xe thuê ngoài nào, tự động nạp thêm các xe thuê ngoài mẫu
+    const hasExternal = res.some((v) => v.isExternal);
+    let modified = false;
+    if (!hasExternal) {
+      const externalMocks = initialVehicles.filter((v) => v.isExternal);
+      if (externalMocks.length > 0) {
+        res = [...res, ...externalMocks];
+        modified = true;
+      }
+    }
+    // Đảm bảo xe thuê ngoài không giữ ID tài xế nội bộ
+    res.forEach((v) => {
+      if (v.isExternal && v.assignedDriverId) {
+        v.assignedDriverId = undefined;
+        modified = true;
+      }
+    });
+    if (modified) {
+      saveToStorage(STORAGE_KEYS.VEHICLES, res);
     }
     return res;
   },
@@ -349,12 +376,39 @@ export const mockStorage = {
   },
 
   getDrivers(): Driver[] {
-    const res = getFromStorage(STORAGE_KEYS.DRIVERS, initialDrivers);
+    const res = getFromStorage<Driver[]>(STORAGE_KEYS.DRIVERS, initialDrivers);
     if (!Array.isArray(res) || res.length === 0) {
       saveToStorage(STORAGE_KEYS.DRIVERS, initialDrivers);
       return [...initialDrivers];
     }
-    return res;
+    
+    // Auto-migrate: Loại bỏ tài xế thuê ngoài khỏi danh sách tài xế nội bộ của công ty
+    let internalDrivers = res.filter((d) => !d.employeeCode || (!d.employeeCode.startsWith('TX-EXT') && d.id <= 104));
+    let modified = internalDrivers.length !== res.length;
+
+    internalDrivers.forEach((d) => {
+      if (d.id <= 4 && !d.licenseImageUrl) {
+        const match = initialDrivers.find(idr => idr.id === d.id);
+        if (match && match.licenseImageUrl) {
+          d.licenseImageUrl = match.licenseImageUrl;
+          modified = true;
+        }
+      }
+    });
+
+    const existingIds = new Set(internalDrivers.map((d) => d.id));
+    initialDrivers.forEach((initD) => {
+      if (!existingIds.has(initD.id)) {
+        internalDrivers.push(initD);
+        modified = true;
+      }
+    });
+
+    if (modified) {
+      saveToStorage(STORAGE_KEYS.DRIVERS, internalDrivers);
+    }
+    
+    return internalDrivers;
   },
   saveDrivers(data: Driver[]) {
     saveToStorage(STORAGE_KEYS.DRIVERS, data);
@@ -385,10 +439,32 @@ export const mockStorage = {
   },
 
   getTrips(): TransportTrip[] {
-    const res = getFromStorage(STORAGE_KEYS.TRIPS, initialTrips);
+    const res = getFromStorage<TransportTrip[]>(STORAGE_KEYS.TRIPS, initialTrips);
     if (!Array.isArray(res) || res.length === 0) {
       saveToStorage(STORAGE_KEYS.TRIPS, initialTrips);
       return [...initialTrips];
+    }
+    // Auto-migration: nạp receiptImages cho các khoản chi nếu dữ liệu cũ chưa có
+    let modified = false;
+    res.forEach((t) => {
+      if (t.expenses && t.expenses.length > 0) {
+        t.expenses.forEach((e) => {
+          if (!e.receiptImages || e.receiptImages.length === 0) {
+            const matchTrip = initialTrips.find((it) => it.id === t.id);
+            const matchExp = matchTrip?.expenses?.find((ie) => ie.id === e.id);
+            if (matchExp?.receiptImages && matchExp.receiptImages.length > 0) {
+              e.receiptImages = [...matchExp.receiptImages];
+              modified = true;
+            } else if (e.receiptImage) {
+              e.receiptImages = [e.receiptImage];
+              modified = true;
+            }
+          }
+        });
+      }
+    });
+    if (modified) {
+      saveToStorage(STORAGE_KEYS.TRIPS, res);
     }
     return res;
   },
@@ -401,6 +477,22 @@ export const mockStorage = {
     if (!Array.isArray(res) || res.length === 0) {
       saveToStorage(STORAGE_KEYS.INCIDENTS, initialIncidents);
       return [...initialIncidents];
+    }
+    let modified = false;
+    res.forEach((inc) => {
+      if (!inc.location) {
+        const match = initialIncidents.find((ii) => ii.id === inc.id);
+        if (match) {
+          inc.location = match.location;
+          inc.latitude = match.latitude;
+          inc.longitude = match.longitude;
+          inc.gpsAccuracy = match.gpsAccuracy;
+          modified = true;
+        }
+      }
+    });
+    if (modified) {
+      saveToStorage(STORAGE_KEYS.INCIDENTS, res);
     }
     return res;
   },
@@ -425,6 +517,18 @@ export const mockStorage = {
     if (!Array.isArray(res) || res.length === 0) {
       saveToStorage(STORAGE_KEYS.MAINTENANCE_TYPES, initialMaintenanceTypes);
       return [...initialMaintenanceTypes];
+    }
+    // Auto-migrate: đảm bảo mỗi loại bảo dưỡng có assignedVehicleIds
+    let modified = false;
+    res.forEach((m) => {
+      if (!Array.isArray(m.assignedVehicleIds)) {
+        const match = initialMaintenanceTypes.find((im) => im.id === m.id);
+        m.assignedVehicleIds = match?.assignedVehicleIds ? [...match.assignedVehicleIds] : [];
+        modified = true;
+      }
+    });
+    if (modified) {
+      saveToStorage(STORAGE_KEYS.MAINTENANCE_TYPES, res);
     }
     return res;
   },
@@ -494,14 +598,44 @@ export const mockStorage = {
   // SỰ CỐ TÀI XẾ BÁO CÁO (DRIVER INCIDENTS)
   getDriverIncidents<T = any>(defaultIncidents: T[] = []): T[] {
     const res = getFromStorage<T[]>(STORAGE_KEYS.DRIVER_INCIDENTS, defaultIncidents);
-    if (!Array.isArray(res)) {
+    if (!Array.isArray(res) || res.length === 0) {
       saveToStorage(STORAGE_KEYS.DRIVER_INCIDENTS, defaultIncidents);
       return [...defaultIncidents];
+    }
+    let modified = false;
+    res.forEach((inc: any) => {
+      if (inc && !inc.latitude) {
+        const match = (defaultIncidents as any[]).find((di: any) => di.id === inc.id);
+        if (match) {
+          inc.latitude = match.latitude;
+          inc.longitude = match.longitude;
+          inc.gpsAccuracy = match.gpsAccuracy;
+          modified = true;
+        }
+      }
+    });
+    if (modified) {
+      saveToStorage(STORAGE_KEYS.DRIVER_INCIDENTS, res);
     }
     return res;
   },
   saveDriverIncidents<T = any>(data: T[]) {
     saveToStorage(STORAGE_KEYS.DRIVER_INCIDENTS, data);
+  },
+
+  // VỊ TRÍ XE TRÊN BẢN ĐỒ ĐIỀU VẬN (VEHICLE MAP STATES)
+  getVehicleMapStates<T = any>(defaultStates: T[] = []): T[] {
+    const res = getFromStorage<T[]>(STORAGE_KEYS.VEHICLE_MAP_STATES, defaultStates);
+    if (!Array.isArray(res) || res.length === 0) {
+      if (defaultStates.length > 0) {
+        saveToStorage(STORAGE_KEYS.VEHICLE_MAP_STATES, defaultStates);
+      }
+      return [...defaultStates];
+    }
+    return res;
+  },
+  saveVehicleMapStates<T = any>(data: T[]) {
+    saveToStorage(STORAGE_KEYS.VEHICLE_MAP_STATES, data);
   },
 
   // TUYẾN ĐƯỜNG BẢN ĐỒ ECOTECH (ROUTE PATHS GIS)
@@ -517,6 +651,20 @@ export const mockStorage = {
   },
   saveEcotechRoutes<T = any>(data: T[]) {
     saveToStorage(STORAGE_KEYS.ECOTECH_ROUTES, data);
+  },
+
+  // LỊCH SỬ PHÂN CÔNG TÀI XẾ (DRIVER ASSIGNMENTS)
+  getDriverAssignments(defaultAssignments: VehicleAssignmentHistory[] = []): VehicleAssignmentHistory[] {
+    const fallback = (defaultAssignments && defaultAssignments.length > 0 ? defaultAssignments : (initialVehicleAssignments as VehicleAssignmentHistory[]));
+    const res = getFromStorage<VehicleAssignmentHistory[]>(STORAGE_KEYS.DRIVER_ASSIGNMENTS, fallback);
+    if (!Array.isArray(res)) {
+      saveToStorage(STORAGE_KEYS.DRIVER_ASSIGNMENTS, fallback);
+      return [...fallback];
+    }
+    return res;
+  },
+  saveDriverAssignments(data: VehicleAssignmentHistory[]) {
+    saveToStorage(STORAGE_KEYS.DRIVER_ASSIGNMENTS, data);
   },
 
   getStorageHealth() {

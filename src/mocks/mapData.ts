@@ -157,7 +157,7 @@ export const initialVehicleMapStates: VehicleMapState[] = [
   {
     id: 1,
     licensePlate: '51C-889.26',
-    vehicleType: 'Truck',
+    vehicleType: 'LatexTruck',
     model: 'Hino 5 tấn mui bạt chở mủ',
     driverName: 'Nguyễn Văn Lái',
     driverPhone: '0912.345.678',
@@ -175,7 +175,7 @@ export const initialVehicleMapStates: VehicleMapState[] = [
   {
     id: 2,
     licensePlate: '51C-772.18',
-    vehicleType: 'Truck',
+    vehicleType: 'LatexTruck',
     model: 'Isuzu 7.5 tấn bồn inox chở mủ nước',
     driverName: 'Trần Văn Vận',
     driverPhone: '0983.112.233',
@@ -191,7 +191,7 @@ export const initialVehicleMapStates: VehicleMapState[] = [
   {
     id: 3,
     licensePlate: '51A-992.34',
-    vehicleType: 'Pickup',
+    vehicleType: 'PassengerCar',
     model: 'Ford Ranger 4x4 bán tải công tác',
     driverName: 'Lê Văn Tài',
     driverPhone: '0909.555.789',
@@ -209,7 +209,7 @@ export const initialVehicleMapStates: VehicleMapState[] = [
   {
     id: 4,
     licensePlate: 'MX-01',
-    vehicleType: 'Excavator',
+    vehicleType: 'MillingMachine',
     model: 'Komatsu PC200-8 máy đào mương vườn cây',
     driverName: 'Đỗ Văn Máy',
     driverPhone: '0977.888.999',

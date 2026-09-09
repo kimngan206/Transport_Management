@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { useFleetStore } from '@/stores/fleet';
 import { useDialogStore } from '@/stores/dialog';
@@ -13,17 +13,28 @@ import {
   Truck,
   UserCheck,
   Plus,
-  KeyRound,
-  Layers,
   ExternalLink,
   Edit2,
   Trash2,
+  Building2,
+  Info,
 } from 'lucide-vue-next';
 
 const route = useRoute();
 const fleetStore = useFleetStore();
 const dialog = useDialogStore();
 const activeTab = ref<'vehicles' | 'types' | 'drivers' | 'handover'>('vehicles');
+const activeVehicleFilter = ref<'internal' | 'external'>('internal');
+
+const internalCount = computed(() => fleetStore.vehicles.filter(v => !v.isExternal).length);
+const externalCount = computed(() => fleetStore.vehicles.filter(v => v.isExternal).length);
+
+const filteredVehicles = computed(() => {
+  if (activeVehicleFilter.value === 'external') {
+    return fleetStore.vehicles.filter(v => v.isExternal);
+  }
+  return fleetStore.vehicles.filter(v => !v.isExternal);
+});
 
 // Modal chi tiết phương tiện & chu kỳ bảo dưỡng (Section 4 - baoduong.md)
 const selectedVehicleForDetail = ref<Vehicle | null>(null);
@@ -80,14 +91,13 @@ const handoverList = ref(mockStorage.getHandovers(defaultHandovers));
 // Helper đếm số xe theo loại xe
 function countVehiclesForCat(category: any): number {
   return fleetStore.vehicles.filter((v) => {
-    if (category.vehicleTypeCode === 'Excavator') return v.vehicleType === 'Excavator';
-    if (category.vehicleTypeCode === 'Pickup') return v.vehicleType === 'Pickup';
-    if (category.vehicleTypeCode === 'Electric') return v.vehicleType === 'Electric';
-    if (category.code === 'TANKER_LATEX') return v.vehicleType === 'Truck' && v.model.toLowerCase().includes('bồn');
-    if (category.code === 'TRUCK_HEAVY_15T') return v.vehicleType === 'Truck' && (v.capacityTons || 0) >= 15;
-    if (category.code === 'TRUCK_MEDIUM_8T') return v.vehicleType === 'Truck' && (v.capacityTons || 0) >= 8 && (v.capacityTons || 0) < 15;
-    if (category.code === 'TRUCK_LIGHT_5T') return v.vehicleType === 'Truck' && (v.capacityTons || 0) <= 5;
-    return v.vehicleType === 'Truck';
+    if (category.vehicleTypeCode === 'MillingMachine') return v.vehicleType === 'MillingMachine';
+    if (category.vehicleTypeCode === 'PassengerCar') return v.vehicleType === 'PassengerCar';
+    if (category.code === 'TANKER_LATEX') return v.vehicleType === 'LatexTruck' && v.model.toLowerCase().includes('bồn');
+    if (category.code === 'TRUCK_HEAVY_15T') return v.vehicleType === 'LatexTruck' && (v.capacityTons || 0) >= 15;
+    if (category.code === 'TRUCK_MEDIUM_8T') return v.vehicleType === 'LatexTruck' && (v.capacityTons || 0) >= 8 && (v.capacityTons || 0) < 15;
+    if (category.code === 'TRUCK_LIGHT_5T') return v.vehicleType === 'LatexTruck' && (v.capacityTons || 0) <= 5;
+    return v.vehicleType === 'LatexTruck';
   }).length;
 }
 
@@ -116,18 +126,33 @@ function getVehicleStatusLabel(status: string): string {
 }
 
 // Chuyển đổi loại xe sang tiếng Việt
-function getVehicleTypeLabel(type: string): string {
-  switch (type) {
-    case 'Truck':
+function getVehicleTypeLabel(type: string, vehicle?: Vehicle): string {
+  const t = (type || '').toLowerCase();
+
+  if (vehicle && vehicle.model && vehicle.model.toLowerCase().includes('bồn')) {
+    return 'Xe bồn';
+  }
+
+  switch (t) {
+    case 'latextruck':
+    case 'truck':
       return 'Xe tải';
-    case 'Pickup':
+    case 'passengercar':
+    case 'pickup':
       return 'Bán tải';
-    case 'Excavator':
+    case 'millingmachine':
+    case 'excavator':
       return 'Máy đào';
     case 'Electric':
       return 'Xe điện';
     default:
       return type;
+    default: {
+      const cat = fleetStore.vehicleCategories.find(
+        (c) => c.code.toLowerCase() === t || c.vehicleTypeCode.toLowerCase() === t
+      );
+      return cat ? cat.name : type;
+    }
   }
 }
 
@@ -149,28 +174,36 @@ function getDriverEmploymentStatusLabel(status: string): string {
 const showAddVehModal = ref(false);
 const editingVehicle = ref<Vehicle | null>(null);
 const newVehPlate = ref('');
-const newVehType = ref<'Truck' | 'Pickup' | 'Excavator' | 'Electric'>('Truck');
+const newVehType = ref<'LatexTruck' | 'PassengerCar' | 'MillingMachine'>('LatexTruck');
 const newVehModel = ref('');
 const newVehCapacity = ref(5.0);
+const newVehSeats = ref<number | undefined>(undefined);
 const newVehEmptyQuota = ref(0.25);
 const newVehLoadedQuota = ref(0.02);
 const newVehFormulaText = ref('');
 const newVehOdo = ref(10000);
 const newVehDriverId = ref<number | ''>('');
-const showVehFormulaModal = ref(false);
-const vehFormulaDraft = ref('');
+const newVehDriverName = ref('');
+const newVehDriverPhone = ref('');
+const newVehTeamName = ref('');
+const newVehIsExternal = ref(false);
 
 function openAddVehicleModal() {
   editingVehicle.value = null;
   newVehPlate.value = '';
-  newVehType.value = 'Truck';
+  newVehType.value = 'LatexTruck';
   newVehModel.value = '';
   newVehCapacity.value = 5.0;
+  newVehSeats.value = undefined;
   newVehEmptyQuota.value = 0.25;
   newVehLoadedQuota.value = 0.02;
   newVehFormulaText.value = '';
   newVehOdo.value = 10000;
   newVehDriverId.value = '';
+  newVehDriverName.value = '';
+  newVehDriverPhone.value = '';
+  newVehTeamName.value = '';
+  newVehIsExternal.value = activeVehicleFilter.value === 'external';
   showAddVehModal.value = true;
 }
 
@@ -180,11 +213,16 @@ function openEditVehicleModal(vehicle: Vehicle) {
   newVehType.value = vehicle.vehicleType;
   newVehModel.value = vehicle.model;
   newVehCapacity.value = vehicle.capacityTons;
+  newVehSeats.value = vehicle.passengerCapacity;
   newVehEmptyQuota.value = vehicle.fuelQuotaEmpty;
   newVehLoadedQuota.value = vehicle.fuelQuotaLoaded;
   newVehFormulaText.value = vehicle.fuelFormulaText || '';
   newVehOdo.value = vehicle.currentOdoKm;
   newVehDriverId.value = vehicle.assignedDriverId || '';
+  newVehDriverName.value = vehicle.assignedDriverName || '';
+  newVehDriverPhone.value = vehicle.assignedDriverPhone || '';
+  newVehTeamName.value = vehicle.teamName || '';
+  newVehIsExternal.value = !!vehicle.isExternal;
   if (selectedVehicleForDetail.value) {
     selectedVehicleForDetail.value = null;
   }
@@ -207,43 +245,78 @@ function handleSaveVehicle() {
     return;
   }
   const plate = newVehPlate.value.trim();
-  const selectedDriver = fleetStore.drivers.find((d) => d.id === Number(newVehDriverId.value));
   const isEdit = !!editingVehicle.value;
+  const isExt = !!newVehIsExternal.value;
+
+  let driverIdToSave: number | undefined = undefined;
+  let driverNameToSave: string | undefined = undefined;
+  let driverPhoneToSave: string | undefined = undefined;
+
+  if (isExt) {
+    // Xe thuê ngoài: nhập trực tiếp tên & SĐT tài xế thuê ngoài, không quản lý trong ds tài xế nội bộ
+    driverNameToSave = newVehDriverName.value.trim() || undefined;
+    driverPhoneToSave = newVehDriverPhone.value.trim() || undefined;
+  } else {
+    // Xe công ty: chọn từ danh sách tài xế nội bộ của công ty
+    const selectedDriverId = newVehDriverId.value === '' ? null : Number(newVehDriverId.value);
+    const selectedDriver = fleetStore.drivers.find((d) => d.id === selectedDriverId);
+    if (selectedDriver) {
+      driverIdToSave = selectedDriver.id;
+      driverNameToSave = selectedDriver.fullName;
+      driverPhoneToSave = selectedDriver.phone;
+    }
+  }
 
   if (isEdit && editingVehicle.value) {
+    const vehicleId = editingVehicle.value.id;
     fleetStore.updateVehicle({
       ...editingVehicle.value,
       licensePlate: plate,
       vehicleType: newVehType.value,
       model: newVehModel.value.trim(),
       capacityTons: Number(newVehCapacity.value),
+      passengerCapacity: newVehSeats.value ? Number(newVehSeats.value) : undefined,
       fuelQuotaEmpty: Number(newVehEmptyQuota.value),
       fuelQuotaLoaded: Number(newVehLoadedQuota.value),
       fuelFormulaText: newVehFormulaText.value.trim() || undefined,
       currentOdoKm: Number(newVehOdo.value),
-      assignedDriverId: selectedDriver ? selectedDriver.id : undefined,
-      assignedDriverName: selectedDriver ? selectedDriver.fullName : undefined,
-      assignedDriverPhone: selectedDriver ? selectedDriver.phone : undefined,
+      teamName: newVehType.value === 'LatexTruck' ? newVehTeamName.value.trim() : undefined,
+      isExternal: isExt,
+      assignedDriverId: driverIdToSave,
+      assignedDriverName: driverNameToSave,
+      assignedDriverPhone: driverPhoneToSave,
     });
+    // Chỉ ghi nhận lịch sử phân công cho tài xế cơ hữu nội bộ của công ty
+    if (!isExt && editingVehicle.value.assignedDriverId !== driverIdToSave) {
+      fleetStore.assignDriverToVehicle(vehicleId, driverIdToSave ?? null, "Phân công từ form cập nhật xe");
+    }
     dialog.showSuccess(`Phương tiện [${plate}] đã được cập nhật thành công!`, 'Cập Nhật Thành Công');
   } else {
+    const newVehicleId = Date.now();
     fleetStore.addVehicle({
+      id: newVehicleId,
       licensePlate: plate,
       vehicleType: newVehType.value,
       model: newVehModel.value.trim(),
       capacityTons: Number(newVehCapacity.value),
+      passengerCapacity: newVehSeats.value ? Number(newVehSeats.value) : undefined,
       fuelQuotaEmpty: Number(newVehEmptyQuota.value),
       fuelQuotaLoaded: Number(newVehLoadedQuota.value),
       fuelFormulaText: newVehFormulaText.value.trim() || undefined,
       currentOdoKm: Number(newVehOdo.value),
+      teamName: newVehType.value === 'LatexTruck' ? newVehTeamName.value.trim() : undefined,
+      isExternal: isExt,
+      assignedDriverId: driverIdToSave,
+      assignedDriverName: driverNameToSave,
+      assignedDriverPhone: driverPhoneToSave,
       status: 'Available',
       maintenanceStatus: 'Normal',
       lastMaintenanceOdo: Number(newVehOdo.value),
       lastMaintenanceDate: new Date().toISOString().slice(0, 10),
-      assignedDriverId: selectedDriver ? selectedDriver.id : undefined,
-      assignedDriverName: selectedDriver ? selectedDriver.fullName : undefined,
-      assignedDriverPhone: selectedDriver ? selectedDriver.phone : undefined,
     });
+    if (!isExt && driverIdToSave) {
+      fleetStore.assignDriverToVehicle(newVehicleId, driverIdToSave, "Phân công từ form tạo xe mới");
+    }
     dialog.showSuccess(`Phương tiện [${plate}] đã được thêm vào đội xe thành công!`, 'Thêm Xe Mới Thành Công');
   }
 
@@ -252,6 +325,8 @@ function handleSaveVehicle() {
   newVehPlate.value = '';
   newVehModel.value = '';
   newVehDriverId.value = '';
+  newVehDriverName.value = '';
+  newVehDriverPhone.value = '';
 }
 
 function handleDeleteVehicle(vehicle: Vehicle) {
@@ -271,13 +346,56 @@ function handleDeleteVehicle(vehicle: Vehicle) {
   });
 }
 
+// ==================== Modal: Phân công tài xế ====================
+const showAssignDriverModal = ref(false);
+const assignVehicle = ref<Vehicle | null>(null);
+const assignDriverId = ref<number | ''>('');
+const assignExternalDriverName = ref('');
+const assignExternalDriverPhone = ref('');
+const assignNotes = ref('');
+
+function openAssignDriverModal(vehicle: Vehicle) {
+  assignVehicle.value = vehicle;
+  assignDriverId.value = vehicle.assignedDriverId || '';
+  assignExternalDriverName.value = vehicle.assignedDriverName || '';
+  assignExternalDriverPhone.value = vehicle.assignedDriverPhone || '';
+  assignNotes.value = '';
+  showAssignDriverModal.value = true;
+}
+
+function handleSaveAssignment() {
+  if (!assignVehicle.value) return;
+
+  if (assignVehicle.value.isExternal) {
+    // Xe thuê ngoài: cập nhật trực tiếp tên và SĐT tài xế đối tác
+    assignVehicle.value.assignedDriverId = undefined;
+    assignVehicle.value.assignedDriverName = assignExternalDriverName.value.trim() || undefined;
+    assignVehicle.value.assignedDriverPhone = assignExternalDriverPhone.value.trim() || undefined;
+    fleetStore.updateVehicle({ ...assignVehicle.value });
+    dialog.showSuccess(
+      `Đã lưu thông tin tài xế xe thuê [${assignVehicle.value.licensePlate}]: ${assignVehicle.value.assignedDriverName || 'Chưa gán'}!`,
+      'Cập Nhật Tài Xế Xe Thuê'
+    );
+    showAssignDriverModal.value = false;
+    assignVehicle.value = null;
+    return;
+  }
+
+  // Xe công ty: phân công tài xế nội bộ
+  const driverId = assignDriverId.value === '' ? null : Number(assignDriverId.value);
+  fleetStore.assignDriverToVehicle(assignVehicle.value.id, driverId, assignNotes.value.trim());
+  dialog.showSuccess(`Phân công tài xế cho xe [${assignVehicle.value.licensePlate}] thành công!`, 'Phân Công Thành Công');
+  showAssignDriverModal.value = false;
+  assignVehicle.value = null;
+}
+
 // ==================== Modal 2: Thêm / Sửa loại xe ====================
 const showAddCatModal = ref(false);
 const editingCategory = ref<VehicleCategory | null>(null);
 const newCatCode = ref('');
 const newCatName = ref('');
 const newCatGroup = ref<'Vận tải mủ' | 'Cơ giới nông trường' | 'Công tác & Kỹ thuật'>('Vận tải mủ');
-const newCatVehType = ref<'Truck' | 'Pickup' | 'Excavator' | 'Electric'>('Truck');
+const newCatVehType = ref<'LatexTruck' | 'PassengerCar' | 'MillingMachine'>('LatexTruck');
 const newCatDesc = ref('');
 const newCatFuelFormulaText = ref('');
 const newCatIsActive = ref(true);
@@ -289,7 +407,7 @@ function openAddCategoryModal() {
   newCatCode.value = '';
   newCatName.value = '';
   newCatGroup.value = 'Vận tải mủ';
-  newCatVehType.value = 'Truck';
+  newCatVehType.value = 'LatexTruck';
   newCatDesc.value = '';
   newCatFuelFormulaText.value = '';
   newCatIsActive.value = true;
@@ -344,9 +462,8 @@ function handleSaveCategory() {
       name: catName,
       group: newCatGroup.value,
       vehicleTypeCode: newCatVehType.value,
-      defaultQuotaEmpty: newCatVehType.value === 'Excavator' ? 14.5 : newCatVehType.value === 'Truck' ? 0.25 : newCatVehType.value === 'Electric' ? 0.18 : 0.1,
-      fuelQuotaType: newCatVehType.value === 'Excavator' ? 'L_PER_HOUR' : newCatVehType.value === 'Truck' ? 'L_PER_TON_KM' : newCatVehType.value === 'Electric' ? 'KWH_PER_KM' : 'L_PER_KM',
-      fuelFormulaText: newCatFuelFormulaText.value.trim() || undefined,
+      defaultQuotaEmpty: newCatVehType.value === 'MillingMachine' ? 14.5 : newCatVehType.value === 'LatexTruck' ? 0.25 : 0.1,
+      fuelQuotaType: newCatVehType.value === 'MillingMachine' ? 'L_PER_HOUR' : newCatVehType.value === 'LatexTruck' ? 'L_PER_TON_KM' : 'L_PER_KM',
       description: newCatDesc.value.trim(),
       isActive: newCatIsActive.value,
     });
@@ -395,6 +512,7 @@ function openAddDriverModal() {
   newDriverLicenseClass.value = 'Hạng C';
   newDriverLicenseExpiry.value = '2029-12-31';
   newDriverStatus.value = 'Active';
+  newDriverLicenseImageUrl.value = '';
   showAddDriverModal.value = true;
 }
 
@@ -407,6 +525,7 @@ function openEditDriverModal(driver: Driver) {
   newDriverLicenseClass.value = driver.licenseClass;
   newDriverLicenseExpiry.value = driver.licenseExpiryDate;
   newDriverStatus.value = driver.employmentStatus;
+  newDriverLicenseImageUrl.value = driver.licenseImageUrl || '';
   selectedDriverForDetail.value = null;
   showAddDriverModal.value = true;
 }
@@ -430,6 +549,7 @@ function handleSaveDriver() {
       licenseNumber: newDriverLicenseNum.value.trim(),
       licenseClass: newDriverLicenseClass.value,
       licenseExpiryDate: newDriverLicenseExpiry.value,
+      licenseImageUrl: newDriverLicenseImageUrl.value,
       employmentStatus: newDriverStatus.value,
     });
 
@@ -452,6 +572,7 @@ function handleSaveDriver() {
       licenseNumber: newDriverLicenseNum.value.trim(),
       licenseClass: newDriverLicenseClass.value,
       licenseExpiryDate: newDriverLicenseExpiry.value,
+      licenseImageUrl: newDriverLicenseImageUrl.value,
       employmentStatus: newDriverStatus.value,
       isCurrentlyOnTrip: false,
     });
@@ -464,6 +585,20 @@ function handleSaveDriver() {
   newDriverName.value = '';
   newDriverPhone.value = '';
   newDriverLicenseNum.value = '';
+  newDriverLicenseImageUrl.value = '';
+}
+
+const newDriverLicenseImageUrl = ref<string>('');
+
+function handleLicenseUpload(event: Event) {
+  const file = (event.target as HTMLInputElement).files?.[0];
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      newDriverLicenseImageUrl.value = e.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  }
 }
 
 function handleDeleteDriver(driver: Driver) {
@@ -535,43 +670,6 @@ function handleAddHandover() {
         <h1 class="page-title">Quản Lý Đội Xe & Tài Xế</h1>
         <p class="page-subtitle">Theo dõi tình trạng phương tiện, loại xe, định mức tiêu hao, ODO và hồ sơ tài xế</p>
       </div>
-
-      <div class="header-right">
-        <div class="tab-toggle">
-          <button
-            class="toggle-btn"
-            :class="{ active: activeTab === 'types' }"
-            @click="activeTab = 'types'"
-          >
-            <Layers :size="15" />
-            <span>Loại xe ({{ fleetStore.vehicleCategories.length }})</span>
-          </button>
-          <button
-            class="toggle-btn"
-            :class="{ active: activeTab === 'drivers' }"
-            @click="activeTab = 'drivers'"
-          >
-            <UserCheck :size="15" />
-            <span>Tài xế ({{ fleetStore.drivers.length }})</span>
-          </button>
-          <button
-            class="toggle-btn"
-            :class="{ active: activeTab === 'vehicles' }"
-            @click="activeTab = 'vehicles'"
-          >
-            <Truck :size="15" />
-            <span>Phương tiện ({{ fleetStore.vehicles.length }})</span>
-          </button>
-          <button
-            class="toggle-btn"
-            :class="{ active: activeTab === 'handover' }"
-            @click="activeTab = 'handover'"
-          >
-            <KeyRound :size="15" />
-            <span>Bàn giao / Mượn trả ({{ handoverList.length }})</span>
-          </button>
-        </div>
-      </div>
     </div>
 
     <!-- 1. Bảng Phương tiện -->
@@ -587,6 +685,32 @@ function handleAddHandover() {
         </button>
       </div>
 
+      <!-- Sub-tabs Phân Loại Xe Công Ty / Thuê Ngoài -->
+      <div class="fleet-subtabs-bar">
+        <div class="fleet-subtabs-nav">
+          <button 
+            type="button"
+            class="fleet-subtab-btn" 
+            :class="{ active: activeVehicleFilter === 'internal' }" 
+            @click="activeVehicleFilter = 'internal'"
+          >
+            <Building2 :size="16" />
+            <span>Xe Công Ty</span>
+            <span class="fleet-subtab-badge">{{ internalCount }}</span>
+          </button>
+          <button 
+            type="button"
+            class="fleet-subtab-btn" 
+            :class="{ active: activeVehicleFilter === 'external' }" 
+            @click="activeVehicleFilter = 'external'"
+          >
+            <ExternalLink :size="16" />
+            <span>Xe Thuê Ngoài</span>
+            <span class="fleet-subtab-badge" :class="{ 'badge-empty': externalCount === 0 }">{{ externalCount }}</span>
+          </button>
+        </div>
+      </div>
+
       <div class="table-container">
         <table class="table table-fleet">
           <thead>
@@ -596,6 +720,7 @@ function handleAddHandover() {
               <th style="min-width: 170px;">Model / Dòng Xe</th>
               <th style="min-width: 155px;">Tài Xế Trực Thuộc</th>
               <th style="min-width: 90px;">Tải Trọng</th>
+              <th style="min-width: 80px;">Số Chỗ</th>
               <th style="min-width: 140px;">Định Mức Nhiên Liệu</th>
               <th style="min-width: 155px;">Chỉ Số Vận Hành (ODO)</th>
               <th style="min-width: 110px;">Trạng Thái Xe</th>
@@ -604,36 +729,49 @@ function handleAddHandover() {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="v in fleetStore.vehicles" :key="v.id" class="veh-row">
+            <tr v-if="filteredVehicles.length === 0">
+              <td colspan="11" class="text-center py-5">
+                <div class="empty-state-subtab">
+                  <Truck :size="36" class="text-muted opacity-40 mb-2" />
+                  <p class="text-sm text-muted font-medium">Chưa có phương tiện nào thuộc danh mục {{ activeVehicleFilter === 'external' ? 'xe thuê ngoài' : 'xe công ty' }}.</p>
+                </div>
+              </td>
+            </tr>
+            <tr v-for="v in filteredVehicles" :key="v.id" class="veh-row">
               <td>
                 <button class="btn-plate-link" @click="openVehicleDetail(v)" title="Xem hồ sơ & chi tiết chu kỳ bảo dưỡng xe">
                   <strong>{{ v.licensePlate }}</strong>
                 </button>
               </td>
-              <td><span class="type-pill">{{ getVehicleTypeLabel(v.vehicleType) }}</span></td>
+              <td>
+                <span class="type-pill">{{ getVehicleTypeLabel(v.vehicleType, v) }}</span>
+                <div v-if="v.teamName" class="text-xs text-muted mt-1 font-medium">{{ v.teamName }}</div>
+                <div v-if="v.isExternal" class="text-xs text-primary mt-1 font-medium">Xe ngoài (Thuê/Dịch vụ)</div>
+              </td>
               <td>{{ v.model }}</td>
               <td>
                 <div v-if="v.assignedDriverName" class="driver-direct-cell">
                   <div class="driver-mini-icon">
-                    <UserCheck :size="14" class="text-success" />
+                    <UserCheck :size="14" :class="v.isExternal ? 'text-amber-600' : 'text-success'" />
                   </div>
                   <div class="driver-mini-info">
                     <strong>{{ v.assignedDriverName }}</strong>
+                    <span v-if="v.isExternal" class="text-xs text-amber-600 font-semibold">(Tài xế thuê ngoài)</span>
                     <span v-if="v.assignedDriverPhone" class="text-xs text-muted">{{ v.assignedDriverPhone }}</span>
                   </div>
                 </div>
-                <span v-else class="text-muted text-xs italic">— Chưa phân công —</span>
+                <span v-else class="text-muted text-xs italic">{{ v.isExternal ? '— Chưa nhập tên tài xế —' : '— Chưa phân công —' }}</span>
               </td>
               <td>
                 <span v-if="v.capacityTons">{{ v.capacityTons }} Tấn</span>
-                <span v-if="v.passengerCapacity" class="text-muted text-xs"> ({{ v.passengerCapacity }} chỗ)</span>
+                <span v-else class="text-muted text-xs">—</span>
               </td>
               <td>
-                <div v-if="v.vehicleType === 'Electric'" class="flex-col text-xs">
-                  <span>Tiêu hao điện: <strong>{{ v.fuelQuotaEmpty }} kWh/km</strong></span>
-                  <span v-if="v.fuelFormulaText" class="text-muted">{{ v.fuelFormulaText }}</span>
-                </div>
-                <div v-else-if="v.vehicleType !== 'Excavator'" class="flex-col text-xs">
+                <span v-if="v.passengerCapacity">{{ v.passengerCapacity }} chỗ</span>
+                <span v-else class="text-muted text-xs">—</span>
+              </td>
+              <td>
+                <div v-if="v.vehicleType !== 'MillingMachine'" class="flex-col text-xs">
                   <span>Không tải: <strong>{{ v.fuelQuotaEmpty }} L/km</strong></span>
                   <span>Có tải: <strong>{{ v.fuelQuotaLoaded }} L/t.km</strong></span>
                 </div>
@@ -642,7 +780,7 @@ function handleAddHandover() {
                 </div>
               </td>
               <td>
-                <div v-if="v.vehicleType !== 'Excavator'" class="flex-col text-xs">
+                <div v-if="v.vehicleType !== 'MillingMachine'" class="flex-col text-xs">
                   <strong>{{ v.currentOdoKm.toLocaleString() }} km</strong>
                   <span class="text-muted">Lần trước: {{ v.lastMaintenanceOdo.toLocaleString() }} km</span>
                   <span
@@ -653,8 +791,11 @@ function handleAddHandover() {
                     <span v-if="(v.currentOdoKm - v.lastMaintenanceOdo) >= getThreshold(v)" class="badge-overdue-pill">! Cần bảo dưỡng</span>
                   </span>
                 </div>
+                <div v-else-if="v.isExternal" class="flex-col text-xs text-muted italic">
+                  Không áp dụng
+                </div>
                 <div v-else class="flex-col text-xs">
-                  <strong>{{ v.currentOperatingHours }} giờ</strong>
+                  <strong>{{ v.currentOperatingHours || 0 }} giờ</strong>
                   <span class="text-muted">Giờ máy tích lũy</span>
                 </div>
               </td>
@@ -664,7 +805,8 @@ function handleAddHandover() {
                 </span>
               </td>
               <td>
-                <StatusBadge :status="v.maintenanceStatus" type="maintenance" />
+                <StatusBadge v-if="!v.isExternal" :status="v.maintenanceStatus" type="maintenance" />
+                <span v-else class="text-muted text-xs italic">Miễn bảo trì</span>
               </td>
               <td class="text-center sticky-action-col">
                 <div class="actions-group">
@@ -924,13 +1066,65 @@ function handleAddHandover() {
             <input v-model="newVehModel" type="text" class="form-input" placeholder="Ví dụ: Hino 500 thùng mủ..." />
           </div>
 
-          <div class="grid-3">
+          <div class="form-group mb-3">
+            <label class="form-label font-semibold">Phân loại quyền sở hữu phương tiện <span class="required">*</span></label>
+            <div class="ownership-selection-group">
+              <label class="ownership-check-card" :class="{ 'selected': !newVehIsExternal }">
+                <input
+                  type="checkbox"
+                  :checked="!newVehIsExternal"
+                  @change="newVehIsExternal = false"
+                  class="ownership-checkbox"
+                />
+                <div class="ownership-info">
+                  <div class="ownership-title">
+                    <Building2 :size="16" class="text-primary" />
+                    <span>Xe công ty</span>
+                  </div>
+                  <span class="ownership-desc">Phương tiện nội bộ của công ty</span>
+                </div>
+              </label>
+
+              <label class="ownership-check-card" :class="{ 'selected': newVehIsExternal }">
+                <input
+                  type="checkbox"
+                  :checked="newVehIsExternal"
+                  @change="newVehIsExternal = true"
+                  class="ownership-checkbox"
+                />
+                <div class="ownership-info">
+                  <div class="ownership-title">
+                    <ExternalLink :size="16" class="text-amber-600" />
+                    <span>Xe thuê ngoài</span>
+                  </div>
+                  <span class="ownership-desc">Phương tiện đối tác / hợp đồng thuê</span>
+                </div>
+              </label>
+            </div>
+            <div class="ownership-badge-note">
+              <span v-if="!newVehIsExternal" class="text-xs text-success">
+                ✓ Được phân vào tab <strong>Xe Công Ty</strong>
+              </span>
+              <span v-else class="text-xs text-amber-600">
+                ⭐ Được phân vào tab <strong>Xe Thuê Ngoài</strong> (Không bắt buộc bảo dưỡng nội bộ)
+              </span>
+            </div>
+          </div>
+
+          <div class="grid-2">
             <div class="form-group">
               <label class="form-label">Tải trọng (Tấn)</label>
               <input v-model.number="newVehCapacity" type="number" step="0.5" class="form-input" />
             </div>
             <div class="form-group">
-              <label class="form-label">NLP / Định mức cơ bản</label>
+              <label class="form-label">Số chỗ ngồi</label>
+              <input v-model.number="newVehSeats" type="number" step="1" class="form-input" />
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <div class="form-group">
+              <label class="form-label">NLP (L/km)</label>
               <input v-model.number="newVehEmptyQuota" type="number" step="0.01" class="form-input" />
             </div>
             <div class="form-group">
@@ -959,8 +1153,10 @@ function handleAddHandover() {
               <label class="form-label">Chỉ số ODO hiện tại (km)</label>
               <input v-model.number="newVehOdo" type="number" class="form-input" />
             </div>
-            <div class="form-group">
-              <label class="form-label">Tài xế trực thuộc / Phụ trách chính</label>
+
+            <!-- Nếu là Xe công ty: Chọn tài xế nội bộ -->
+            <div v-if="!newVehIsExternal" class="form-group">
+              <label class="form-label">Tài xế nội bộ phụ trách</label>
               <select v-model="newVehDriverId" class="form-select">
                 <option :value="''">-- Chưa gán tài xế / Chọn sau --</option>
                 <option v-for="d in fleetStore.drivers" :key="d.id" :value="d.id">
@@ -968,6 +1164,31 @@ function handleAddHandover() {
                 </option>
               </select>
             </div>
+
+            <!-- Nếu là Xe thuê ngoài: Nhập trực tiếp tên tài xế đối tác/thuê ngoài -->
+            <div v-else class="form-group">
+              <label class="form-label">Họ tên tài xế thuê ngoài / đối tác</label>
+              <input
+                v-model="newVehDriverName"
+                type="text"
+                class="form-input"
+                placeholder="Nhập họ tên tài xế xe thuê (VD: Bùi Quốc Hợp, Nguyễn Văn A...)"
+              />
+            </div>
+          </div>
+
+          <!-- Nhập SĐT tài xế thuê ngoài nếu là xe thuê ngoài -->
+          <div v-if="newVehIsExternal" class="form-group mt-2">
+            <label class="form-label">Số điện thoại tài xế xe thuê ngoài (tùy chọn)</label>
+            <input
+              v-model="newVehDriverPhone"
+              type="text"
+              class="form-input"
+              placeholder="VD: 0978 456 789"
+            />
+            <span class="text-xs text-muted mt-1 block">
+              💡 Xe thuê ngoài chỉ cần nhập tên tài xế đối tác, không cần chọn tài xế nội bộ và không quản lý trong danh sách tài xế công ty.
+            </span>
           </div>
         </div>
 
@@ -1135,13 +1356,21 @@ function handleAddHandover() {
             </div>
           </div>
 
-          <div class="form-group">
+          <div class="form-group mt-3">
             <label class="form-label">Tình trạng hoạt động</label>
             <select v-model="newDriverStatus" class="form-select">
               <option value="Active">Đang làm việc</option>
               <option value="OnLeave">Nghỉ phép</option>
               <option value="Suspended">Tạm đình chỉ</option>
             </select>
+          </div>
+
+          <div class="form-group mt-3">
+            <label class="form-label">Ảnh giấy phép lái xe</label>
+            <input type="file" @change="handleLicenseUpload" accept="image/*" class="form-input" />
+            <div v-if="newDriverLicenseImageUrl" class="mt-2 p-2 bg-light rounded border text-center">
+              <img :src="newDriverLicenseImageUrl" alt="License preview" style="max-height: 160px; max-width: 100%; object-fit: contain;" />
+            </div>
           </div>
         </div>
 
@@ -1223,6 +1452,74 @@ function handleAddHandover() {
         <div class="modal-footer">
           <button class="btn btn-secondary" @click="showAddHandoverModal = false">Hủy</button>
           <button class="btn btn-primary" @click="handleAddHandover">Lập Biên Bản Bàn Giao</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal 5: Phân công tài xế -->
+    <div v-if="showAssignDriverModal" class="modal-backdrop" @click.self="showAssignDriverModal = false">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 class="modal-title">Phân Công Tài Xế</h3>
+        </div>
+        <div class="modal-body">
+          <div class="form-group" v-if="assignVehicle">
+            <label class="form-label">Phương tiện đang chọn</label>
+            <div class="p-3 bg-light rounded font-bold text-lg" style="margin-top: 8px;">
+              {{ assignVehicle.licensePlate }} - {{ assignVehicle.model }}
+            </div>
+          </div>
+          
+          <!-- Phân công xe thuê ngoài vs xe công ty -->
+          <div v-if="assignVehicle?.isExternal" class="mt-3">
+            <div class="alert alert-info py-2 px-3 mb-3 text-xs flex-center gap-2" style="background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; border-radius: 6px;">
+              <Info :size="16" />
+              <span>Đây là <strong>Xe Thuê Ngoài</strong>, chỉ cần nhập trực tiếp tên tài xế đối tác (không thuộc danh sách tài xế nội bộ công ty).</span>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Họ tên tài xế xe thuê ngoài <span class="required">*</span></label>
+              <input
+                v-model="assignExternalDriverName"
+                type="text"
+                class="form-input"
+                placeholder="Nhập họ tên tài xế của đơn vị đối tác..."
+              />
+            </div>
+            <div class="form-group mt-2">
+              <label class="form-label">Số điện thoại liên hệ</label>
+              <input
+                v-model="assignExternalDriverPhone"
+                type="text"
+                class="form-input"
+                placeholder="VD: 0978 456 789"
+              />
+            </div>
+          </div>
+
+          <div v-else class="form-group mt-3" style="margin-top: 1rem;">
+            <label class="form-label">Chọn Tài xế nội bộ phụ trách <span class="required">*</span></label>
+            <select v-model="assignDriverId" class="form-select">
+              <option :value="''">-- Bỏ trống (Xe không có tài xế) --</option>
+              <option v-for="d in fleetStore.drivers" :key="d.id" :value="d.id">
+                {{ d.fullName }} ({{ d.licenseClass }} - SĐT: {{ d.phone }})
+              </option>
+            </select>
+          </div>
+          
+          <div class="form-group mt-3" style="margin-top: 1rem;">
+            <label class="form-label">Ghi chú phân công / Bàn giao</label>
+            <textarea 
+              v-model="assignNotes" 
+              class="form-input" 
+              rows="3" 
+              placeholder="Nhập lý do đổi tài xế, tình trạng xe lúc bàn giao..."
+            ></textarea>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn btn-secondary" @click="showAssignDriverModal = false">Hủy</button>
+          <button class="btn btn-primary" @click="handleSaveAssignment">Lưu Phân Công</button>
         </div>
       </div>
     </div>
@@ -1549,5 +1846,158 @@ function handleAddHandover() {
 .table-fleet td {
   padding: 10px 12px;
   font-size: 0.8125rem;
+}
+
+/* Sub-tabs Xe Công Ty / Xe Thuê Ngoài */
+/* Sub-tabs Xe Công Ty / Xe Thuê Ngoài - Centered & Prominent */
+.fleet-subtabs-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 20px;
+  background: #f8fafc;
+  border-bottom: 1px solid var(--border-card, #d6e4d7);
+}
+
+.fleet-subtabs-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #e2e8f0;
+  padding: 4px;
+  border-radius: 12px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.fleet-subtab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 24px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: #475569;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  font-family: inherit;
+}
+
+.fleet-subtab-btn:hover:not(.active) {
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.fleet-subtab-btn.active {
+  background: #ffffff;
+  color: var(--primary, #15803d);
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.fleet-subtab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: #cbd5e1;
+  color: #334155;
+  transition: all 0.2s ease;
+}
+
+.fleet-subtab-btn.active .fleet-subtab-badge {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.fleet-subtab-badge.badge-empty {
+  opacity: 0.6;
+}
+
+.empty-state-subtab {
+  padding: 36px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Phân loại xe công ty / xe thuê ngoài */
+.ownership-selection-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.ownership-check-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: var(--radius-md, 8px);
+  background: #f8fafc;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.ownership-check-card:hover {
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+}
+
+.ownership-check-card.selected {
+  border-color: #059669;
+  background: #ecfdf5;
+}
+
+.ownership-checkbox {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: #059669;
+  cursor: pointer;
+}
+
+.ownership-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ownership-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.ownership-check-card.selected .ownership-title {
+  color: #065f46;
+}
+
+.ownership-desc {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.ownership-badge-note {
+  margin-top: 6px;
+}
+
+.text-amber-600 {
+  color: #d97706;
 }
 </style>
