@@ -161,15 +161,6 @@ function removeLocation(index: number) {
   locations.value.splice(index, 1);
 }
 
-function toggleSystemHub(hubName: string) {
-  const idx = locations.value.indexOf(hubName);
-  if (idx !== -1) {
-    locations.value.splice(idx, 1);
-  } else {
-    locations.value.push(hubName);
-  }
-}
-
 function onSelectHubToAdd() {
   if (selectedHubToAdd.value) {
     addSystemHub(selectedHubToAdd.value);
@@ -183,14 +174,6 @@ function getHubTypePrefix(type: string): string {
   if (type === 'office') return '🏢 Văn phòng';
   if (type === 'farm') return '🌳 Đội NT';
   return '📍 Điểm trạm';
-}
-
-function getHubBadgeClass(type: string): string {
-  if (type === 'factory') return 'hub-factory';
-  if (type === 'weigh_station') return 'hub-station';
-  if (type === 'office') return 'hub-office';
-  if (type === 'farm') return 'hub-farm';
-  return 'hub-default';
 }
 const estimatedWeightKg = ref<number>(2500);
 const passengersCount = ref<number>(3);
@@ -446,49 +429,46 @@ function handleSubmit() {
 
         <!-- B. Phân hệ ĐẶT XE NHÀ MÁY: Lựa chọn từ danh mục điểm trạm cố định trong hệ thống -->
         <div v-else class="factory-hubs-container">
-          <div class="form-group mb-3">
+          <div class="form-group mb-0">
             <div class="factory-hubs-title-row">
               <label class="form-label mb-0">
                 <MapPin :size="15" class="text-primary" />
-                <span>Các điểm trạm vận chuyển yêu cầu <span class="required">*</span></span>
+                <span>Các địa điểm yêu cầu <span class="required">*</span></span>
               </label>
               <span class="text-xs text-muted">Lấy từ danh mục điểm trạm hệ thống</span>
             </div>
 
-            <!-- 1. Chuỗi lộ trình các điểm trạm đã chọn -->
-            <div v-if="locations.length > 0" class="selected-hubs-flow">
-              <div
+            <!-- Hiển thị các địa điểm đã chọn dạng thẻ đơn giản -->
+            <div v-if="locations.length > 0" class="selected-locations-wrap mb-2">
+              <span
                 v-for="(loc, index) in locations"
                 :key="index"
-                class="hub-flow-node"
+                class="location-chip"
               >
-                <div class="hub-flow-badge">
-                  <span class="hub-node-order">{{ index === 0 ? 'Điểm đi' : (index === locations.length - 1 && locations.length > 1 ? 'Điểm đến' : `Điểm ${index + 1}`) }}</span>
-                  <span class="hub-node-name">{{ loc }}</span>
-                  <button
-                    type="button"
-                    class="btn-remove-node"
-                    @click="removeLocation(index)"
-                    title="Bỏ điểm này"
-                  >
-                    <X :size="13" />
-                  </button>
-                </div>
-                <span v-if="index < locations.length - 1" class="hub-flow-arrow">➔</span>
-              </div>
+                <MapPin :size="13" class="text-primary flex-shrink-0" />
+                <span class="location-name">{{ loc }}</span>
+                <button
+                  type="button"
+                  class="btn-remove-loc"
+                  @click="removeLocation(index)"
+                  title="Bỏ địa điểm này"
+                >
+                  <X :size="13" />
+                </button>
+              </span>
             </div>
-            <div v-else class="empty-hubs-notice">
-              <span>Chưa chọn điểm trạm nào. Vui lòng bấm chọn điểm trạm trong danh sách có sẵn bên dưới.</span>
+            <div v-else class="empty-locations-hint mb-2">
+              <span>Chưa chọn địa điểm nào. Vui lòng chọn địa điểm từ danh mục bên dưới.</span>
             </div>
 
-            <!-- 2. Dropdown chọn thêm điểm trạm từ danh mục -->
-            <div class="hub-select-wrapper mt-2">
+            <!-- Dropdown chọn thêm điểm trạm từ danh mục -->
+            <div class="hub-select-wrapper">
               <select
                 v-model="selectedHubToAdd"
                 class="form-select hub-dropdown"
                 @change="onSelectHubToAdd"
               >
-                <option value="" disabled>-- Chọn thêm điểm trạm từ danh mục hệ thống --</option>
+                <option value="" disabled>-- Chọn địa điểm từ danh mục hệ thống --</option>
                 <option
                   v-for="hub in systemHubs"
                   :key="'opt-' + hub.id"
@@ -498,27 +478,6 @@ function handleSubmit() {
                   [{{ getHubTypePrefix(hub.type) }}] {{ hub.name }} - {{ hub.address }}
                 </option>
               </select>
-            </div>
-          </div>
-
-          <!-- 3. Danh sách điểm trạm có sẵn trong hệ thống (click để chọn/bỏ) -->
-          <div class="system-hubs-chips-block">
-            <span class="system-hubs-chips-label">Danh sách điểm trạm có trong hệ thống (nhấn để chọn nhanh):</span>
-            <div class="system-hubs-chips-grid">
-              <button
-                v-for="hub in systemHubs"
-                :key="'hub-chip-' + hub.id"
-                type="button"
-                class="btn-system-hub"
-                :class="[getHubBadgeClass(hub.type), { 'is-active': locations.includes(hub.name) }]"
-                @click="toggleSystemHub(hub.name)"
-                :title="hub.description || hub.address"
-              >
-                <span class="hub-tag-prefix">{{ getHubTypePrefix(hub.type) }}</span>
-                <span class="hub-tag-name">{{ hub.shortName || hub.name }}</span>
-                <span v-if="locations.includes(hub.name)" class="hub-tag-state checked">✓ Đã chọn</span>
-                <span v-else class="hub-tag-state add">+ Thêm</span>
-              </button>
             </div>
           </div>
         </div>
@@ -753,46 +712,34 @@ function handleSubmit() {
   align-items: center;
   margin-bottom: 10px;
 }
-.selected-hubs-flow {
+.selected-locations-wrap {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px;
+  padding: 8px 10px;
   background: #ffffff;
-  border: 1.5px solid #93c5fd;
+  border: 1.5px solid #cbd5e1;
   border-radius: 7px;
-  min-height: 48px;
+  min-height: 44px;
 }
-.hub-flow-node {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-.hub-flow-badge {
+.location-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  color: #1e40af;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  color: #0369a1;
   padding: 4px 10px;
   border-radius: 6px;
-  font-size: 0.78125rem;
+  font-size: 0.8125rem;
   font-weight: 600;
+  transition: all 0.15s ease;
 }
-.hub-node-order {
-  background: #2563eb;
-  color: #ffffff;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  padding: 1px 6px;
-  border-radius: 4px;
-}
-.hub-node-name {
+.location-chip .location-name {
   color: #0f172a;
 }
-.btn-remove-node {
+.btn-remove-loc {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -804,17 +751,12 @@ function handleSubmit() {
   border-radius: 3px;
   transition: all 0.12s ease;
 }
-.btn-remove-node:hover {
+.btn-remove-loc:hover {
   background: #fee2e2;
   color: #dc2626;
 }
-.hub-flow-arrow {
-  color: #94a3b8;
-  font-size: 0.8125rem;
-  font-weight: bold;
-}
-.empty-hubs-notice {
-  padding: 10px 12px;
+.empty-locations-hint {
+  padding: 8px 12px;
   background: #ffffff;
   border: 1px dashed #cbd5e1;
   border-radius: 6px;
@@ -827,74 +769,6 @@ function handleSubmit() {
   border: 1px solid #cbd5e1;
   font-size: 0.8125rem;
   font-weight: 500;
-}
-.system-hubs-chips-block {
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px dashed #cbd5e1;
-}
-.system-hubs-chips-label {
-  display: block;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #475569;
-  margin-bottom: 8px;
-}
-.system-hubs-chips-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.btn-system-hub {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 11px;
-  border-radius: 6px;
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  font-size: 0.75rem;
-}
-.btn-system-hub:hover {
-  border-color: #2563eb;
-  background: #f8fafc;
-}
-.btn-system-hub.is-active {
-  background: #eff6ff;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 1px #3b82f6;
-}
-.hub-tag-prefix {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  color: #64748b;
-}
-.hub-tag-name {
-  font-weight: 700;
-  color: #0f172a;
-}
-.btn-system-hub.is-active .hub-tag-name {
-  color: #1d4ed8;
-}
-.hub-tag-state {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  padding: 1px 5px;
-  border-radius: 3px;
-}
-.hub-tag-state.checked {
-  background: #dcfce7;
-  color: #15803d;
-}
-.hub-tag-state.add {
-  background: #f1f5f9;
-  color: #64748b;
-}
-.btn-system-hub:hover .hub-tag-state.add {
-  background: #dbeafe;
-  color: #1d4ed8;
 }
 
 /* Module Mode Badge & Scope Card Styles */
