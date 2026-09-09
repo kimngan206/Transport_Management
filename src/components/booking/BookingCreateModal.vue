@@ -1,11 +1,35 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { useBookingStore } from '@/stores/booking';
 import { useDialogStore } from '@/stores/dialog';
 import { mockStorage } from '@/services/mockStorage';
+import { getFreshHubs } from '@/mocks/mapData';
+import type { HubLocation } from '@/types/map';
 import type { VehicleType } from '@/types';
-import { X, AlertCircle, CheckCircle2, Clock, MapPin, Compass } from 'lucide-vue-next';
+import {
+  X,
+  AlertCircle,
+  CheckCircle2,
+  Clock,
+  MapPin,
+  Compass,
+  Truck,
+  Wrench,
+  Car,
+  Building2,
+  Trees,
+  ArrowRight,
+} from 'lucide-vue-next';
+
+const props = withDefaults(
+  defineProps<{
+    moduleType?: 'team' | 'factory';
+  }>(),
+  {
+    moduleType: 'team',
+  }
+);
 
 const emit = defineEmits<{
   (e: 'close'): void;
@@ -16,10 +40,43 @@ const authStore = useAuthStore();
 const bookingStore = useBookingStore();
 const dialog = useDialogStore();
 
+// Xác định phân hệ: Đặt xe Đội vs Đặt xe Nhà máy
+const isTeamModule = computed(() => props.moduleType === 'team');
+
+const selectedTeam = ref<string>('Đội 1');
+const teamList = ref<string[]>([
+  'Đội 1',
+  'Đội 2',
+  'Đội 3',
+  'Đội 4',
+  'Đội 5',
+]);
+
+// Cụm thu gom tại Đội: Mỗi đội có từ 1-2 cụm, mủ được thu gom và vận chuyển về Nhà máy
+const selectedCluster = ref<string>('cum_1');
+const clusterOptions = [
+  { value: 'cum_1', label: 'Cụm 1', sub: 'Khu vực cụm 1' },
+  { value: 'cum_2', label: 'Cụm 2', sub: 'Khu vực cụm 2' },
+  { value: 'cum_1_2', label: 'Cụm 1 & 2', sub: 'Thu gom cả 2 cụm' },
+];
+const selectedClusterLabel = computed(() => {
+  const found = clusterOptions.find((c) => c.value === selectedCluster.value);
+  return found ? found.label : 'Cụm 1';
+});
+
 // Form state
 const vehicleType = ref<VehicleType>('LatexTruck');
-const locations = ref<string[]>(['Trạm cân 1']);
-const currentLocationInput = ref<string>('');
+// Danh mục điểm trạm cố định chuẩn hóa trong hệ thống
+const systemHubs = computed<HubLocation[]>(() => getFreshHubs());
+// Danh sách điểm trạm vận chuyển cho phân hệ Nhà máy (lấy từ danh mục điểm trạm hệ thống)
+const locations = ref<string[]>([
+  'Nhà Máy Chế Biến ECOTECH 2A',
+  'Trạm Cân 1 (Trung tâm)',
+]);
+const selectedHubToAdd = ref<string>('');
+
+// Giờ máy dự kiến cho xe cơ giới (MillingMachine)
+const operatingHours = ref<number>(4);
 
 // Thuộc tính riêng cho PassengerCar
 const pickupTime = ref<string>('');
@@ -27,44 +84,116 @@ const dropoffTime = ref<string>('');
 const contactPerson = ref<string>('');
 const contactPhone = ref<string>('');
 
-function addLocation() {
-  const val = currentLocationInput.value.trim();
-  if (val && !locations.value.includes(val)) {
-    locations.value.push(val);
+// Danh mục loại phương tiện phân theo 2 module riêng biệt:
+// 1. Phân hệ ĐẶT XE ĐỘI: MẶC ĐỊNH & CHỈ GỒM "Xe chuyên dùng chở mủ" & "Xe cơ giới" (không có xe con/bán tải)
+// 2. Phân hệ ĐẶT XE NHÀ MÁY: Gồm xe bồn téc ly tâm, xe xuất mủ thành phẩm SVR, và xe bán tải công tác KCS
+const availableVehicleTypes = computed(() => {
+  if (isTeamModule.value) {
+    return [
+      {
+        value: 'LatexTruck' as VehicleType,
+        label: 'Xe chuyên dùng chở mủ cao su (Bồn inox / Mui bạt thu gom)',
+        shortLabel: 'Xe chuyên dùng chở mủ',
+        badge: 'Ưu tiên mủ tươi',
+      },
+      {
+        value: 'MillingMachine' as VehicleType,
+        label: 'Xe cơ giới nông trường (Máy xúc đào mương / San ủi vườn cây)',
+        shortLabel: 'Xe cơ giới',
+        badge: 'Cơ giới hóa',
+      },
+    ];
   }
-  currentLocationInput.value = '';
+  return [
+    {
+      value: 'LatexTruck' as VehicleType,
+      label: 'Xe bồn téc mủ ly tâm & xe tải xuất mủ thành phẩm SVR',
+      shortLabel: 'Xe bồn mủ & xuất hàng',
+      badge: 'Mủ ly tâm / SVR',
+    },
+    {
+      value: 'PassengerCar' as VehicleType,
+      label: 'Xe bán tải đưa đón / công tác KCS & kiểm tra kỹ thuật (5 chỗ)',
+      shortLabel: 'Xe công tác / KCS',
+      badge: 'Kiểm định KCS',
+    },
+    {
+      value: 'MillingMachine' as VehicleType,
+      label: 'Xe cơ giới / Máy xúc nạo vét hồ xử lý nước thải nhà máy',
+      shortLabel: 'Xe cơ giới nhà máy',
+      badge: 'Hạ tầng / Môi trường',
+    },
+  ];
+});
+
+const purpose = ref<string>('Vận chuyển mủ cao su ca thu hoạch ngày lẻ');
+
+// Tự động cập nhật mục đích mặc định theo phân hệ, loại xe và cụm được chọn
+watch(
+  [vehicleType, selectedTeam, selectedClusterLabel],
+  ([newType, team, cluster]) => {
+    if (isTeamModule.value) {
+      if (newType === 'LatexTruck') {
+        purpose.value = `Thu gom mủ cao su ${team} (${cluster})`;
+      } else if (newType === 'MillingMachine') {
+        purpose.value = `Đào mương thoát nước & san ủi vườn cây ${team} (${cluster})`;
+      }
+    } else {
+      if (newType === 'LatexTruck') {
+        purpose.value = 'Xuất hàng mủ ly tâm & mủ thành phẩm SVR';
+      } else if (newType === 'MillingMachine') {
+        purpose.value = 'Nạo vét bùn hồ xử lý nước thải nhà máy chế biến';
+      } else if (newType === 'PassengerCar') {
+        purpose.value = 'Công tác kiểm tra chất lượng mủ KCS & đối ngoại';
+      }
+    }
+  },
+  { immediate: true }
+);
+
+function addSystemHub(hubName: string) {
+  if (!locations.value.includes(hubName)) {
+    locations.value.push(hubName);
+  }
 }
 
 function removeLocation(index: number) {
   locations.value.splice(index, 1);
 }
 
-function addQuickLocation(loc: string) {
-  if (!locations.value.includes(loc)) {
-    locations.value.push(loc);
+function toggleSystemHub(hubName: string) {
+  const idx = locations.value.indexOf(hubName);
+  if (idx !== -1) {
+    locations.value.splice(idx, 1);
+  } else {
+    locations.value.push(hubName);
   }
 }
-const purpose = ref<string>('Vận chuyển mủ cao su ca thu hoạch ngày lẻ');
+
+function onSelectHubToAdd() {
+  if (selectedHubToAdd.value) {
+    addSystemHub(selectedHubToAdd.value);
+    selectedHubToAdd.value = '';
+  }
+}
+
+function getHubTypePrefix(type: string): string {
+  if (type === 'factory') return '🏭 Nhà máy';
+  if (type === 'weigh_station') return '⚖️ Trạm cân';
+  if (type === 'office') return '🏢 Văn phòng';
+  if (type === 'farm') return '🌳 Đội NT';
+  return '📍 Điểm trạm';
+}
+
+function getHubBadgeClass(type: string): string {
+  if (type === 'factory') return 'hub-factory';
+  if (type === 'weigh_station') return 'hub-station';
+  if (type === 'office') return 'hub-office';
+  if (type === 'farm') return 'hub-farm';
+  return 'hub-default';
+}
 const estimatedWeightKg = ref<number>(2500);
 const passengersCount = ref<number>(3);
-
-// Danh sách các điểm trạm / đội sản xuất gợi ý cho Requester
-const popularHubs = computed(() => {
-  const hubs = mockStorage.getHubs();
-  if (hubs && hubs.length > 0) {
-    return hubs.map((h: any) => h.shortName || h.name);
-  }
-  return [
-    'Trạm cân 1',
-    'Đội 1',
-    'Đội 2',
-    'Đội 3',
-    'Đội 4',
-    'Đội 5',
-    'Nhà máy chế biến ECOTECH 2A',
-    'Văn phòng Công ty',
-  ];
-});
 
 // Helper default times (tự động tìm khung giờ trống hợp lệ: sau hiện tại ít nhất 30 phút và không trùng các chuyến đã duyệt)
 function getNextValidTimeSlot(): { start: string; end: string } {
@@ -151,9 +280,16 @@ const conflictStatus = computed(() => {
 function handleSubmit() {
   errorMsg.value = '';
 
-  if (locations.value.length === 0 || !startTime.value || !endTime.value) {
-    dialog.showWarning('Vui lòng điền đầy đủ các thông tin bắt buộc: ít nhất 1 địa điểm và thời gian!', 'Thiếu Thông Tin Bắt Buộc', 'Kiểm tra lại');
-    return;
+  if (isTeamModule.value) {
+    if (!startTime.value || !endTime.value) {
+      dialog.showWarning('Vui lòng chọn thời gian bắt đầu và kết thúc chuyến đi!', 'Thiếu Thời Gian', 'Kiểm tra lại');
+      return;
+    }
+  } else {
+    if (locations.value.length === 0 || !startTime.value || !endTime.value) {
+      dialog.showWarning('Vui lòng điền đầy đủ các thông tin bắt buộc: ít nhất 1 địa điểm và thời gian!', 'Thiếu Thông Tin Bắt Buộc', 'Kiểm tra lại');
+      return;
+    }
   }
 
   if (!rule30Status.value.valid) {
@@ -166,19 +302,32 @@ function handleSubmit() {
     return;
   }
 
+  const fromLoc = isTeamModule.value
+    ? `${selectedTeam.value} (${selectedClusterLabel.value})`
+    : (locations.value[0] || 'Nhà Máy Chế Biến ECOTECH 2A');
+  const toLoc = isTeamModule.value
+    ? (vehicleType.value === 'LatexTruck' ? 'Nhà máy Chế biến ECOTECH 2A' : `Lô vườn cây ${selectedTeam.value}`)
+    : (locations.value.length > 1
+        ? locations.value.slice(1).join(' ➔ ')
+        : (locations.value[0] === 'Nhà Máy Chế Biến ECOTECH 2A' ? 'Trạm Cân 1 (Trung tâm)' : 'Nhà Máy Chế Biến ECOTECH 2A'));
+
   const res = bookingStore.createRequest({
     requesterId: authStore.currentUser.id,
     requesterName: authStore.currentUser.fullName,
     requesterPhone: authStore.currentUser.phone,
-    departmentId: authStore.currentUser.departmentId,
-    departmentName: authStore.currentUser.departmentName,
+    departmentId: isTeamModule.value ? authStore.currentUser.departmentId : 5,
+    departmentName: isTeamModule.value
+      ? (authStore.currentUser.departmentName || 'Ban Quản lý Nông trường')
+      : 'Nhà máy Chế biến Mủ Cao su',
+    teamName: isTeamModule.value ? selectedTeam.value : undefined,
     vehicleType: vehicleType.value,
     startTime: startTime.value.replace('T', ' '),
     endTime: endTime.value.replace('T', ' '),
-    fromLocation: locations.value.join(' ➔ '),
-    toLocation: 'Chờ xếp tuyến',
+    fromLocation: fromLoc,
+    toLocation: toLoc,
     purpose: purpose.value,
     estimatedWeightKg: vehicleType.value === 'LatexTruck' ? Number(estimatedWeightKg.value) : undefined,
+    operatingHours: vehicleType.value === 'MillingMachine' ? Number(operatingHours.value) : undefined,
     passengersCount: vehicleType.value === 'PassengerCar' ? Number(passengersCount.value) : undefined,
     pickupTime: vehicleType.value === 'PassengerCar' ? pickupTime.value.replace('T', ' ') : undefined,
     dropoffTime: vehicleType.value === 'PassengerCar' ? dropoffTime.value.replace('T', ' ') : undefined,
@@ -202,8 +351,12 @@ function handleSubmit() {
     <div class="modal-content modal-lg">
       <div class="modal-header">
         <h3 class="modal-title">
-          <Clock :size="20" class="text-primary" />
-          <span>Tạo Yêu Cầu Đặt Xe Mới</span>
+          <Trees v-if="isTeamModule" :size="20" class="text-primary" />
+          <Building2 v-else :size="20" class="text-primary" />
+          <span>{{ isTeamModule ? 'Tạo Yêu Cầu Đặt Xe Đội Nông Trường' : 'Tạo Yêu Cầu Đặt Xe Nhà Máy Chế Biến' }}</span>
+          <span class="module-mode-badge" :class="isTeamModule ? 'badge-team' : 'badge-factory'">
+            {{ isTeamModule ? '🌱 Phân hệ: Đặt xe Đội' : '🏭 Phân hệ: Đặt xe Nhà máy' }}
+          </span>
         </h3>
         <button class="btn-close" @click="emit('close')">
           <X :size="18" />
@@ -221,63 +374,152 @@ function handleSubmit() {
           Người yêu cầu: <strong>{{ authStore.currentUser.fullName }}</strong> ({{ authStore.currentUser.departmentName }})
         </div>
 
+        <!-- Banner thông tin đơn vị theo đúng phân hệ (Độc lập 2 module) -->
+        <div v-if="isTeamModule" class="module-scope-card team-mode">
+          <div class="scope-header-row">
+            <div class="scope-unit-info">
+              <Trees :size="16" class="text-success" />
+              <span>Đơn vị đặt xe: <strong>Đội sản xuất nông trường cao su</strong></span>
+            </div>
+            <div class="team-dropdown-inline">
+              <label class="team-sub-label">Đội phục vụ <span class="required">*</span>:</label>
+              <select v-model="selectedTeam" class="form-select form-select-sm team-select-input">
+                <option v-for="team in teamList" :key="team" :value="team">
+                  {{ team }}
+                </option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div v-else class="module-scope-card factory-mode">
+          <div class="scope-header-row">
+            <div class="scope-unit-info">
+              <Building2 :size="16" class="text-primary" />
+              <span>Đơn vị đặt xe: <strong>Nhà máy Chế biến Mủ Cao su ECOTECH 2A</strong></span>
+            </div>
+          </div>
+        </div>
+
         <!-- 1. Loại phương tiện yêu cầu -->
         <div class="form-group">
-          <label class="form-label">Loại phương tiện yêu cầu <span class="required">*</span></label>
-          <select v-model="vehicleType" class="form-select">
-            <option value="LatexTruck">Xe tải chở mủ cao su (Bồn inox / Mui bạt)</option>
-            <option value="PassengerCar">Xe bán tải đưa đón / công tác nông trường (5 chỗ)</option>
-            <option value="MillingMachine">Xe máy xúc nông trường (Đào mương vườn cây)</option>
+          <div class="form-label-with-hint">
+            <label class="form-label">Loại phương tiện yêu cầu <span class="required">*</span></label>
+            <span class="hint-pill" :class="isTeamModule ? 'pill-team' : 'pill-factory'">
+              {{ isTeamModule ? 'Mặc định Đội: Xe chuyên dùng chở mủ & Xe cơ giới' : 'Xe phục vụ Nhà máy chế biến & xuất hàng' }}
+            </span>
+          </div>
+
+          <select v-model="vehicleType" class="form-select vehicle-select-highlight">
+            <option
+              v-for="opt in availableVehicleTypes"
+              :key="opt.value"
+              :value="opt.value"
+            >
+              {{ opt.label }}
+            </option>
           </select>
         </div>
 
-        <!-- 2. Chọn địa điểm yêu cầu (Không cần chọn lộ trình, bên điều phối sẽ tự động gợi ý) -->
-        <div class="route-select-box">
-          <div class="form-group">
-            <label class="form-label">
-              <MapPin :size="14" class="text-primary" />
-              <span>Các địa điểm yêu cầu <span class="required">*</span></span>
-            </label>
+        <!-- 2. LỰA CHỌN ĐỊA ĐIỂM THEO PHÂN HỆ -->
+        <!-- A. Phân hệ ĐẶT XE ĐỘI: Chỉ cần chọn địa điểm (Cụm tại Đội), không hiển thị lộ trình -->
+        <div v-if="isTeamModule" class="form-group team-cluster-select-group">
+          <label class="form-label">
+            <MapPin :size="14" class="text-success" />
+            <span>Địa điểm yêu cầu tại {{ selectedTeam }} <span class="required">*</span></span>
+          </label>
+          <div class="cluster-segmented-group">
+            <button
+              v-for="c in clusterOptions"
+              :key="c.value"
+              type="button"
+              class="cluster-seg-btn"
+              :class="{ active: selectedCluster === c.value }"
+              @click="selectedCluster = c.value"
+            >
+              <span class="cluster-dot"></span>
+              <span class="cluster-name">{{ c.label }}</span>
+              <span class="cluster-sub">{{ c.sub }}</span>
+            </button>
+          </div>
+        </div>
 
-            <!-- Hiển thị các địa điểm đã chọn -->
-            <div v-if="locations.length > 0" class="location-chips">
-              <span v-for="(loc, index) in locations" :key="index" class="loc-tag">
-                {{ loc }}
-                <X :size="14" class="remove-loc" @click="removeLocation(index)" />
-              </span>
+        <!-- B. Phân hệ ĐẶT XE NHÀ MÁY: Lựa chọn từ danh mục điểm trạm cố định trong hệ thống -->
+        <div v-else class="factory-hubs-container">
+          <div class="form-group mb-3">
+            <div class="factory-hubs-title-row">
+              <label class="form-label mb-0">
+                <MapPin :size="15" class="text-primary" />
+                <span>Các điểm trạm vận chuyển yêu cầu <span class="required">*</span></span>
+              </label>
+              <span class="text-xs text-muted">Lấy từ danh mục điểm trạm hệ thống</span>
             </div>
 
-            <div class="input-with-btn">
-              <input
-                v-model="currentLocationInput"
-                list="hub-options"
-                type="text"
-                class="form-input"
-                placeholder="Chọn hoặc nhập thêm địa điểm và nhấn Enter..."
-                @keydown.enter.prevent="addLocation"
-              />
-              <button type="button" class="btn btn-secondary" @click="addLocation" style="padding: 0 16px;">Thêm</button>
+            <!-- 1. Chuỗi lộ trình các điểm trạm đã chọn -->
+            <div v-if="locations.length > 0" class="selected-hubs-flow">
+              <div
+                v-for="(loc, index) in locations"
+                :key="index"
+                class="hub-flow-node"
+              >
+                <div class="hub-flow-badge">
+                  <span class="hub-node-order">{{ index === 0 ? 'Điểm đi' : (index === locations.length - 1 && locations.length > 1 ? 'Điểm đến' : `Điểm ${index + 1}`) }}</span>
+                  <span class="hub-node-name">{{ loc }}</span>
+                  <button
+                    type="button"
+                    class="btn-remove-node"
+                    @click="removeLocation(index)"
+                    title="Bỏ điểm này"
+                  >
+                    <X :size="13" />
+                  </button>
+                </div>
+                <span v-if="index < locations.length - 1" class="hub-flow-arrow">➔</span>
+              </div>
             </div>
-            
-            <datalist id="hub-options">
-              <option v-for="hub in popularHubs" :key="'hub-' + hub" :value="hub" />
-            </datalist>
+            <div v-else class="empty-hubs-notice">
+              <span>Chưa chọn điểm trạm nào. Vui lòng bấm chọn điểm trạm trong danh sách có sẵn bên dưới.</span>
+            </div>
+
+            <!-- 2. Dropdown chọn thêm điểm trạm từ danh mục -->
+            <div class="hub-select-wrapper mt-2">
+              <select
+                v-model="selectedHubToAdd"
+                class="form-select hub-dropdown"
+                @change="onSelectHubToAdd"
+              >
+                <option value="" disabled>-- Chọn thêm điểm trạm từ danh mục hệ thống --</option>
+                <option
+                  v-for="hub in systemHubs"
+                  :key="'opt-' + hub.id"
+                  :value="hub.name"
+                  :disabled="locations.includes(hub.name)"
+                >
+                  [{{ getHubTypePrefix(hub.type) }}] {{ hub.name }} - {{ hub.address }}
+                </option>
+              </select>
+            </div>
           </div>
 
-          <!-- Nút chọn nhanh địa điểm phổ biến -->
-          <div class="quick-locations-bar">
-            <span class="quick-loc-label">Thêm nhanh:</span>
-            <button type="button" class="btn-loc-chip" @click="addQuickLocation('Trạm cân 1')">+ Trạm cân 1</button>
-            <button type="button" class="btn-loc-chip" @click="addQuickLocation('Đội 1')">+ Đội 1</button>
-            <button type="button" class="btn-loc-chip" @click="addQuickLocation('Đội 2')">+ Đội 2</button>
-            <button type="button" class="btn-loc-chip" @click="addQuickLocation('Nhà máy chế biến ECOTECH 2A')">+ Nhà máy</button>
-            <button type="button" class="btn-loc-chip" @click="addQuickLocation('Văn phòng Công ty')">+ Văn phòng</button>
-          </div>
-
-          <!-- Banner giải thích rõ ràng theo quy chuẩn -->
-          <div class="route-hint-banner">
-            <Compass :size="15" class="text-primary" />
-            <span>Người đặt xe chỉ cần chọn địa điểm. Lộ trình quy chuẩn tối ưu sẽ được Bộ phận Điều phối tự động gợi ý và xếp tuyến khi duyệt.</span>
+          <!-- 3. Danh sách điểm trạm có sẵn trong hệ thống (click để chọn/bỏ) -->
+          <div class="system-hubs-chips-block">
+            <span class="system-hubs-chips-label">Danh sách điểm trạm có trong hệ thống (nhấn để chọn nhanh):</span>
+            <div class="system-hubs-chips-grid">
+              <button
+                v-for="hub in systemHubs"
+                :key="'hub-chip-' + hub.id"
+                type="button"
+                class="btn-system-hub"
+                :class="[getHubBadgeClass(hub.type), { 'is-active': locations.includes(hub.name) }]"
+                @click="toggleSystemHub(hub.name)"
+                :title="hub.description || hub.address"
+              >
+                <span class="hub-tag-prefix">{{ getHubTypePrefix(hub.type) }}</span>
+                <span class="hub-tag-name">{{ hub.shortName || hub.name }}</span>
+                <span v-if="locations.includes(hub.name)" class="hub-tag-state checked">✓ Đã chọn</span>
+                <span v-else class="hub-tag-state add">+ Thêm</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -321,13 +563,42 @@ function handleSubmit() {
           <span>{{ conflictStatus.message }}</span>
         </div>
 
-        <!-- Tùy biến theo loại xe -->
-        <div v-if="vehicleType === 'LatexTruck'" class="form-group">
+        <!-- Tùy biến theo loại xe: Xe chuyên dùng chở mủ -->
+        <div v-if="vehicleType === 'LatexTruck'" class="form-group vehicle-detail-box">
           <label class="form-label">Khối lượng mủ dự kiến (kg) <span class="required">*</span></label>
           <input v-model.number="estimatedWeightKg" type="number" step="100" min="100" class="form-input" />
-          <span class="form-hint">Khối lượng này sẽ dùng để kiểm tra sức chứa khi điều phối ghép chuyến và tính định mức dầu.</span>
+          <div class="quick-chips-row">
+            <span class="quick-chip-label">Chọn nhanh:</span>
+            <button type="button" class="btn-micro-chip" @click="estimatedWeightKg = 1500">+ 1.500 kg (Mủ chén)</button>
+            <button type="button" class="btn-micro-chip" @click="estimatedWeightKg = 2500">+ 2.500 kg (Xe 5 tấn)</button>
+            <button type="button" class="btn-micro-chip" @click="estimatedWeightKg = 5000">+ 5.000 kg (Đầy thùng)</button>
+            <button type="button" class="btn-micro-chip" @click="estimatedWeightKg = 7500">+ 7.500 kg (Xe bồn)</button>
+          </div>
+          <span class="form-hint">Khối lượng mủ dùng để kiểm tra sức chứa khi điều phối ghép chuyến và tính định mức dầu (Lít/tấn.km).</span>
         </div>
 
+        <!-- Tùy biến theo loại xe: Xe cơ giới nông trường -->
+        <div v-else-if="vehicleType === 'MillingMachine'" class="form-group vehicle-detail-box">
+          <div class="grid-2">
+            <div>
+              <label class="form-label">Số giờ máy dự kiến (giờ) <span class="required">*</span></label>
+              <input v-model.number="operatingHours" type="number" step="0.5" min="0.5" max="24" class="form-input" />
+            </div>
+            <div>
+              <label class="form-label">Định mức tiêu hao dầu cơ giới</label>
+              <input type="text" class="form-input bg-light font-medium" value="14.5 Lít / Giờ máy chạy" disabled />
+            </div>
+          </div>
+          <div class="quick-chips-row">
+            <span class="quick-chip-label">Chọn nhanh ca máy:</span>
+            <button type="button" class="btn-micro-chip" @click="operatingHours = 2">2 Giờ (Khẩn cấp)</button>
+            <button type="button" class="btn-micro-chip" @click="operatingHours = 4">4 Giờ (Nửa ca)</button>
+            <button type="button" class="btn-micro-chip" @click="operatingHours = 8">8 Giờ (Nguyên ca ngày)</button>
+          </div>
+          <span class="form-hint">Số giờ máy dùng để bố trí thợ máy vận hành và nghiệm thu ca đào mương / san ủi vườn cây.</span>
+        </div>
+
+        <!-- Tùy biến theo loại xe: Xe bán tải công tác -->
         <div v-else-if="vehicleType === 'PassengerCar'" class="passenger-car-fields">
           <div class="grid-2">
             <div class="form-group">
@@ -358,7 +629,7 @@ function handleSubmit() {
         </div>
 
         <div class="form-group">
-          <label class="form-label">Mục đích chuyến đi <span class="required">*</span></label>
+          <label class="form-label">Mục đích chuyến đi / Công việc <span class="required">*</span></label>
           <textarea v-model="purpose" rows="2" class="form-textarea" placeholder="Mô tả cụ thể mục đích sử dụng xe..."></textarea>
         </div>
       </div>
@@ -468,88 +739,449 @@ function handleSubmit() {
   width: 95vw;
 }
 
-/* Route Select Box Styles */
-.route-select-box {
-  background: #fafafa;
-  border: 1px solid #e5e7eb;
+/* Factory Hubs Selector */
+.factory-hubs-container {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
   border-radius: var(--radius-md, 8px);
-  padding: 16px;
+  padding: 14px 16px;
   margin-bottom: 16px;
 }
-.route-select-box .grid-2 {
-  margin-bottom: 12px;
+.factory-hubs-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
 }
-.quick-locations-bar {
+.selected-hubs-flow {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  margin-bottom: 12px;
+  padding: 10px 12px;
+  background: #ffffff;
+  border: 1.5px solid #93c5fd;
+  border-radius: 7px;
+  min-height: 48px;
 }
-.quick-loc-label {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #64748b;
-}
-.btn-loc-chip {
-  background: #f1f5f9;
-  border: 1px solid #cbd5e1;
-  color: #334155;
-  padding: 4px 10px;
-  border-radius: 9999px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-.btn-loc-chip:hover {
-  background: #e2e8f0;
-  color: #0f172a;
-}
-.route-hint-banner {
-  display: flex;
-  align-items: flex-start;
+.hub-flow-node {
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  color: #1e3a8a;
-  padding: 10px 14px;
-  border-radius: var(--radius-sm, 4px);
-  font-size: 0.8125rem;
-  line-height: 1.4;
 }
-.location-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-.loc-tag {
+.hub-flow-badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: #e0f2fe;
-  color: #0369a1;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
   padding: 4px 10px;
-  border-radius: var(--radius-sm, 4px);
-  font-size: 0.8125rem;
-  font-weight: 500;
-  border: 1px solid #bae6fd;
+  border-radius: 6px;
+  font-size: 0.78125rem;
+  font-weight: 600;
 }
-.remove-loc {
+.hub-node-order {
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.hub-node-name {
+  color: #0f172a;
+}
+.btn-remove-node {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: #64748b;
   cursor: pointer;
-  opacity: 0.6;
-  transition: opacity 0.15s;
+  padding: 2px;
+  border-radius: 3px;
+  transition: all 0.12s ease;
 }
-.remove-loc:hover {
-  opacity: 1;
+.btn-remove-node:hover {
+  background: #fee2e2;
   color: #dc2626;
 }
-.input-with-btn {
+.hub-flow-arrow {
+  color: #94a3b8;
+  font-size: 0.8125rem;
+  font-weight: bold;
+}
+.empty-hubs-notice {
+  padding: 10px 12px;
+  background: #ffffff;
+  border: 1px dashed #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.78125rem;
+  color: #64748b;
+  text-align: center;
+}
+.hub-dropdown {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+.system-hubs-chips-block {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed #cbd5e1;
+}
+.system-hubs-chips-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 8px;
+}
+.system-hubs-chips-grid {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
-.input-with-btn .form-input {
-  flex: 1;
+.btn-system-hub {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-size: 0.75rem;
+}
+.btn-system-hub:hover {
+  border-color: #2563eb;
+  background: #f8fafc;
+}
+.btn-system-hub.is-active {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 1px #3b82f6;
+}
+.hub-tag-prefix {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #64748b;
+}
+.hub-tag-name {
+  font-weight: 700;
+  color: #0f172a;
+}
+.btn-system-hub.is-active .hub-tag-name {
+  color: #1d4ed8;
+}
+.hub-tag-state {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.hub-tag-state.checked {
+  background: #dcfce7;
+  color: #15803d;
+}
+.hub-tag-state.add {
+  background: #f1f5f9;
+  color: #64748b;
+}
+.btn-system-hub:hover .hub-tag-state.add {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+/* Module Mode Badge & Scope Card Styles */
+.module-mode-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  margin-left: 10px;
+}
+.badge-team {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+.badge-factory {
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+}
+
+.module-scope-card {
+  border-radius: var(--radius-md, 8px);
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+.module-scope-card.team-mode {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+.module-scope-card.factory-mode {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+}
+
+.scope-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.scope-unit-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.84rem;
+  color: #1e293b;
+}
+
+.team-dropdown-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.team-sub-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #334155;
+  white-space: nowrap;
+}
+.team-select-input {
+  min-width: 140px;
+  font-weight: 600;
+  border-color: #86efac;
+}
+
+.scope-policy-callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(0, 0, 0, 0.08);
+  font-size: 0.78125rem;
+  line-height: 1.45;
+}
+.team-mode .scope-policy-callout {
+  color: #166534;
+}
+.factory-mode .scope-policy-callout {
+  color: #1e3a8a;
+}
+.scope-policy-callout .callout-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.form-label-with-hint {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.hint-pill {
+  font-size: 0.71875rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  border: 1px solid transparent;
+}
+.hint-pill.pill-team {
+  color: #047857;
+  background: #d1fae5;
+  border-color: #a7f3d0;
+}
+.hint-pill.pill-factory {
+  color: #1d4ed8;
+  background: #dbeafe;
+  border-color: #bfdbfe;
+}
+.vehicle-select-highlight {
+  font-weight: 600;
+  color: #0f172a;
+}
+.vehicle-detail-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-sm, 6px);
+  padding: 12px;
+  margin-bottom: 14px;
+}
+.quick-chips-row,
+.quick-purpose-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+.quick-chip-label {
+  font-size: 0.71875rem;
+  font-weight: 600;
+  color: #64748b;
+  margin-right: 2px;
+}
+.btn-micro-chip {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  font-size: 0.71875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.btn-micro-chip:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+/* Team Pickup Card (Cụm thu gom & Điểm đến Nhà máy) */
+.team-pickup-card {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: var(--radius-md, 8px);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+.team-pickup-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+@media (max-width: 640px) {
+  .team-pickup-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cluster-segmented-group {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 4px;
+}
+.cluster-seg-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 6px;
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+}
+.cluster-seg-btn:hover {
+  border-color: #10b981;
+  background: #f7fee7;
+}
+.cluster-seg-btn.active {
+  background: #ffffff;
+  border-color: #059669;
+  box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.2);
+}
+.cluster-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #94a3b8;
+  margin-bottom: 4px;
+}
+.cluster-seg-btn.active .cluster-dot {
+  background: #059669;
+}
+.cluster-name {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+.cluster-seg-btn.active .cluster-name {
+  color: #065f46;
+}
+.cluster-sub {
+  font-size: 0.6875rem;
+  color: #64748b;
+  margin-top: 1px;
+}
+
+.fixed-dest-box {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  padding: 8px 12px;
+  margin-top: 4px;
+  min-height: 62px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.dest-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dest-icon {
+  font-size: 1rem;
+}
+.dest-title {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+.dest-desc {
+  font-size: 0.6875rem;
+  color: #64748b;
+  margin-top: 3px;
+  line-height: 1.35;
+}
+
+.team-route-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #ffffff;
+  border: 1px dashed #86efac;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 0.78125rem;
+}
+.badge-label {
+  font-weight: 600;
+  color: #475569;
+}
+.badge-flow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+}
+.flow-point.from {
+  color: #047857;
+}
+.flow-point.to {
+  color: #1d4ed8;
+}
+.flow-arrow {
+  color: #94a3b8;
 }
 </style>

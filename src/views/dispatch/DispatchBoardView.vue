@@ -456,42 +456,15 @@ function getVehicleTypeLabel(type: string): string {
               </td>
 
               <!-- Thao tác -->
-              <td class="text-center">
-                <div v-if="req.status === 'PENDING'" class="flex items-center justify-center gap-1">
-                  <button
-                    class="btn btn-xs btn-success"
-                    @click="handleApprove(req)"
-                    title="Phê duyệt yêu cầu này"
-                  >
-                    <Check :size="12" />
-                    <span>Duyệt</span>
-                  </button>
-                  <button
-                    class="btn btn-xs btn-outline btn-reject-outline"
-                    @click="openReject(req)"
-                    title="Từ chối yêu cầu này"
-                  >
-                    <X :size="12" />
-                  </button>
-                  <button
-                    class="btn btn-xs btn-primary font-bold"
-                    @click="openBatchWithDirectApprove(req)"
-                    title="Duyệt và mở bảng ghép chuyến ngay"
-                  >
-                    <Plus :size="12" />
-                    <span>Ghép</span>
-                  </button>
-                </div>
-                <div v-else class="flex items-center justify-center">
-                  <button
-                    class="btn-row-batch"
-                    @click="openBatchWithRequest(req)"
-                    title="Ghép chuyến cho yêu cầu này"
-                  >
-                    <Plus :size="13" />
-                    <span>Ghép Xe</span>
-                  </button>
-                </div>
+              <td class="text-center whitespace-nowrap">
+                <button
+                  class="btn-row-batch"
+                  @click="openBatchWithDirectApprove(req)"
+                  title="Ghép chuyến cho yêu cầu này"
+                >
+                  <Plus :size="13" />
+                  <span>Ghép Xe</span>
+                </button>
               </td>
             </tr>
           </tbody>
@@ -862,6 +835,67 @@ function getVehicleTypeLabel(type: string): string {
   color: #ffffff;
   border-color: #16a34a;
   box-shadow: 0 2px 6px rgba(22, 163, 74, 0.25);
+}
+
+.req-actions-bar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.btn-act {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 5px 9px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1.2;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.btn-act-approve {
+  background: #ecfdf5;
+  color: #15803d;
+  border-color: #86efac;
+}
+.btn-act-approve:hover {
+  background: #16a34a;
+  color: #ffffff;
+  border-color: #16a34a;
+  box-shadow: 0 2px 4px rgba(22, 163, 74, 0.2);
+}
+
+.btn-act-batch {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+  font-weight: 700;
+}
+.btn-act-batch:hover {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.25);
+}
+
+.btn-act-reject {
+  background: #fff1f2;
+  color: #e11d48;
+  border-color: #fecdd3;
+  padding: 5px 7px;
+}
+.btn-act-reject:hover {
+  background: #e11d48;
+  color: #ffffff;
+  border-color: #e11d48;
 }
 .line-clamp-2 {
   display: -webkit-box;

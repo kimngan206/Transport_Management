@@ -53,7 +53,7 @@ export const STORAGE_KEYS = {
   DATA_VERSION: 'qldv_data_version',
 } as const;
 
-const CURRENT_DATA_VERSION = 'v3.8_storage_persistence';
+const CURRENT_DATA_VERSION = 'v3.9_module_separation';
 
 // ==========================================
 // 1. COOKIE STORAGE HELPERS (Chỉ lưu session/role ngắn, < 100 bytes)

@@ -24,12 +24,35 @@ import {
   Check,
   AlertCircle,
   X,
+  Droplets,
 } from 'lucide-vue-next';
 
 const route = useRoute();
 const authStore = useAuthStore();
 const bookingStore = useBookingStore();
 const fleetStore = useFleetStore();
+
+// Xác định phân hệ hiện tại từ query param: ?type=factory (Nhà máy) vs mặc định (Đội)
+const isFactoryModule = computed(() => route.query.type === 'factory');
+
+// Phân loại yêu cầu thuộc Đặt xe Nhà máy hay Đặt xe Đội
+function isFactoryRequest(r: TransportRequest): boolean {
+  if (r.departmentId === 5 || r.departmentName?.toLowerCase().includes('nhà máy')) return true;
+  if (r.vehicleType === 'PassengerCar') return true;
+  if (!r.teamName && (r.fromLocation?.toLowerCase().includes('nhà máy') || r.purpose?.toLowerCase().includes('nhà máy') || r.purpose?.toLowerCase().includes('kcs') || r.purpose?.toLowerCase().includes('ép mủ'))) return true;
+  return false;
+}
+
+// Danh sách yêu cầu thuộc đúng module đang mở
+const moduleRequests = computed(() => {
+  return bookingStore.requests.filter((r) => {
+    return isFactoryModule.value ? isFactoryRequest(r) : !isFactoryRequest(r);
+  });
+});
+
+const myModuleRequests = computed(() => {
+  return moduleRequests.value.filter((r) => r.requesterId === authStore.currentUser.id);
+});
 
 // Lấy thông tin lộ trình quy chuẩn hiển thị (tuyến đã phân công hoặc gợi ý từ điểm đi)
 function getRouteDisplayInfo(r: TransportRequest): { code: string; distanceKm: number; isAssigned: boolean } {
@@ -48,6 +71,16 @@ const filterScope = ref<'all' | 'mine'>('all');
 const filterStatus = ref<string>('ALL');
 const filterCargoType = ref<string>('ALL');
 
+// Reset bộ lọc khi chuyển đổi giữa 2 module
+watch(
+  () => route.query.type,
+  () => {
+    filterCargoType.value = 'ALL';
+    filterStatus.value = 'ALL';
+    searchKeyword.value = '';
+  }
+);
+
 watch(
   () => route.query.scope,
   (val) => {
@@ -60,22 +93,22 @@ watch(
 const showCreateModal = ref(false);
 const selectedRequest = ref<TransportRequest | null>(null);
 
-// KPI Stats Ngành Cao Su
+// KPI Stats theo module hiện tại
 const totalLatexKg = computed(() => {
-  return bookingStore.requests.reduce((sum, r) => sum + (r.estimatedWeightKg || 0), 0);
+  return moduleRequests.value.reduce((sum, r) => sum + (r.estimatedWeightKg || 0), 0);
 });
 const pendingCount = computed(
-  () => bookingStore.requests.filter((r) => r.status === 'PENDING').length
+  () => moduleRequests.value.filter((r) => r.status === 'PENDING').length
 );
 const approvedCount = computed(
-  () => bookingStore.requests.filter((r) => r.status === 'APPROVED' || r.status === 'DISPATCHED').length
+  () => moduleRequests.value.filter((r) => r.status === 'APPROVED' || r.status === 'DISPATCHED').length
 );
 const completedCount = computed(
-  () => bookingStore.requests.filter((r) => r.status === 'COMPLETED').length
+  () => moduleRequests.value.filter((r) => r.status === 'COMPLETED').length
 );
 
 const filteredRequests = computed(() => {
-  return bookingStore.requests.filter((r) => {
+  return moduleRequests.value.filter((r) => {
     if (filterScope.value === 'mine' && r.requesterId !== authStore.currentUser.id) {
       return false;
     }
@@ -118,28 +151,33 @@ function getInitials(name: string): string {
 
 <template>
   <div class="booking-page-container">
-    <!-- Header Page: Tiêu đề & Nút Tạo Yêu Cầu Chuyên Ngành Cao Su -->
+    <!-- Header Page: Tiêu đề & Nút Tạo Yêu Cầu theo từng module -->
     <div class="booking-page-header">
       <div class="header-titles">
         <div class="breadcrumb-strip">
           <span>Hệ Thống Điều Độ</span>
           <ChevronRight :size="12" class="breadcrumb-sep" />
-          <span>Vận Chuyển Mủ Cao Su</span>
+          <span>{{ isFactoryModule ? 'Nhà Máy Chế Biến Mủ' : 'Nông Trường Cao Su' }}</span>
           <ChevronRight :size="12" class="breadcrumb-sep" />
-          <span class="breadcrumb-current">Danh Sách Yêu Cầu Đặt Xe</span>
+          <span class="breadcrumb-current">{{ isFactoryModule ? 'Đặt Xe Nhà Máy' : 'Đặt Xe Đội Nông Trường' }}</span>
         </div>
-        <h1 class="page-heading">Điều Độ Vận Chuyển Mủ & Xe Nông Trường</h1>
+        <h1 class="page-heading">
+          {{ isFactoryModule ? 'Điều Độ Đặt Xe Nhà Máy Chế Biến Mủ' : 'Điều Độ Vận Chuyển Mủ & Xe Đội Nông Trường' }}
+        </h1>
         <p class="page-caption">
-          Quản lý lệnh vận chuyển mủ nước xe bồn, mủ chén/mủ đông, máy xúc san ủi lô cao su và xe công tác kỹ thuật
+          {{
+            isFactoryModule
+              ? 'Quản lý lệnh điều xe bồn téc xuất mủ ly tâm, xe tải vận chuyển mủ thành phẩm SVR và xe kiểm định KCS'
+              : 'Quản lý lệnh vận chuyển mủ nước xe bồn, mủ chén/mủ đông và máy cơ giới phục vụ sản xuất tại các Đội'
+          }}
         </p>
       </div>
 
       <button class="btn btn-primary btn-create" @click="showCreateModal = true">
         <PlusCircle :size="16" />
-        <span>Tạo Yêu Cầu Xe Mủ / Cơ Giới</span>
+        <span>{{ isFactoryModule ? 'Tạo Yêu Cầu Đặt Xe Nhà Máy' : 'Tạo Yêu Cầu Đặt Xe Đội' }}</span>
       </button>
     </div>
-
 
     <!-- Thanh Tìm Kiếm & Lọc Hiện Đại Chuẩn Ngành -->
     <div class="filter-toolbar card">
@@ -149,7 +187,7 @@ function getInitials(name: string): string {
           v-model="searchKeyword"
           type="text"
           class="search-text-input"
-          placeholder="Tìm mã YC mủ, nông trường đi, trạm cân, nhà máy chế biến..."
+          :placeholder="isFactoryModule ? 'Tìm mã YC xuất hàng, nhà máy chế biến, kho cảng...' : 'Tìm mã YC thu gom, Đội sản xuất, trạm cân...'"
         />
         <button
           v-if="searchKeyword"
@@ -162,13 +200,20 @@ function getInitials(name: string): string {
       </div>
 
       <div class="filter-controls-right">
-        <!-- Phân loại hàng hóa mủ cao su -->
+        <!-- Phân loại phương tiện theo phân hệ -->
         <div class="filter-select-box">
           <select v-model="filterCargoType" class="custom-select-input">
-            <option value="ALL">📦 Tất cả loại mủ / dịch vụ</option>
-            <option value="LATEX_LIQUID">💧 Mủ nước (Xe bồn xi-téc)</option>
-            <option value="EXCAVATOR">🚜 Máy xúc lô vườn cao su</option>
-            <option value="PASSENGER">🚗 Xe bán tải tuần tra vườn</option>
+            <template v-if="!isFactoryModule">
+              <option value="ALL">📦 Tất cả phương tiện Đội</option>
+              <option value="LATEX_LIQUID">💧 Xe chuyên dùng chở mủ (Bồn / Mui bạt)</option>
+              <option value="MillingMachine">🚜 Xe cơ giới nông trường (Máy xúc / San ủi)</option>
+            </template>
+            <template v-else>
+              <option value="ALL">📦 Tất cả phương tiện Nhà máy</option>
+              <option value="LATEX_LIQUID">💧 Xe bồn ly tâm & Xe xuất hàng SVR</option>
+              <option value="PASSENGER">🚗 Xe bán tải kiểm định KCS (5 chỗ)</option>
+              <option value="MillingMachine">🚜 Xe cơ giới nạo vét hồ xử lý</option>
+            </template>
           </select>
         </div>
 
@@ -179,14 +224,14 @@ function getInitials(name: string): string {
             :class="{ active: filterScope === 'all' }"
             @click="filterScope = 'all'"
           >
-            Toàn đội ({{ bookingStore.requests.length }})
+            {{ isFactoryModule ? 'Toàn nhà máy' : 'Toàn đội' }} ({{ moduleRequests.length }})
           </button>
           <button
             class="seg-btn"
             :class="{ active: filterScope === 'mine' }"
             @click="filterScope = 'mine'"
           >
-            Của tôi ({{ bookingStore.getMyRequests(authStore.currentUser.id).length }})
+            Của tôi ({{ myModuleRequests.length }})
           </button>
         </div>
 
@@ -199,7 +244,7 @@ function getInitials(name: string): string {
             <option value="APPROVED">Đã phê duyệt</option>
             <option value="DISPATCHED">Đã điều phối</option>
             <option value="INPROGRESS">Đang vận chuyển</option>
-            <option value="COMPLETED">Đã nhập kho chế biến</option>
+            <option value="COMPLETED">Đã nhập kho / Hoàn thành</option>
             <option value="REJECTED">Từ chối</option>
             <option value="CANCELLED">Đã hủy</option>
           </select>
@@ -261,15 +306,18 @@ function getInitials(name: string): string {
                 </div>
               </td>
 
-              <!-- 3. Phòng ban -->
+              <!-- 3. Phòng ban & Đội -->
               <td class="col-dept">
                 <span class="dept-tag">
                   <Building2 :size="12" class="dept-ico" />
                   <span>{{ r.departmentName }}</span>
                 </span>
+                <div v-if="r.teamName" class="team-tag-pill">
+                  🌱 {{ r.teamName }}
+                </div>
               </td>
 
-              <!-- 4. Loại xe nông trường -->
+              <!-- 4. Loại xe -->
               <td class="col-type">
                 <span class="type-badge" :class="r.vehicleType.toLowerCase()">
                   <Truck v-if="r.vehicleType === 'LatexTruck'" :size="12" />
@@ -278,10 +326,10 @@ function getInitials(name: string): string {
                   <span>
                     {{
                       r.vehicleType === 'LatexTruck'
-                        ? (r.estimatedWeightKg && r.estimatedWeightKg >= 1000 ? 'Xe Bồn Xi-Téc' : 'Xe Tải Mủ')
+                        ? (r.estimatedWeightKg && r.estimatedWeightKg >= 7000 ? 'Xe Bồn Ly Tâm / Xuất Hàng' : 'Xe Chở Mủ Cao Su')
                         : r.vehicleType === 'PassengerCar'
-                        ? 'Bán Tải Tuần Tra'
-                        : 'Máy Xúc Lô Vườn'
+                        ? 'Bán Tải KCS'
+                        : 'Xe Cơ Giới'
                     }}
                   </span>
                 </span>
@@ -325,12 +373,17 @@ function getInitials(name: string): string {
                 </div>
               </td>
 
-              <!-- 7. Khối lượng mủ / Khách -->
+              <!-- 7. Khối lượng mủ / Khách / Giờ máy -->
               <td class="col-payload">
                 <div v-if="r.estimatedWeightKg" class="payload-chip payload-latex">
                   <Droplets :size="11" class="latex-drop-ico" />
                   <span class="payload-val">{{ r.estimatedWeightKg.toLocaleString() }}</span>
                   <span class="payload-unit">kg mủ</span>
+                </div>
+                <div v-else-if="r.operatingHours" class="payload-chip payload-hours">
+                  <Clock :size="11" class="hours-ico" />
+                  <span class="payload-val">{{ r.operatingHours }}</span>
+                  <span class="payload-unit">giờ máy</span>
                 </div>
                 <div v-else-if="r.passengersCount" class="payload-chip payload-passengers">
                   <span class="payload-val">{{ r.passengersCount }}</span>
@@ -360,7 +413,9 @@ function getInitials(name: string): string {
     <!-- Modals -->
     <BookingCreateModal
       v-if="showCreateModal"
+      :module-type="isFactoryModule ? 'factory' : 'team'"
       @close="showCreateModal = false"
+      @created="showCreateModal = false"
     />
 
     <BookingDetailModal
@@ -773,6 +828,19 @@ function getInitials(name: string): string {
   color: #94a3b8;
 }
 
+.team-tag-pill {
+  display: inline-block;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: #166534;
+  background: #dcfce7;
+  border: 1px solid #bbf7d0;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  margin-top: 3px;
+  white-space: nowrap;
+}
+
 /* Vehicle Type Cell */
 .col-type {
   white-space: nowrap;
@@ -798,7 +866,8 @@ function getInitials(name: string): string {
   color: #1d4ed8;
   border-color: #bfdbfe;
 }
-.type-badge.excavator {
+.type-badge.excavator,
+.type-badge.millingmachine {
   background: #fffbeb;
   color: #b45309;
   border-color: #fde68a;
@@ -899,6 +968,15 @@ function getInitials(name: string): string {
   background: #ecfdf5;
   color: #047857;
   border: 1px solid #a7f3d0;
+}
+
+.payload-hours {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+.hours-ico {
+  color: #d97706;
 }
 
 .payload-passengers {

@@ -117,6 +117,7 @@ export interface TransportRequest {
   purpose: string;
   passengersCount?: number;
   estimatedWeightKg?: number; // Khối lượng mủ / hàng dự kiến (kg)
+  operatingHours?: number; // Số giờ máy dự kiến (đối với xe cơ giới / xúc đào)
   
   // Thuộc tính riêng cho xe chở người / xe ngoài
   pickupTime?: string;

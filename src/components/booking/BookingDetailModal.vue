@@ -92,7 +92,12 @@ function handleCancel() {
         <div class="detail-grid">
           <div class="detail-item">
             <span class="detail-label"><User :size="14" /> Người yêu cầu</span>
-            <span class="detail-val">{{ request.requesterName }} ({{ request.departmentName }})</span>
+            <span class="detail-val">
+              {{ request.requesterName }} ({{ request.departmentName }})
+              <span v-if="request.teamName" class="badge-team-tag">
+                {{ request.teamName }}
+              </span>
+            </span>
           </div>
 
           <div class="detail-item">
@@ -108,8 +113,15 @@ function handleCancel() {
           <div class="detail-item">
             <span class="detail-label"><Package :size="14" /> Phương tiện / Tải trọng</span>
             <span class="detail-val">
-              {{ request.vehicleType === 'LatexTruck' ? 'Xe tải chở mủ' : request.vehicleType === 'PassengerCar' ? 'Xe chở người' : 'Máy cán mủ' }}
+              {{
+                request.vehicleType === 'LatexTruck'
+                  ? 'Xe chuyên dùng chở mủ cao su'
+                  : request.vehicleType === 'PassengerCar'
+                  ? 'Xe bán tải công tác / đưa đón'
+                  : 'Xe cơ giới nông trường'
+              }}
               <strong v-if="request.estimatedWeightKg"> ({{ request.estimatedWeightKg.toLocaleString() }} kg mủ)</strong>
+              <strong v-if="request.operatingHours"> ({{ request.operatingHours }} giờ máy)</strong>
               <strong v-if="request.passengersCount"> ({{ request.passengersCount }} người)</strong>
             </span>
           </div>
@@ -430,5 +442,18 @@ function handleCancel() {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 8px;
+}
+.badge-team-tag {
+  display: inline-flex;
+  align-items: center;
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+  font-size: 0.71875rem;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 9999px;
+  margin-left: 6px;
+  vertical-align: middle;
 }
 </style>
