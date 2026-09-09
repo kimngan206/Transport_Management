@@ -26,6 +26,7 @@ export interface Department {
 export type VehicleType = 'LatexTruck' | 'PassengerCar' | 'MillingMachine';
 export type VehicleOperationalStatus = 'Available' | 'OnTrip' | 'UnderMaintenance' | 'Broken';
 export type MaintenanceStatus = 'Normal' | 'Due' | 'Overdue';
+export type HandoverStatus = 'BORROWING' | 'RETURNED' | 'OVERDUE' | 'CANCELLED';
 
 export interface VehicleCategory {
   id: number;
@@ -240,6 +241,27 @@ export interface IncidentReport {
   latitude?: number;
   longitude?: number;
   gpsAccuracy?: number;
+}
+
+export interface HandoverRecord {
+  id: number;
+  vehicleId: number;
+  vehiclePlate: string;
+  fromTeam: string;
+  toTeam: string;
+  driverName: string;
+  fromDriverId?: number;
+  toDriverId?: number;
+  borrowStartAt: string;
+  expectedReturnAt?: string;
+  actualReturnAt?: string;
+  handoverOdo: number;
+  returnOdo?: number;
+  fuelLevel: string;
+  conditionNotes: string;
+  status: HandoverStatus;
+  note?: string;
+  createdAt: string;
 }
 
 export interface MaintenanceRecord {

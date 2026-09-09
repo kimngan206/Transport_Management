@@ -139,7 +139,18 @@ router.beforeEach((to) => {
         return '/dispatch';
       }
     } else if (authStore.activeRole === 'Driver') {
-      if (to.path === '/' || to.path === '/booking' || to.path === '/approval' || to.path === '/dispatch' || to.path.startsWith('/maintenance') || to.path.startsWith('/fleet') || to.path === '/system' || to.path === '/reports') {
+      const isFleetHandoverView = to.path === '/fleet' && to.query.tab === 'handover';
+
+      if (
+        to.path === '/' ||
+        to.path === '/booking' ||
+        to.path === '/approval' ||
+        to.path === '/dispatch' ||
+        to.path.startsWith('/maintenance') ||
+        (to.path.startsWith('/fleet') && !isFleetHandoverView) ||
+        to.path === '/system' ||
+        to.path === '/reports'
+      ) {
         return '/driver-schedule';
       }
     }

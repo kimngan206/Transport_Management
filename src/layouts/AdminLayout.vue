@@ -121,6 +121,13 @@ const pendingCount = computed(() => bookingStore.pendingRequests.length);
 const approvedCount = computed(() => bookingStore.approvedRequests.length);
 const dueMaintCount = computed(() => fleetStore.dueMaintenanceVehicles.length);
 const myTripsCount = computed(() => driverStore.myTrips.filter((t) => t.status !== 'COMPLETED').length);
+const handoverBorrowingCount = computed(() => {
+  try {
+    return mockStorage.getHandovers().filter((h: any) => h.status === 'BORROWING' || h.status === 'OVERDUE').length;
+  } catch {
+    return 0;
+  }
+});
 
 // Kiểm tra quyền hiển thị từng nhóm menu (Role-based Navigation - Trang 42)
 const showSection = computed(() => {
@@ -191,7 +198,7 @@ const showSection = computed(() => {
       booking: false,
       approval: false,
       dispatch: false,
-      fleet: false,
+      fleet: true,
       routes: false,
       operations: true,
       maintenance: false,
@@ -425,15 +432,37 @@ const showSection = computed(() => {
             </button>
 
             <div v-show="openGroups.fleet" class="sub-links-list">
-              <router-link to="/fleet/types" class="sub-nav-link" :class="{ active: route.path === '/fleet/types' }">
+              <router-link
+                v-if="authStore.activeRole !== 'Driver'"
+                to="/fleet/types"
+                class="sub-nav-link"
+                :class="{ active: route.path === '/fleet/types' }"
+              >
                 <span>Danh sách loại xe</span>
               </router-link>
 
-              <router-link to="/fleet?tab=drivers" class="sub-nav-link" :class="{ active: route.path === '/fleet' && route.query.tab === 'drivers' }">
+              <router-link
+                v-if="authStore.activeRole !== 'Driver'"
+                to="/fleet?tab=drivers"
+                class="sub-nav-link"
+                :class="{ active: route.path === '/fleet' && route.query.tab === 'drivers' }"
+              >
                 <span>Danh sách tài xế</span>
               </router-link>
 
-              <router-link to="/fleet?tab=vehicles" class="sub-nav-link" :class="{ active: route.path === '/fleet' && (!route.query.tab || route.query.tab === 'vehicles') }">
+              <router-link to="/fleet?tab=handover" class="sub-nav-link" :class="{ active: route.path === '/fleet' && route.query.tab === 'handover' }">
+                <div class="sub-nav-label">
+                  <span>Bàn giao / mượn trả</span>
+                </div>
+                <span v-if="handoverBorrowingCount > 0" class="mini-badge badge-amber">{{ handoverBorrowingCount }}</span>
+              </router-link>
+
+              <router-link
+                v-if="authStore.activeRole !== 'Driver'"
+                to="/fleet?tab=vehicles"
+                class="sub-nav-link"
+                :class="{ active: route.path === '/fleet' && (!route.query.tab || route.query.tab === 'vehicles') }"
+              >
                 <span>Danh sách phương tiện</span>
               </router-link>
             </div>
