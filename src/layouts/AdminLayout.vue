@@ -237,7 +237,7 @@ const showSection = computed(() => {
         </div>
         <div class="brand-title-group">
           <span class="brand-name">ECOTECH 2A</span>
-          <span class="brand-corp">HỆ THỐNG ĐIỀU ĐỘ ĐỘI XE & MỦ CAO SU</span>
+          <span class="brand-corp">HỆ THỐNG QUẢN LÝ ĐIỀU VẬN</span>
         </div>
       </div>
 

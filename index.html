@@ -1,34 +1,38 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/logo.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ECOTECH 2A — Hệ Thống Điều Độ Đội Xe & Mủ Cao Su</title>
-    <meta name="description" content="ECOTECH 2A - Hệ thống quản lý điều độ đội xe bồn, xe tải mủ và máy cơ giới nông trường cao su" />
-    <script>
-      // Dọn dẹp các cookie mảng quá lớn để tránh lỗi HTTP 431 (Request Header Fields Too Large)
-      (function() {
-        try {
-          var cookies = document.cookie.split(';');
-          for (var i = 0; i < cookies.length; i++) {
-            var eqPos = cookies[i].indexOf('=');
-            var name = eqPos > -1 ? cookies[i].substr(0, eqPos).trim() : cookies[i].trim();
-            if (name.indexOf('qldv_') === 0 && name !== 'qldv_current_user_id' && name !== 'qldv_active_role' && name !== 'qldv_data_version') {
-              document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax';
-            }
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/png" href="/logo.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ECOTECH 2A — HỆ THỐNG QUẢN LÝ ĐIỀU VẬN</title>
+  <meta name="description"
+    content="ECOTECH 2A - Hệ thống quản lý điều độ đội xe bồn, xe tải mủ và máy cơ giới nông trường cao su" />
+  <script>
+    // Dọn dẹp các cookie mảng quá lớn để tránh lỗi HTTP 431 (Request Header Fields Too Large)
+    (function () {
+      try {
+        var cookies = document.cookie.split(';');
+        for (var i = 0; i < cookies.length; i++) {
+          var eqPos = cookies[i].indexOf('=');
+          var name = eqPos > -1 ? cookies[i].substr(0, eqPos).trim() : cookies[i].trim();
+          if (name.indexOf('qldv_') === 0 && name !== 'qldv_current_user_id' && name !== 'qldv_active_role' && name !== 'qldv_data_version') {
+            document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax';
           }
-        } catch(e) {}
-      })();
-    </script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  </head>
+        }
+      } catch (e) { }
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet">
+</head>
 
 
-  <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.ts"></script>
-  </body>
+<body>
+  <div id="app"></div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+
 </html>
