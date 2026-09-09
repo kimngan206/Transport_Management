@@ -3,6 +3,7 @@ import { ref, computed } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { useDriverStore } from '@/stores/driver';
 import { useDispatchStore } from '@/stores/dispatch';
+import { useFleetStore } from '@/stores/fleet';
 import { mockStorage } from '@/services/mockStorage';
 import type { TransportTrip } from '@/types';
 import StatusBadge from '@/components/common/StatusBadge.vue';
@@ -27,11 +28,14 @@ import {
   AlertTriangle,
   ExternalLink,
   Truck,
+  Filter,
 } from 'lucide-vue-next';
 
 const authStore = useAuthStore();
 const driverStore = useDriverStore();
 const dispatchStore = useDispatchStore();
+const fleetStore = useFleetStore();
+const myVehicle = computed(() => driverStore.myVehicle);
 
 const activeStartTrip = ref<TransportTrip | null>(null);
 const activeCompleteTrip = ref<TransportTrip | null>(null);
@@ -56,6 +60,16 @@ function handleAcceptTrip(trip: TransportTrip) {
   } else {
     alert(res.message);
   }
+}
+
+function getVehicleShortType(v: any): string {
+  if (!v) return '';
+  if (v.vehicleType === 'LatexTruck') {
+    return v.capacityTons ? `Tải ${v.capacityTons}T` : 'Xe tải';
+  }
+  if (v.vehicleType === 'PassengerCar') return 'Bán tải';
+  if (v.vehicleType === 'MillingMachine') return 'Máy đào';
+  return v.model?.split(' ')[0] || 'Xe';
 }
 
 const myTrips = computed(() => driverStore.myTrips);
@@ -106,6 +120,7 @@ const finishedTrips = computed(() =>
         <h1 class="page-title">Không Gian Tài Xế — Chuyến Của Tôi</h1>
         <p class="page-subtitle">
           Tài xế: <strong>{{ authStore.currentUser.fullName }}</strong> ({{ authStore.currentUser.phone }})
+          <span v-if="myVehicle" class="text-primary font-bold"> • Phương tiện phụ trách: {{ myVehicle.licensePlate }} ({{ myVehicle.model }})</span>
           — Nhận chuyến, báo cáo đến nơi, ghi nhận ODO và sản lượng mủ vận chuyển
         </p>
       </div>
@@ -449,51 +464,83 @@ const finishedTrips = computed(() =>
       </div>
     </div>
 
-    <!-- 2. Lịch sử chuyến đã hoàn thành của tài xế -->
+    <!-- 2. Lịch sử chuyến đã hoàn thành của xe tài xế phụ trách -->
     <div class="card mt-4">
-      <div class="card-header flex-between">
-        <h3 class="card-title">Lịch Sử Chuyến Đi Đã Hoàn Thành</h3>
-        <router-link to="/driver/history" class="btn btn-outline btn-xs">
-          <span>Xem chi tiết & đối soát sản lượng mủ ➔</span>
-        </router-link>
+      <div class="card-header flex-between history-header">
+        <div class="flex items-center gap-2">
+          <h3 class="card-title mb-0">Lịch Sử Chuyến Đi Đã Hoàn Thành</h3>
+          <span v-if="myVehicle" class="badge badge-blue">
+            <Truck :size="12" />
+            <span>Xe: {{ myVehicle.licensePlate }}</span>
+          </span>
+        </div>
+        <!-- Bộ lọc phương tiện thiết kế dạng Segmented Chips trực quan & hiện đại -->
+        <div v-if="authStore.activeRole === 'Dispatcher' || authStore.activeRole === 'Admin'" class="veh-filter-wrapper">
+          <div class="veh-filter-label">
+            <Filter :size="13" class="filter-icon" />
+            <span>Lọc theo xe:</span>
+          </div>
+          <div class="veh-filter-chips">
+            <button
+              v-for="v in fleetStore.vehicles"
+              :key="v.id"
+              type="button"
+              class="veh-chip-btn"
+              :class="{ 'active': myVehicle?.licensePlate === v.licensePlate }"
+              @click="driverStore.setSelectedVehiclePlate(v.licensePlate)"
+              :title="`${v.licensePlate} — ${v.model}`"
+            >
+              <span class="chip-icon-box">
+                <Truck v-if="v.vehicleType === 'LatexTruck'" :size="13" />
+                <Car v-else-if="v.vehicleType === 'PassengerCar'" :size="13" />
+                <Gauge v-else :size="13" />
+              </span>
+              <span class="chip-plate font-mono">{{ v.licensePlate }}</span>
+              <span class="chip-tag">{{ getVehicleShortType(v) }}</span>
+              <span v-if="myVehicle?.licensePlate === v.licensePlate" class="chip-check">
+                <CheckCircle2 :size="12" />
+              </span>
+            </button>
+          </div>
+        </div>
       </div>
 
       <div class="table-container">
         <table class="table">
           <thead>
             <tr>
-              <th>Mã Chuyến</th>
-              <th>Phương Tiện</th>
-              <th>Lộ Trình</th>
-              <th>Cự Ly Chạy</th>
-              <th>Sản Lượng Mủ (kg)</th>
-              <th>Dầu Chuẩn / Thực Tế</th>
-              <th>Chi Phí (VNĐ)</th>
-              <th>Trạng Thái</th>
+              <th style="width: 155px; white-space: nowrap">Mã Chuyến</th>
+              <th style="width: 110px; white-space: nowrap">Phương Tiện</th>
+              <th style="min-width: 200px">Lộ Trình</th>
+              <th style="width: 150px; white-space: nowrap">Cự Ly Chạy</th>
+              <th style="width: 140px; white-space: nowrap">Sản Lượng Mủ (kg)</th>
+              <th style="width: 170px; white-space: nowrap">Dầu Chuẩn / Thực Tế</th>
+              <th style="width: 140px; white-space: nowrap">Chi Phí (VNĐ)</th>
+              <th style="width: 120px; white-space: nowrap">Trạng Thái</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="finishedTrips.length === 0">
               <td colspan="8" class="text-center py-5 text-muted">
-                Chưa có chuyến xe nào hoàn thành.
+                Chưa có chuyến xe nào hoàn thành cho phương tiện này.
               </td>
             </tr>
 
             <tr v-for="t in finishedTrips" :key="t.id">
-              <td><strong>{{ t.tripCode }}</strong></td>
-              <td>{{ t.vehiclePlate }}</td>
+              <td style="white-space: nowrap"><strong class="font-mono text-slate-800">{{ t.tripCode }}</strong></td>
+              <td style="white-space: nowrap"><strong class="font-mono text-slate-800">{{ t.vehiclePlate }}</strong></td>
               <td>{{ t.routeName }}</td>
-              <td>
+              <td style="white-space: nowrap">
                 <strong>{{ t.actualDistanceKm }} km</strong>
                 <span class="text-xs text-muted"> ({{ t.startOdo }} ➔ {{ t.endOdo }})</span>
               </td>
-              <td>
+              <td style="white-space: nowrap">
                 <strong v-if="t.totalLatexWeightKg" class="text-success">
                   {{ t.totalLatexWeightKg.toLocaleString() }} kg
                 </strong>
                 <span v-else class="text-muted">—</span>
               </td>
-              <td>
+              <td style="white-space: nowrap">
                 <span class="text-primary font-bold">{{ t.calculatedFuelLiters }}L</span>
                 <span> / {{ t.actualFuelFilledLiters }}L </span>
                 <span
@@ -518,7 +565,7 @@ const finishedTrips = computed(() =>
                   </button>
                 </div>
               </td>
-              <td>
+              <td style="white-space: nowrap">
                 <StatusBadge :status="t.status" />
               </td>
             </tr>
@@ -1056,6 +1103,117 @@ const finishedTrips = computed(() =>
 .btn-maps-route:hover {
   background: #dbeafe;
   color: #1e40af;
+}
+
+/* =======================================================
+   VEHICLE FILTER CHIPS TOOLBAR (CARD HEADER)
+   ======================================================= */
+.history-header {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.veh-filter-wrapper {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #f8fafc;
+  padding: 4px 8px;
+  border-radius: 9px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.veh-filter-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #475569;
+  white-space: nowrap;
+}
+
+.veh-filter-label .filter-icon {
+  color: #16a34a;
+}
+
+.veh-filter-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.veh-chip-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 7px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  white-space: nowrap;
+}
+
+.veh-chip-btn:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+  color: #0f172a;
+  transform: translateY(-1px);
+}
+
+.veh-chip-btn.active {
+  background: #f0fdf4;
+  border-color: #16a34a;
+  color: #15803d;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(22, 163, 74, 0.18);
+}
+
+.chip-icon-box {
+  display: flex;
+  align-items: center;
+  color: inherit;
+}
+
+.chip-plate {
+  font-weight: 800;
+  letter-spacing: 0.3px;
+}
+
+.chip-tag {
+  font-size: 0.6875rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.veh-chip-btn.active .chip-tag {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.chip-check {
+  display: flex;
+  align-items: center;
+  color: #16a34a;
+}
+
+@media (max-width: 900px) {
+  .veh-filter-wrapper {
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 @media (max-width: 768px) {

@@ -356,28 +356,28 @@ function getSeverityBadge(sev: DriverIncident['severity']) {
         <table class="data-table">
           <thead>
             <tr>
-              <th>Mã Báo Cáo</th>
-              <th>Phương Tiện</th>
-              <th>Loại Sự Cố</th>
-              <th>Mức Độ</th>
-              <th>Vị Trí Gặp Sự Cố</th>
-              <th>Mô Tả Hiện Trường & Ảnh</th>
-              <th>Thời Gian</th>
-              <th>Trạng Thái Xử Lý</th>
+              <th style="width: 140px; white-space: nowrap">Mã Báo Cáo</th>
+              <th style="width: 110px; white-space: nowrap">Phương Tiện</th>
+              <th style="min-width: 150px; white-space: nowrap">Loại Sự Cố</th>
+              <th style="width: 100px; white-space: nowrap">Mức Độ</th>
+              <th style="min-width: 220px">Vị Trí Gặp Sự Cố</th>
+              <th style="min-width: 220px">Mô Tả Hiện Trường & Ảnh</th>
+              <th style="width: 140px; white-space: nowrap">Thời Gian</th>
+              <th style="min-width: 160px; white-space: nowrap">Trạng Thái Xử Lý</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="inc in incidents" :key="inc.id">
-              <td>
+              <td style="white-space: nowrap">
                 <span class="code-badge">{{ inc.reportCode }}</span>
               </td>
-              <td>
-                <strong>{{ inc.vehiclePlate }}</strong>
+              <td style="white-space: nowrap">
+                <strong class="font-mono text-slate-800">{{ inc.vehiclePlate }}</strong>
               </td>
-              <td>
-                <span class="font-semibold">{{ getIncidentTypeName(inc.incidentType) }}</span>
+              <td style="white-space: nowrap">
+                <span class="font-semibold text-slate-800">{{ getIncidentTypeName(inc.incidentType) }}</span>
               </td>
-              <td>
+              <td style="white-space: nowrap">
                 <span class="badge" :class="getSeverityBadge(inc.severity)">
                   {{ inc.severity === 'Critical' ? 'Khẩn cấp' : inc.severity === 'High' ? 'Cao' : inc.severity === 'Medium' ? 'Trung bình' : 'Nhẹ' }}
                 </span>
@@ -408,8 +408,8 @@ function getSeverityBadge(sev: DriverIncident['severity']) {
                   </div>
                 </div>
               </td>
-              <td>
-                <span class="text-xs text-muted">{{ inc.reportedAt }}</span>
+              <td style="white-space: nowrap">
+                <span class="text-xs font-semibold text-slate-700">{{ inc.reportedAt }}</span>
               </td>
               <td>
                 <span v-if="inc.status === 'RESOLVED'" class="status-pill pill-green">
@@ -699,10 +699,12 @@ function getSeverityBadge(sev: DriverIncident['severity']) {
   background: #f1f5f9;
   color: #0f172a;
   border: 1px solid #cbd5e1;
-  padding: 2px 6px;
+  padding: 3px 8px;
   border-radius: 4px;
   font-weight: 700;
   font-size: 0.75rem;
+  font-family: monospace;
+  white-space: nowrap;
 }
 .desc-cell {
   display: flex;
@@ -725,10 +727,11 @@ function getSeverityBadge(sev: DriverIncident['severity']) {
 /* Badges */
 .badge {
   display: inline-block;
-  padding: 2px 8px;
+  padding: 3px 8px;
   border-radius: 4px;
   font-size: 0.6875rem;
   font-weight: 700;
+  white-space: nowrap;
 }
 .badge-red { background: #fee2e2; color: #dc2626; }
 .badge-orange { background: #ffedd5; color: #ea580c; }
@@ -739,11 +742,12 @@ function getSeverityBadge(sev: DriverIncident['severity']) {
 .status-pill {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   font-size: 0.6875rem;
   font-weight: 700;
-  padding: 3px 8px;
+  padding: 4px 10px;
   border-radius: 12px;
+  white-space: nowrap;
 }
 .pill-green { background: #dcfce7; color: #166534; }
 .pill-amber { background: #fef3c7; color: #b45309; }

@@ -1,5 +1,5 @@
 import { defineStore, acceptHMRUpdate } from 'pinia';
-import { computed } from 'vue';
+import { ref, computed } from 'vue';
 import { useDispatchStore } from './dispatch';
 import { useFleetStore } from './fleet';
 import { useBookingStore } from './booking';
@@ -12,17 +12,75 @@ export const useDriverStore = defineStore('driver', () => {
   const bookingStore = useBookingStore();
   const authStore = useAuthStore();
 
-  // US-07: Driver chỉ xem các chuyến của chính mình
+  // Biển số xe được chọn xem (cho Dispatcher/Admin kiểm tra, hoặc mặc định theo xe của tài xế)
+  const selectedVehiclePlate = ref<string>('');
+
+  // Xác định phương tiện gắn liền với tài xế hiện tại
+  const myVehicle = computed(() => {
+    const currentDriverId = authStore.currentUser.driverId;
+    if (currentDriverId) {
+      return (
+        fleetStore.vehicles.find(
+          (v) =>
+            v.assignedDriverId === currentDriverId ||
+            v.assignedDriverPhone === authStore.currentUser.phone
+        ) || null
+      );
+    }
+
+    // Nếu là Dispatcher / Admin đang xem Không gian tài xế:
+    if (selectedVehiclePlate.value) {
+      const found = fleetStore.vehicles.find((v) => v.licensePlate === selectedVehiclePlate.value);
+      if (found) return found;
+    }
+
+    // Mặc định liên kết với xe có chuyến đang hoạt động
+    const activeTrip = dispatchStore.trips.find(
+      (t) =>
+        t.status === 'INPROGRESS' ||
+        t.status === 'ARRIVED' ||
+        t.status === 'ACCEPTED' ||
+        t.status === 'ASSIGNED'
+    );
+    if (activeTrip) {
+      const v = fleetStore.vehicles.find(
+        (veh) => veh.id === activeTrip.vehicleId || veh.licensePlate === activeTrip.vehiclePlate
+      );
+      if (v) return v;
+    }
+
+    return fleetStore.vehicles[0] || null;
+  });
+
+  function setSelectedVehiclePlate(plate: string) {
+    selectedVehiclePlate.value = plate;
+  }
+
+  // US-07: Tài xế của xe nào thì chỉ xem được lịch sử các chuyến của xe đó
   const myTrips = computed<TransportTrip[]>(() => {
     const currentDriverId = authStore.currentUser.driverId;
-    if (!currentDriverId) {
-      // Nếu user là Admin hoặc Dispatcher đang kiểm tra, hiển thị tất cả
-      if (authStore.activeRole === 'Admin' || authStore.activeRole === 'Dispatcher') {
-        return dispatchStore.trips;
-      }
-      return [];
+    const veh = myVehicle.value;
+
+    // 1. Nếu là tài xế có tài khoản riêng:
+    if (currentDriverId) {
+      return dispatchStore.trips.filter((t) => {
+        // Khớp theo xe phụ trách của tài xế
+        if (veh) {
+          return t.vehiclePlate === veh.licensePlate || t.vehicleId === veh.id;
+        }
+        return t.driverId === currentDriverId;
+      });
     }
-    return dispatchStore.trips.filter((t) => t.driverId === currentDriverId);
+
+    // 2. Nếu là Dispatcher / Admin đang xem Không gian tài xế:
+    // Nghiêm ngặt chỉ xem các chuyến của xe đang được chọn (myVehicle)
+    if (veh) {
+      return dispatchStore.trips.filter(
+        (t) => t.vehiclePlate === veh.licensePlate || t.vehicleId === veh.id
+      );
+    }
+
+    return dispatchStore.trips;
   });
 
   const currentActiveTrip = computed<TransportTrip | undefined>(() => {
@@ -334,6 +392,9 @@ export const useDriverStore = defineStore('driver', () => {
 
   return {
     myTrips,
+    myVehicle,
+    selectedVehiclePlate,
+    setSelectedVehiclePlate,
     currentActiveTrip,
     acceptTrip,
     startTrip,

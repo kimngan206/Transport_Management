@@ -414,17 +414,17 @@ function confirmDelete(item: MaintenanceType) {
       <table class="data-table">
         <thead>
           <tr>
-            <th style="width: 100px">Mã</th>
+            <th style="width: 120px; white-space: nowrap">Mã</th>
             <th style="min-width: 180px">Tên Loại Bảo Dưỡng</th>
             <th style="width: 125px">Phân Nhóm</th>
-            <th style="width: 105px; text-align: center">Số Xe</th>
+            <th style="width: 95px; text-align: center; white-space: nowrap">Số Xe</th>
             <th style="width: 175px">Biển Số Xe Áp Dụng</th>
             <th style="width: 150px">Chu Kỳ Kỹ Thuật</th>
             <th style="width: 130px">Chi Phí Dự Toán</th>
             <th style="width: 85px">Thời Gian</th>
-            <th style="width: 125px">Hạng Mục</th>
-            <th style="width: 100px">Trạng Thái</th>
-            <th style="width: 85px; text-align: center">Thao Tác</th>
+            <th style="width: 135px; white-space: nowrap">Hạng Mục</th>
+            <th style="width: 110px; white-space: nowrap">Trạng Thái</th>
+            <th style="width: 85px; text-align: center; white-space: nowrap">Thao Tác</th>
           </tr>
         </thead>
         <tbody>
@@ -437,7 +437,7 @@ function confirmDelete(item: MaintenanceType) {
             </td>
           </tr>
           <tr v-for="item in filteredTypes" :key="item.id" :class="{ 'row-inactive': !item.isActive }">
-            <td>
+            <td style="white-space: nowrap">
               <span class="type-code-tag">{{ item.code }}</span>
             </td>
             <td>
@@ -459,7 +459,7 @@ function confirmDelete(item: MaintenanceType) {
               </span>
             </td>
             <!-- Cột 1: Số lượng xe & nút phân bổ -->
-            <td style="text-align: center">
+            <td style="text-align: center; white-space: nowrap">
               <button
                 class="btn-assigned-vehicles"
                 :class="{ 'has-vehicles': (item.assignedVehicleIds?.length || 0) > 0 }"
@@ -508,7 +508,7 @@ function confirmDelete(item: MaintenanceType) {
             <td>
               <span class="duration-badge">{{ item.estimatedDurationHours }} giờ</span>
             </td>
-            <td>
+            <td style="white-space: nowrap">
               <button
                 class="btn-checklist-preview"
                 @click="openDetailModal(item)"
@@ -518,7 +518,7 @@ function confirmDelete(item: MaintenanceType) {
                 <span>{{ item.checklistItems.length }} hạng mục</span>
               </button>
             </td>
-            <td>
+            <td style="white-space: nowrap">
               <span
                 class="status-badge"
                 :class="item.isActive ? 'badge-active' : 'badge-inactive'"
@@ -527,7 +527,7 @@ function confirmDelete(item: MaintenanceType) {
                 title="Bấm để chuyển trạng thái Áp dụng / Tạm dừng"
               >
                 <span class="status-dot"></span>
-                {{ item.isActive ? 'Áp dụng' : 'Tạm dừng' }}
+                <span>{{ item.isActive ? 'Áp dụng' : 'Tạm dừng' }}</span>
               </span>
             </td>
             <td>
@@ -1157,9 +1157,10 @@ function confirmDelete(item: MaintenanceType) {
   font-weight: 800;
   background: #e2e8f0;
   color: #0f172a;
-  padding: 2px 6px;
+  padding: 3px 8px;
   border-radius: 4px;
   width: fit-content;
+  white-space: nowrap;
 }
 
 .type-name-text {
@@ -1229,16 +1230,21 @@ function confirmDelete(item: MaintenanceType) {
 .btn-checklist-preview {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   background: #eff6ff;
   border: 1px solid #bfdbfe;
   color: #1d4ed8;
-  padding: 4px 8px;
+  padding: 4px 10px;
   border-radius: 6px;
   font-size: 0.6875rem;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn-checklist-preview span {
+  white-space: nowrap;
 }
 
 .btn-checklist-preview:hover {
@@ -1251,8 +1257,13 @@ function confirmDelete(item: MaintenanceType) {
   gap: 6px;
   font-size: 0.6875rem;
   font-weight: 700;
-  padding: 3px 8px;
+  padding: 4px 10px;
   border-radius: 12px;
+  white-space: nowrap;
+}
+
+.status-badge span {
+  white-space: nowrap;
 }
 .badge-active { background: #dcfce7; color: #15803d; }
 .badge-inactive { background: #fee2e2; color: #b91c1c; }
@@ -1668,17 +1679,23 @@ function confirmDelete(item: MaintenanceType) {
 .btn-assigned-vehicles {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   background: #f1f5f9;
   border: 1px solid #cbd5e1;
   color: #475569;
   font-size: 0.6875rem;
   font-weight: 700;
-  padding: 4px 8px;
+  padding: 4px 10px;
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.15s ease;
   width: fit-content;
+  white-space: nowrap;
+}
+
+.btn-assigned-vehicles span {
+  white-space: nowrap;
 }
 
 .btn-assigned-vehicles:hover {
