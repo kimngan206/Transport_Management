@@ -135,18 +135,11 @@ function getVehicleTypeLabel(type: string, vehicle?: Vehicle): string {
 
   switch (t) {
     case 'latextruck':
-    case 'truck':
       return 'Xe tải';
     case 'passengercar':
-    case 'pickup':
       return 'Bán tải';
     case 'millingmachine':
-    case 'excavator':
       return 'Máy đào';
-    case 'Electric':
-      return 'Xe điện';
-    default:
-      return type;
     default: {
       const cat = fleetStore.vehicleCategories.find(
         (c) => c.code.toLowerCase() === t || c.vehicleTypeCode.toLowerCase() === t
@@ -187,6 +180,8 @@ const newVehDriverName = ref('');
 const newVehDriverPhone = ref('');
 const newVehTeamName = ref('');
 const newVehIsExternal = ref(false);
+const showVehFormulaModal = ref(false);
+const vehFormulaDraft = ref('');
 
 function openAddVehicleModal() {
   editingVehicle.value = null;

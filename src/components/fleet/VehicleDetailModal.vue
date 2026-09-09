@@ -68,10 +68,9 @@ const driverAssignmentHistory = computed(() => {
 // Dịch loại xe sang tiếng Việt
 function getVehicleTypeLabel(type: string): string {
   switch (type) {
-    case 'Truck': return 'Xe tải chở mủ';
-    case 'Pickup': return 'Bán tải công tác';
-    case 'Excavator': return 'Máy đào mương / san ủi';
-    case 'Electric': return 'Xe điện VinFast';
+    case 'LatexTruck': return 'Xe tải chở mủ';
+    case 'PassengerCar': return 'Bán tải công tác';
+    case 'MillingMachine': return 'Máy đào mương / san ủi';
     default: return type;
   }
 }
@@ -287,11 +286,11 @@ function handleGoToMaintenanceTypes() {
                   <span v-if="vehicle.passengerCapacity">({{ vehicle.passengerCapacity }} chỗ ngồi)</span>
                 </span>
               </div>
-              <div v-if="vehicle.vehicleType === 'Electric'" class="spec-row">
-                <span class="spec-label">Định mức tiêu hao điện</span>
-                <span class="spec-val"><strong>{{ vehicle.fuelQuotaEmpty }}</strong> kWh/km</span>
+              <div v-if="vehicle.vehicleType === 'PassengerCar'" class="spec-row">
+                <span class="spec-label">Định mức không tải (NLP)</span>
+                <span class="spec-val"><strong>{{ vehicle.fuelQuotaEmpty }}</strong> L/km</span>
               </div>
-              <div v-else-if="vehicle.vehicleType !== 'Excavator'" class="spec-row">
+              <div v-else-if="vehicle.vehicleType !== 'MillingMachine'" class="spec-row">
                 <span class="spec-label">Định mức không tải (NLP)</span>
                 <span class="spec-val"><strong>{{ vehicle.fuelQuotaEmpty }}</strong> L/km</span>
               </div>

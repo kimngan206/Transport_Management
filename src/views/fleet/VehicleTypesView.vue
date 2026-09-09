@@ -121,30 +121,19 @@ function saveFormulaFromModal() {
 }
 
 function applyVehicleTypeDefaults(type: VehicleType) {
-  if (type === 'Truck') {
-function onGroupChange() {
-  if (formGroup.value === 'Vận tải mủ') {
-    formVehicleType.value = 'LatexTruck';
+  if (type === 'LatexTruck') {
     formFuelQuotaType.value = 'L_PER_TON_KM';
     formDefaultQuotaEmpty.value = 0.25;
     formDefaultQuotaLoaded.value = 0.02;
     formCapacityTons.value = 5.0;
     formSeats.value = undefined;
-  } else if (formGroup.value === 'Cơ giới nông trường') {
-    formVehicleType.value = 'MillingMachine';
+  } else if (type === 'MillingMachine') {
     formFuelQuotaType.value = 'L_PER_HOUR';
     formDefaultQuotaEmpty.value = 14.5;
     formDefaultQuotaLoaded.value = undefined;
     formCapacityTons.value = 20.0;
     formSeats.value = undefined;
-  } else if (type === 'Electric') {
-    formFuelQuotaType.value = 'KWH_PER_KM';
-    formDefaultQuotaEmpty.value = 0.18;
-    formDefaultQuotaLoaded.value = undefined;
-    formCapacityTons.value = 0.8;
-    formSeats.value = 5;
   } else {
-    formVehicleType.value = 'PassengerCar';
     formFuelQuotaType.value = 'L_PER_KM';
     formDefaultQuotaEmpty.value = 0.10;
     formDefaultQuotaLoaded.value = 0.005;
@@ -155,11 +144,11 @@ function onGroupChange() {
 
 function onGroupChange() {
   if (formGroup.value === 'Vận tải mủ') {
-    formVehicleType.value = 'Truck';
+    formVehicleType.value = 'LatexTruck';
   } else if (formGroup.value === 'Cơ giới nông trường') {
-    formVehicleType.value = 'Excavator';
+    formVehicleType.value = 'MillingMachine';
   } else {
-    formVehicleType.value = 'Pickup';
+    formVehicleType.value = 'PassengerCar';
   }
 
   applyVehicleTypeDefaults(formVehicleType.value);
@@ -399,10 +388,9 @@ function deleteCategory(category: VehicleCategory) {
           <div class="form-item">
             <label class="form-label">Loại Xe</label>
             <select v-model="formVehicleType" class="form-select">
-              <option value="Truck">Xe tải</option>
-              <option value="Pickup">Xe bán tải</option>
-              <option value="Excavator">Máy đào / cơ giới nông trường</option>
-              <option value="Electric">Xe điện VinFast</option>
+              <option value="LatexTruck">Xe tải chở mủ</option>
+              <option value="PassengerCar">Xe bán tải / công tác</option>
+              <option value="MillingMachine">Máy đào / cơ giới nông trường</option>
             </select>
           </div>
 
