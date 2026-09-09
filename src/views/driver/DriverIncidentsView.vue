@@ -418,12 +418,15 @@ function getSeverityBadge(sev: DriverIncident['severity']) {
                 </span>
                 <span v-else-if="inc.status === 'IN_REPAIR'" class="status-pill pill-amber">
                   <Wrench :size="12" />
-                  <span>Đang Sửa Chữa</span>
+                  <span>Đang Sửa Chữa / Cứu Hộ</span>
                 </span>
                 <span v-else class="status-pill pill-red">
                   <Clock :size="12" />
                   <span>Đã Tiếp Nhận</span>
                 </span>
+                <div v-if="inc.repairNote" class="text-xs text-primary font-medium mt-1 bg-blue-50 p-1.5 rounded border border-blue-200">
+                  {{ inc.repairNote }}
+                </div>
               </td>
             </tr>
           </tbody>

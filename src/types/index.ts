@@ -142,12 +142,28 @@ export interface TransportRequest {
 
 export type TripStatus = 'ASSIGNED' | 'ACCEPTED' | 'INPROGRESS' | 'ARRIVED' | 'COMPLETED' | 'CANCELLED';
 
+export interface TripReplacementInfo {
+  isRescueTrip: boolean; // Chuyến xe cứu viện thay thế sự cố
+  originalVehiclePlate: string; // Xe cũ gặp sự cố
+  originalDriverId?: number; // Id tài xế cũ
+  originalDriverName: string; // Tên tài xế cũ
+  originalDriverPhone: string; // SĐT tài xế cũ
+  incidentReason: string; // Nguyên nhân sự cố (nổ lốp, hỏng máy...)
+  incidentGps?: string; // Tọa độ GPS hiện trường để tài xế mới tìm đến
+  incidentLocationDesc?: string; // Địa điểm mô tả
+  swappedAt: string; // Thời điểm đổi xe
+  swappedBy: string; // Tên điều phối viên thực hiện
+  handoverStatus?: 'PENDING_HANDOVER' | 'HANDED_OVER'; // Trạng thái bàn giao hiện trường
+  handoverNote?: string; // Ghi chú bàn giao
+}
+
 export interface TransportTrip {
   id: number;
   tripCode: string;
   vehicleId: number;
   vehiclePlate: string;
   vehicleType: VehicleType;
+  replacementInfo?: TripReplacementInfo;
   driverId: number;
   driverName: string;
   driverPhone: string;

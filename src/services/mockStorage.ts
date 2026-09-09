@@ -49,6 +49,7 @@ export const STORAGE_KEYS = {
   ECOTECH_ROUTES: 'qldv_ecotech_routes',
   DRIVER_ASSIGNMENTS: 'qldv_driver_assignments',
   VEHICLE_MAP_STATES: 'qldv_vehicle_map_states',
+  DRIVER_NOTIFICATIONS: 'qldv_driver_notifications',
   DATA_VERSION: 'qldv_data_version',
 } as const;
 
@@ -665,6 +666,31 @@ export const mockStorage = {
   },
   saveDriverAssignments(data: VehicleAssignmentHistory[]) {
     saveToStorage(STORAGE_KEYS.DRIVER_ASSIGNMENTS, data);
+  },
+
+  // THÔNG BÁO TÀI XẾ & ĐIỀU ĐỘNG KHẨN CẤP
+  getDriverNotifications<T = any>(): T[] {
+    return getFromStorage<T[]>(STORAGE_KEYS.DRIVER_NOTIFICATIONS, []);
+  },
+  saveDriverNotifications<T = any>(data: T[]) {
+    saveToStorage(STORAGE_KEYS.DRIVER_NOTIFICATIONS, data);
+  },
+  addDriverNotification(notif: any) {
+    const list = this.getDriverNotifications();
+    list.unshift({
+      ...notif,
+      id: Date.now() + Math.floor(Math.random() * 1000),
+      isRead: false,
+    });
+    this.saveDriverNotifications(list);
+  },
+  markDriverNotificationAsRead(id: number) {
+    const list = this.getDriverNotifications();
+    const item = list.find((n: any) => n.id === id);
+    if (item) {
+      item.isRead = true;
+      this.saveDriverNotifications(list);
+    }
   },
 
   getStorageHealth() {

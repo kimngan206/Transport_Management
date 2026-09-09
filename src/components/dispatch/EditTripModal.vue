@@ -3,7 +3,8 @@ import { ref, computed, watch } from 'vue';
 import { useFleetStore } from '@/stores/fleet';
 import { useDispatchStore } from '@/stores/dispatch';
 import { useDialogStore } from '@/stores/dialog';
-import type { TransportTrip } from '@/types';
+import { useAuthStore } from '@/stores/auth';
+import type { TransportTrip, TripReplacementInfo } from '@/types';
 import {
   X,
   Truck,
@@ -12,6 +13,8 @@ import {
   Clock,
   Save,
   CheckCircle2,
+  Bell,
+  AlertCircle,
 } from 'lucide-vue-next';
 
 const props = defineProps<{
@@ -23,6 +26,7 @@ const emit = defineEmits<{
   (e: 'updated'): void;
 }>();
 
+const authStore = useAuthStore();
 const fleetStore = useFleetStore();
 const dispatchStore = useDispatchStore();
 const dialog = useDialogStore();
@@ -107,8 +111,34 @@ function handleSave() {
     return;
   }
 
-  isSubmitting.value = true;
+  const isVehicleSwapped = computed(() => {
+    return Number(vehicleId.value) !== props.trip.vehicleId || Number(driverId.value) !== props.trip.driverId;
+  });
+
+  const isSubmitting = ref(false);
   errorMsg.value = '';
+
+  let replacementInfo: TripReplacementInfo | undefined = undefined;
+  if (isVehicleSwapped.value) {
+    const gpsCoords = currentVehicleIncident.value?.locationGps ||
+      (currentVehicleIncident.value?.latitude ? `${currentVehicleIncident.value.latitude}, ${currentVehicleIncident.value.longitude}` : '10.9595, 106.8115');
+    
+    replacementInfo = {
+      isRescueTrip: true,
+      originalVehiclePlate: props.trip.vehiclePlate,
+      originalDriverId: props.trip.driverId,
+      originalDriverName: props.trip.driverName,
+      originalDriverPhone: props.trip.driverPhone,
+      incidentReason: currentVehicleIncident.value?.issueDescription || 'Sự cố kỹ thuật / hỏng hóc dọc đường',
+      incidentGps: gpsCoords,
+      incidentLocationDesc: currentVehicleIncident.value?.location || 'Km 24 - ĐT741',
+      swappedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
+      swappedBy: authStore.currentUser?.fullName || 'Điều phối viên',
+      handoverStatus: 'PENDING_HANDOVER',
+    };
+  }
+
+  isSubmitting.value = true;
 
   const res = dispatchStore.updateTrip({
     tripId: props.trip.id,
@@ -118,12 +148,14 @@ function handleSave() {
     scheduledStartTime: scheduledStartTime.value,
     scheduledEndTime: scheduledEndTime.value,
     notes: notes.value,
+    replacementInfo,
   });
 
   isSubmitting.value = false;
 
   if (res.success) {
-    dialog.showSuccess(res.message, 'Cập Nhật Thành Công');
+    const title = isVehicleSwapped.value ? 'Đã Điều Xe Cứu Viện & Báo Tài Xế' : 'Cập Nhật Thành Công';
+    dialog.showSuccess(res.message, title);
     emit('updated');
   } else {
     errorMsg.value = res.message;
@@ -245,15 +277,33 @@ function handleSave() {
             </div>
           </div>
         </div>
+
+        <!-- Thông báo cập nhật tài xế khi đổi xe -->
+        <div v-if="Number(vehicleId) !== trip.vehicleId" class="mx-4 mb-3 p-3 rounded bg-blue-50 border border-blue-200 text-blue-900 text-xs flex items-start gap-2.5">
+          <Bell :size="16" class="text-blue-600 mt-0.5 shrink-0" />
+          <div>
+            <strong class="text-blue-800">Cập nhật lịch trình & thông báo tức thời cho tài xế:</strong>
+            <div class="mt-0.5 text-slate-700">
+              Hệ thống sẽ <strong>tự động gửi lệnh điều xe cứu viện</strong> kèm tọa độ GPS đến tài xế mới, đồng thời cập nhật thông tin bàn giao lô mủ đến ứng dụng của tài xế cũ.
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="modal-footer justify-between">
         <button class="btn btn-outline" type="button" @click="$emit('close')" :disabled="isSubmitting">
           Hủy bỏ
         </button>
-        <button class="btn btn-primary" type="button" @click="handleSave" :disabled="isSubmitting">
+        <button
+          class="btn flex items-center gap-1.5"
+          :class="Number(vehicleId) !== trip.vehicleId ? 'btn-danger' : 'btn-primary'"
+          type="button"
+          @click="handleSave"
+          :disabled="isSubmitting"
+        >
           <Save :size="16" />
-          <span>Lưu Thay Đổi</span>
+          <span v-if="Number(vehicleId) !== trip.vehicleId">Xác Nhận Đổi Xe & Gửi Báo Tài Xế</span>
+          <span v-else>Lưu Thay Đổi</span>
         </button>
       </div>
     </div>

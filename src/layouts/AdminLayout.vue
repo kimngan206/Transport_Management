@@ -121,6 +121,9 @@ const pendingCount = computed(() => bookingStore.pendingRequests.length);
 const approvedCount = computed(() => bookingStore.approvedRequests.length);
 const dueMaintCount = computed(() => fleetStore.dueMaintenanceVehicles.length);
 const myTripsCount = computed(() => driverStore.myTrips.filter((t) => t.status !== 'COMPLETED').length);
+const dispatchNotifications = computed(() => mockStorage.getDriverNotifications());
+const unreadDispatchNotifs = computed(() => dispatchNotifications.value.filter((n: any) => !n.isRead));
+const totalNotifCount = computed(() => dueMaintCount.value + unreadDispatchNotifs.value.length);
 
 // Kiểm tra quyền hiển thị từng nhóm menu (Role-based Navigation - Trang 42)
 const showSection = computed(() => {
@@ -244,11 +247,11 @@ const showSection = computed(() => {
           <button
             class="btn-header-notify"
             @click="showNotificationDropdown = !showNotificationDropdown"
-            :title="`Thông báo (${dueMaintCount} cảnh báo bảo dưỡng)`"
+            :title="`Thông báo (${totalNotifCount} thông báo)`"
           >
             <Bell :size="16" />
-            <span v-if="dueMaintCount > 0" class="notify-count-dot">
-              {{ dueMaintCount }}
+            <span v-if="totalNotifCount > 0" class="notify-count-dot">
+              {{ totalNotifCount }}
             </span>
           </button>
 
@@ -259,13 +262,38 @@ const showSection = computed(() => {
           >
             <div class="notify-dropdown-header">
               <span class="notify-dropdown-title">Thông Báo Hệ Thống</span>
-              <span class="notify-badge-tag">{{ dueMaintCount }} cảnh báo</span>
+              <span class="notify-badge-tag">{{ totalNotifCount }} mới</span>
             </div>
 
             <div class="notify-dropdown-body">
-              <div v-if="dueMaintCount === 0" class="notify-empty">
+              <div v-if="totalNotifCount === 0" class="notify-empty">
                 <CheckCircle2 :size="18" class="text-success" />
-                <span>Không có cảnh báo mới. Đội xe đang vận hành an toàn!</span>
+                <span>Không có thông báo mới!</span>
+              </div>
+
+              <!-- Thông báo Điều xe Cứu viện / Chuyển giao chuyến xe -->
+              <div
+                v-for="notif in dispatchNotifications.slice(0, 5)"
+                :key="'dnotif-' + notif.id"
+                class="notify-item"
+                :class="{ 'notify-rescue-item': notif.type === 'RESCUE_DISPATCH' }"
+                @click="router.push(authStore.activeRole === 'Driver' ? '/driver-schedule' : '/dispatch'); showNotificationDropdown = false"
+              >
+                <div class="notify-item-icon">
+                  <span v-if="notif.type === 'RESCUE_DISPATCH'" class="text-base">🚨</span>
+                  <Truck v-else :size="16" class="text-primary" />
+                </div>
+                <div class="notify-item-content">
+                  <div class="notify-item-title font-bold" :class="{ 'text-danger': notif.type === 'RESCUE_DISPATCH' }">
+                    {{ notif.title }}
+                  </div>
+                  <div class="notify-item-desc">
+                    {{ notif.content }}
+                  </div>
+                  <div class="notify-item-time">
+                    {{ notif.createdAt }} • Bấm mở chuyến xe
+                  </div>
+                </div>
               </div>
 
               <div
@@ -1387,6 +1415,14 @@ const showSection = computed(() => {
 
 .app-sidebar.is-collapsed .user-profile-strip {
   justify-content: center;
+}
+
+.notify-item.notify-rescue-item {
+  background-color: #fef2f2;
+  border-left: 3px solid #ef4444;
+}
+.notify-item.notify-rescue-item:hover {
+  background-color: #fee2e2;
 }
 
 @media (max-width: 960px) {

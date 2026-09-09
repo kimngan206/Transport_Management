@@ -3,7 +3,7 @@ import { ref, computed } from 'vue';
 import { mockStorage } from '@/services/mockStorage';
 import { useBookingStore } from './booking';
 import { useFleetStore } from './fleet';
-import type { TransportTrip, TransportRequest } from '@/types';
+import type { TransportTrip, TransportRequest, TripReplacementInfo } from '@/types';
 import { areRequestsRouteCompatible } from '@/utils/routeMatcher';
 
 export const useDispatchStore = defineStore('dispatch', () => {
@@ -263,7 +263,7 @@ export const useDispatchStore = defineStore('dispatch', () => {
     };
   }
 
-  // Cập nhật thông tin chuyến xe
+  // Cập nhật thông tin chuyến xe & Điều xe thay thế
   function updateTrip(payload: {
     tripId: number;
     vehicleId: number;
@@ -272,6 +272,7 @@ export const useDispatchStore = defineStore('dispatch', () => {
     scheduledStartTime: string;
     scheduledEndTime: string;
     notes?: string;
+    replacementInfo?: TripReplacementInfo;
   }): { success: boolean; message: string; data?: TransportTrip } {
     const trip = trips.value.find(t => t.id === payload.tripId);
     if (!trip) {
@@ -314,8 +315,14 @@ export const useDispatchStore = defineStore('dispatch', () => {
       };
     }
 
-    // Cập nhật trạng thái phương tiện
     const oldVehicleId = trip.vehicleId;
+    const oldVehiclePlate = trip.vehiclePlate;
+    const oldDriverId = trip.driverId;
+    const oldDriverName = trip.driverName;
+    const oldDriverPhone = trip.driverPhone;
+    const isSwapped = oldVehicleId !== vehicle.id || oldDriverId !== driver.id;
+
+    // Cập nhật trạng thái phương tiện
     if (oldVehicleId !== vehicle.id) {
       const oldVehicle = fleetStore.vehicles.find((v) => v.id === oldVehicleId);
       if (oldVehicle && oldVehicle.status === 'OnTrip') {
@@ -327,8 +334,26 @@ export const useDispatchStore = defineStore('dispatch', () => {
     }
 
     const route = fleetStore.routes.find((r) => r.id === payload.routeId) || fleetStore.routes[0];
+    const nowStr = new Date().toISOString().slice(0, 16).replace('T', ' ');
 
-    // Cập nhật
+    // Nếu có thông tin cứu viện / đổi xe
+    if (payload.replacementInfo) {
+      trip.replacementInfo = payload.replacementInfo;
+    } else if (isSwapped && (oldVehiclePlate || oldDriverName)) {
+      trip.replacementInfo = {
+        isRescueTrip: true,
+        originalVehiclePlate: oldVehiclePlate,
+        originalDriverId: oldDriverId,
+        originalDriverName: oldDriverName,
+        originalDriverPhone: oldDriverPhone,
+        incidentReason: 'Điều phối viên điều xe thay thế',
+        swappedAt: nowStr,
+        swappedBy: 'Điều phối viên',
+        handoverStatus: 'PENDING_HANDOVER',
+      };
+    }
+
+    // Cập nhật thông tin chuyến xe
     trip.vehicleId = vehicle.id;
     trip.vehiclePlate = vehicle.licensePlate;
     trip.vehicleType = vehicle.vehicleType;
@@ -342,12 +367,67 @@ export const useDispatchStore = defineStore('dispatch', () => {
     trip.scheduledEndTime = payload.scheduledEndTime;
     trip.notes = payload.notes;
 
+    // Khi có đổi xe / đổi tài xế: Cập nhật timeline đơn hàng & Gửi thông báo đến tài xế 2 bên
+    if (isSwapped) {
+      // 1. Cập nhật timeline các đơn mủ
+      for (const reqId of trip.requestIds) {
+        bookingStore.updateRequestStatus(
+          reqId,
+          'DISPATCHED',
+          payload.replacementInfo?.swappedBy || 'Điều phối viên',
+          `Điều xe thay thế: Chuyển giao sang xe ${vehicle.licensePlate} (Tài xế: ${driver.fullName} - ${driver.phone}) do xe ${oldVehiclePlate} gặp sự cố.`
+        );
+      }
+
+      // 2. Gửi thông báo khẩn cấp đến Tài Xế Mới (xe cứu viện)
+      mockStorage.addDriverNotification({
+        targetDriverId: driver.id,
+        targetPlate: vehicle.licensePlate,
+        tripCode: trip.tripCode,
+        type: 'RESCUE_DISPATCH',
+        title: `🚨 LỆNH ĐIỀU ĐỘNG CỨU VIỆN KHẨN CẤP (${trip.tripCode})`,
+        content: `Bạn được điều xe ${vehicle.licensePlate} tiếp quản chuyến ${trip.tripCode} thay cho xe ${oldVehiclePlate} (${oldDriverName} - ${oldDriverPhone}). Di chuyển đến hiện trường để tiếp nhận bàn giao lô mủ cao su.`,
+        locationGps: trip.replacementInfo?.incidentGps || '10.9595, 106.8115',
+        createdAt: nowStr,
+      });
+
+      // 3. Gửi thông báo đến Tài Xế Cũ (xe gặp nạn)
+      if (oldDriverId && oldDriverId !== driver.id) {
+        mockStorage.addDriverNotification({
+          targetDriverId: oldDriverId,
+          targetPlate: oldVehiclePlate,
+          tripCode: trip.tripCode,
+          type: 'TRIP_HANDOVER',
+          title: `ℹ️ CHUYẾN XE ${trip.tripCode} ĐÃ ĐƯỢC BÀN GIAO`,
+          content: `Điều phối viên đã điều động xe ${vehicle.licensePlate} (Tài xế ${driver.fullName} - ${driver.phone}) đến hiện trường tiếp quản chuyến xe. Vui lòng bảo quản lô mủ và bàn giao khi xe đến.`,
+          createdAt: nowStr,
+        });
+      }
+
+      // 4. Cập nhật nhật ký sự cố tài xế nếu có
+      try {
+        const driverIncidents = mockStorage.getDriverIncidents();
+        const targetInc = driverIncidents.find(
+          (di: any) => di.vehiclePlate === oldVehiclePlate && di.status !== 'RESOLVED'
+        );
+        if (targetInc) {
+          targetInc.status = 'IN_REPAIR';
+          targetInc.repairNote = `Đã điều xe thay thế ${vehicle.licensePlate} (Tài xế ${driver.fullName} - ${driver.phone}) tiếp quản chuyến. Đội cứu hộ đang đến hiện trường.`;
+          mockStorage.saveDriverIncidents(driverIncidents);
+        }
+      } catch (err) {}
+    }
+
     saveState();
     fleetStore.saveState();
 
+    const swapMessage = isSwapped
+      ? `Đã điều xe ${vehicle.licensePlate} (Tài xế: ${driver.fullName}) thay thế cho chuyến ${trip.tripCode} và cập nhật thông báo tới các tài xế thành công!`
+      : `Đã cập nhật thông tin chuyến xe ${trip.tripCode} thành công!`;
+
     return {
       success: true,
-      message: `Đã cập nhật thông tin chuyến xe ${trip.tripCode} thành công!`,
+      message: swapMessage,
       data: trip,
     };
   }

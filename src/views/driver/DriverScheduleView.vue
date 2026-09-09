@@ -2,6 +2,8 @@
 import { ref, computed } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { useDriverStore } from '@/stores/driver';
+import { useDispatchStore } from '@/stores/dispatch';
+import { mockStorage } from '@/services/mockStorage';
 import type { TransportTrip } from '@/types';
 import StatusBadge from '@/components/common/StatusBadge.vue';
 import StartTripModal from '@/components/driver/StartTripModal.vue';
@@ -21,10 +23,15 @@ import {
   Navigation,
   Receipt,
   PlusCircle,
+  Phone,
+  AlertTriangle,
+  ExternalLink,
+  Truck,
 } from 'lucide-vue-next';
 
 const authStore = useAuthStore();
 const driverStore = useDriverStore();
+const dispatchStore = useDispatchStore();
 
 const activeStartTrip = ref<TransportTrip | null>(null);
 const activeCompleteTrip = ref<TransportTrip | null>(null);
@@ -63,6 +70,30 @@ const pendingOrRunningTrips = computed(() =>
   )
 );
 
+// Danh sách các chuyến xe cứu viện được phân công cho tài xế này
+const rescueTrips = computed(() => {
+  return pendingOrRunningTrips.value.filter((t) => t.replacementInfo?.isRescueTrip);
+});
+
+// Chuyến xe của tài xế này nhưng đã được chuyển giao sang xe cứu viện khác
+const myTransferredTrips = computed(() => {
+  const currentDriverId = authStore.currentUser.driverId;
+  const currentPhone = authStore.currentUser.phone;
+  return dispatchStore.trips.filter((t) => {
+    if (!t.replacementInfo) return false;
+    const isOriginalDriver = t.replacementInfo.originalDriverId === currentDriverId ||
+      t.replacementInfo.originalDriverPhone === currentPhone;
+    return isOriginalDriver && t.driverId !== currentDriverId;
+  });
+});
+
+function confirmRescueHandover(trip: TransportTrip) {
+  if (!trip.replacementInfo) return;
+  trip.replacementInfo.handoverStatus = 'HANDED_OVER';
+  dispatchStore.saveState();
+  showToast('Đã xác nhận tiếp nhận bàn giao lô mủ cao su tại hiện trường thành công!');
+}
+
 const finishedTrips = computed(() =>
   myTrips.value.filter((t) => t.status === 'COMPLETED')
 );
@@ -88,6 +119,60 @@ const finishedTrips = computed(() =>
       </div>
     </transition>
 
+    <!-- Banner thông báo cho TÀI XẾ CŨ: Cuốc xe đã được chuyển giao cho xe cứu viện -->
+    <div v-for="t in myTransferredTrips" :key="'transferred-' + t.id" class="transferred-trip-banner mb-4">
+      <div class="banner-icon-box">
+        <Truck :size="24" class="text-amber-600" />
+      </div>
+      <div class="banner-body-text">
+        <div class="flex items-center gap-2">
+          <span class="badge-tag-amber">THÔNG BÁO BÀN GIAO CHUYẾN XE</span>
+          <span class="font-bold text-amber-900 text-sm">Chuyến {{ t.tripCode }} (Xe {{ t.replacementInfo?.originalVehiclePlate }})</span>
+        </div>
+        <p class="text-xs text-amber-900 mt-1">
+          Điều phối viên đã điều động xe cứu viện <strong>{{ t.vehiclePlate }}</strong> do tài xế <strong>{{ t.driverName }}</strong>
+          (SĐT: <a :href="'tel:' + t.driverPhone" class="underline font-bold text-amber-900">{{ t.driverPhone }}</a>)
+          đến hiện trường tiếp quản lô mủ cao su của chuyến xe.
+        </p>
+        <p class="text-xs text-slate-700 mt-1">
+          👉 <strong>Chỉ dẫn tài xế:</strong> Vui lòng giữ an toàn hiện trường, bàn giao hàng hóa/phiếu cân khi xe đến, và chờ xe cứu hộ kỹ thuật tới xử lý vỏ/máy.
+        </p>
+      </div>
+    </div>
+
+    <!-- Banner thông báo cho TÀI XẾ MỚI: Nhận lệnh điều xe cứu viện khẩn cấp -->
+    <div v-for="t in rescueTrips" :key="'rescue-' + t.id" class="rescue-alert-banner mb-4">
+      <div class="banner-icon-box">
+        <span class="rescue-banner-pulse">🚨</span>
+      </div>
+      <div class="banner-body-text">
+        <div class="flex items-center gap-2">
+          <span class="badge-tag-red">LỆNH ĐIỀU ĐỘNG CỨU VIỆN KHẨN CẤP</span>
+          <span class="font-bold text-red-900 text-sm">Chuyến: {{ t.tripCode }}</span>
+        </div>
+        <p class="text-xs text-red-950 mt-1">
+          Bạn được điều động xe <strong>{{ t.vehiclePlate }}</strong> tiếp quản chuyến xe thay cho xe <strong>{{ t.replacementInfo?.originalVehiclePlate }}</strong> gặp sự cố:
+          <em>"{{ t.replacementInfo?.incidentReason }}"</em>.
+        </p>
+        <div class="rescue-quick-actions mt-2.5 flex flex-wrap items-center gap-2 text-xs">
+          <a :href="'tel:' + t.replacementInfo?.originalDriverPhone" class="btn btn-xs btn-outline-danger flex items-center gap-1.5 font-bold">
+            <Phone :size="12" />
+            <span>Gọi tài xế cũ: {{ t.replacementInfo?.originalDriverName }} ({{ t.replacementInfo?.originalDriverPhone }})</span>
+          </a>
+          <a
+            v-if="t.replacementInfo?.incidentGps"
+            :href="'https://www.google.com/maps?q=' + t.replacementInfo?.incidentGps"
+            target="_blank"
+            class="btn btn-xs btn-primary flex items-center gap-1.5 font-bold"
+          >
+            <MapPin :size="12" />
+            <span>Mở Google Maps Dẫn Đường Đến Hiện Trường ({{ t.replacementInfo?.incidentGps }})</span>
+            <ExternalLink :size="11" />
+          </a>
+        </div>
+      </div>
+    </div>
+
     <!-- 1. Danh sách Chuyến đang chờ chạy hoặc Đang chạy -->
     <div class="section-title-wrap mb-3">
       <h3 class="section-heading text-primary">Chuyến Xe Đang Thực Hiện / Phân Công Hôm Nay</h3>
@@ -110,12 +195,14 @@ const finishedTrips = computed(() =>
           'border-accepted': trip.status === 'ACCEPTED',
           'border-running': trip.status === 'INPROGRESS',
           'border-arrived': trip.status === 'ARRIVED',
+          'border-rescue': !!trip.replacementInfo?.isRescueTrip,
         }"
       >
         <div class="trip-card-header">
           <div class="trip-code-box">
             <span class="trip-code">{{ trip.tripCode }}</span>
             <StatusBadge :status="trip.status" />
+            <span v-if="trip.replacementInfo?.isRescueTrip" class="badge-rescue-mini">🚨 Xe Cứu Viện</span>
           </div>
           <span class="veh-plate-badge">{{ trip.vehiclePlate }} ({{ trip.vehicleType }})</span>
         </div>
@@ -199,6 +286,61 @@ const finishedTrips = computed(() =>
               Đã đến điểm chỉ định lúc: <strong>{{ trip.arrivedAt.slice(11) }}</strong>
               <span v-if="trip.arrivalNote"> — "{{ trip.arrivalNote }}"</span>
             </span>
+          </div>
+
+          <!-- Thông tin tiếp nhận cuốc xe sự cố / xe cứu viện -->
+          <div v-if="trip.replacementInfo" class="rescue-card-box mb-3">
+            <div class="rescue-box-header">
+              <AlertTriangle :size="14" class="text-danger" />
+              <strong>TIẾP QUẢN CHUYẾN XE SỰ CỐ DỌC ĐƯỜNG</strong>
+            </div>
+            <div class="rescue-box-grid">
+              <div>
+                <span class="text-muted text-xs">Phương tiện & Tài xế cũ:</span>
+                <div class="font-bold text-red-700">
+                  {{ trip.replacementInfo.originalVehiclePlate }} — {{ trip.replacementInfo.originalDriverName }}
+                </div>
+                <a :href="'tel:' + trip.replacementInfo.originalDriverPhone" class="text-xs text-primary font-bold inline-flex items-center gap-1 mt-0.5">
+                  <Phone :size="11" />
+                  <span>{{ trip.replacementInfo.originalDriverPhone }} (Bấm gọi)</span>
+                </a>
+              </div>
+              <div>
+                <span class="text-muted text-xs">Nguyên nhân điều xe:</span>
+                <div class="text-xs text-danger font-bold mt-0.5">
+                  {{ trip.replacementInfo.incidentReason }}
+                </div>
+                <span class="text-xs text-muted">{{ trip.replacementInfo.incidentLocationDesc }}</span>
+              </div>
+              <div v-if="trip.replacementInfo.incidentGps" class="col-span-full">
+                <span class="text-muted text-xs">Tọa độ hiện trường:</span>
+                <div class="mt-0.5">
+                  <a
+                    :href="'https://www.google.com/maps?q=' + trip.replacementInfo.incidentGps"
+                    target="_blank"
+                    class="btn-maps-route"
+                  >
+                    <MapPin :size="12" class="text-danger" />
+                    <span>{{ trip.replacementInfo.incidentGps }} — Bấm mở Google Maps dẫn đường</span>
+                    <ExternalLink :size="11" />
+                  </a>
+                </div>
+              </div>
+            </div>
+            <div class="rescue-handover-footer mt-2 pt-2 border-t border-red-200">
+              <button
+                v-if="trip.replacementInfo.handoverStatus !== 'HANDED_OVER'"
+                class="btn btn-xs btn-success flex items-center gap-1.5 font-bold shadow-sm"
+                @click="confirmRescueHandover(trip)"
+              >
+                <CheckCircle2 :size="13" />
+                <span>Xác Nhận Đã Đến Hiện Trường & Tiếp Nhận Lô Mủ</span>
+              </button>
+              <div v-else class="text-xs text-success font-bold flex items-center gap-1.5">
+                <CheckCircle2 :size="14" />
+                <span>Đã tiếp nhận bàn giao lô mủ cao su tại hiện trường</span>
+              </div>
+            </div>
           </div>
 
           <!-- Khu vực kê khai chi phí phát sinh & Bằng chứng xác minh trong chuyến -->
@@ -810,9 +952,116 @@ const finishedTrips = computed(() =>
   color: #0284c7;
 }
 
+/* Banner chuyến xe chuyển giao & Cứu viện */
+.transferred-trip-banner {
+  background: #fffbeb;
+  border: 1.5px solid #f59e0b;
+  border-radius: var(--radius-md);
+  padding: 14px 18px;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.1);
+}
+.rescue-alert-banner {
+  background: #fef2f2;
+  border: 1.5px solid #ef4444;
+  border-radius: var(--radius-md);
+  padding: 14px 18px;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  box-shadow: 0 3px 8px rgba(239, 68, 68, 0.15);
+}
+.banner-icon-box {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.rescue-banner-pulse {
+  font-size: 1.6rem;
+  animation: pulse-rescue 1.5s infinite;
+  display: inline-block;
+}
+@keyframes pulse-rescue {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.2); opacity: 0.85; }
+}
+.badge-tag-amber {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fde68a;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 9999px;
+}
+.badge-tag-red {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  letter-spacing: 0.3px;
+}
+.border-rescue {
+  border: 2px solid #ef4444 !important;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.12) !important;
+}
+.badge-rescue-mini {
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.2px;
+}
+.rescue-card-box {
+  background: #fff5f5;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+}
+.rescue-box-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: #991b1b;
+  margin-bottom: 8px;
+  border-bottom: 1px dashed #fca5a5;
+  padding-bottom: 4px;
+}
+.rescue-box-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 12px;
+}
+.btn-maps-route {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.725rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+.btn-maps-route:hover {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
 @media (max-width: 768px) {
   .trip-cards-grid { grid-template-columns: 1fr; }
   .inprogress-actions-row { grid-template-columns: 1fr; }
   .trip-expense-summary-strip { flex-direction: column; align-items: flex-start; }
+  .rescue-box-grid { grid-template-columns: 1fr; }
 }
 </style>
