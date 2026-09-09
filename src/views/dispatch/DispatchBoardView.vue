@@ -538,19 +538,20 @@ function getVehicleTypeLabel(type: string): string {
         <table class="table trips-compact-table">
           <thead>
             <tr>
-              <th style="width: 170px;">Mã Chuyến & Phương Tiện</th>
-              <th style="width: 160px;">Tài Xế Phụ Trách</th>
-              <th style="min-width: 180px;">Lộ Trình / Tuyến Quy Chuẩn</th>
-              <th style="width: 150px;">Thời Gian</th>
-              <th style="width: 140px;">Sản Lượng Mủ</th>
-              <th style="width: 150px;">Chi Phí & Hóa Đơn</th>
-              <th style="width: 130px;">Trạng Thái</th>
+              <th style="width: 165px;">Mã Chuyến & Phương Tiện</th>
+              <th style="width: 155px;">Tài Xế Phụ Trách</th>
+              <th style="min-width: 175px;">Lộ Trình / Tuyến Quy Chuẩn</th>
+              <th style="width: 145px;">Thời Gian</th>
+              <th style="width: 135px;">Sản Lượng Mủ</th>
+              <th style="width: 145px;">Chi Phí & Hóa Đơn</th>
+              <th style="min-width: 185px; width: 200px;">Yêu Cầu Hỗ Trợ</th>
+              <th style="width: 125px;">Trạng Thái</th>
               <th style="width: 110px;" class="text-center">Thao Tác</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="displayedTrips.length === 0">
-              <td colspan="8" class="text-center py-5 text-muted">
+              <td colspan="9" class="text-center py-5 text-muted">
                 Không tìm thấy chuyến xe nào phù hợp với bộ lọc.
               </td>
             </tr>
@@ -568,14 +569,6 @@ function getVehicleTypeLabel(type: string): string {
                 <div class="veh-info-sub">
                   <strong class="veh-plate-text">{{ t.vehiclePlate }}</strong>
                   <span class="veh-type-text">{{ getVehicleTypeLabel(t.vehicleType) }}</span>
-                </div>
-                <div
-                  v-if="getTripIncident(t)"
-                  class="trip-incident-pill mt-1"
-                  :title="getTripIncident(t)?.issueDescription"
-                >
-                  <AlertCircle :size="11" />
-                  <span>{{ getTripIncident(t)?.issueDescription || 'Sự cố dọc đường' }}</span>
                 </div>
               </td>
               <td class="col-driver">
@@ -613,6 +606,16 @@ function getVehicleTypeLabel(type: string): string {
                   </button>
                 </div>
                 <span v-else class="text-xs text-muted">0 đ</span>
+              </td>
+              <!-- Cột Yêu Cầu Hỗ Trợ -->
+              <td class="col-support">
+                <div v-if="getTripIncident(t)" class="support-incident-box" :title="getTripIncident(t)?.issueDescription">
+                  <div class="support-incident-pill">
+                    <AlertCircle :size="13" class="support-icon" />
+                    <span class="support-text">{{ getTripIncident(t)?.issueDescription || 'Sự cố cần hỗ trợ dọc đường' }}</span>
+                  </div>
+                </div>
+                <span v-else class="text-xs text-muted font-mono">—</span>
               </td>
               <td class="col-status">
                 <StatusBadge :status="t.status" />
@@ -1264,21 +1267,38 @@ function getVehicleTypeLabel(type: string): string {
   background-color: #fffbfb !important;
   box-shadow: inset 3px 0 0 #ef4444 !important;
 }
-.trip-incident-pill {
+.col-support {
+  vertical-align: middle;
+}
+.support-incident-box {
+  display: flex;
+  align-items: center;
+}
+.support-incident-pill {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  background: #fee2e2;
+  gap: 6px;
+  background: #fef2f2;
   color: #b91c1c;
   border: 1px solid #fca5a5;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  padding: 2px 7px;
-  border-radius: 9999px;
-  max-width: 170px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  max-width: 220px;
+  line-height: 1.35;
+  box-shadow: 0 1px 2px rgba(220, 38, 38, 0.06);
+}
+.support-incident-pill .support-icon {
+  color: #dc2626;
+  flex-shrink: 0;
+}
+.support-incident-pill .support-text {
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 /* Trips Table Compact & Compound Styles */
