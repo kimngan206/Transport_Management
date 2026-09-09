@@ -15,12 +15,14 @@ import {
   Download,
   X,
   Filter,
+  Edit,
 } from 'lucide-vue-next';
 
 const driverStore = useDriverStore();
 const authStore = useAuthStore();
 
 const activeExpenseTrip = ref<TransportTrip | null>(null);
+const activeEditExpenseId = ref<number | null>(null);
 const previewZoomImage = ref<string | null>(null);
 const filterType = ref<string>('ALL');
 const filterStatus = ref<string>('ALL');
@@ -99,6 +101,15 @@ function openAddExpenseModal() {
 
   if (activeTrip) {
     activeExpenseTrip.value = activeTrip;
+    activeEditExpenseId.value = null;
+  }
+}
+
+function openEditExpenseModal(exp: ExpenseFlatItem) {
+  const trip = myTrips.value.find((t) => t.tripCode === exp.tripCode);
+  if (trip) {
+    activeExpenseTrip.value = trip;
+    activeEditExpenseId.value = exp.id;
   }
 }
 
@@ -158,52 +169,7 @@ function getExpenseTypeBadge(type: TripExpense['expenseType']): string {
       </div>
     </div>
 
-    <!-- 4 Khối thống kê thẩm định chi phí -->
-    <div class="grid-4 mb-4">
-      <div class="stat-card">
-        <div class="stat-icon icon-blue">
-          <Receipt :size="20" />
-        </div>
-        <div class="stat-content">
-          <span class="stat-label">Tổng Chi Phí Kê Khai</span>
-          <strong class="stat-value text-primary">{{ totalExpenseAmount.toLocaleString() }} đ</strong>
-          <span class="stat-sub">Trong {{ allExpenses.length }} khoản chi</span>
-        </div>
-      </div>
 
-      <div class="stat-card">
-        <div class="stat-icon icon-green">
-          <CheckCircle2 :size="20" />
-        </div>
-        <div class="stat-content">
-          <span class="stat-label">Đã Duyệt Hợp Lệ</span>
-          <strong class="stat-value text-success">{{ approvedCount }} / {{ allExpenses.length }}</strong>
-          <span class="stat-sub">{{ verifiedCount }} khoản đã có ảnh hóa đơn</span>
-        </div>
-      </div>
-
-      <div class="stat-card">
-        <div class="stat-icon icon-amber">
-          <Clock :size="20" />
-        </div>
-        <div class="stat-content">
-          <span class="stat-label">Chờ Thẩm Định / Bổ Sung</span>
-          <strong class="stat-value text-amber">{{ pendingCount }}</strong>
-          <span class="stat-sub">Cần bổ sung ảnh chụp rõ</span>
-        </div>
-      </div>
-
-      <div class="stat-card">
-        <div class="stat-icon icon-red">
-          <Ban :size="20" />
-        </div>
-        <div class="stat-content">
-          <span class="stat-label">Từ Chối Thanh Toán</span>
-          <strong class="stat-value text-danger">{{ rejectedCount }}</strong>
-          <span class="stat-sub">Hóa đơn không hợp lệ</span>
-        </div>
-      </div>
-    </div>
 
     <!-- Bảng Danh sách Chi Phí & Bằng Chứng -->
     <div class="card">
@@ -248,11 +214,12 @@ function getExpenseTypeBadge(type: TripExpense['expenseType']): string {
               <th>Bằng Chứng Xác Minh (Hóa Đơn)</th>
               <th>Thời Gian Ghi</th>
               <th>Trạng Thái Thẩm Định</th>
+              <th class="text-end">Thao Tác</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="filteredExpenses.length === 0">
-              <td colspan="7" class="text-center py-5 text-muted">
+              <td colspan="8" class="text-center py-5 text-muted">
                 <div class="empty-state">
                   <Receipt :size="36" class="text-muted mb-2" />
                   <span class="font-bold">Chưa có khoản chi phí nào phù hợp</span>
@@ -311,6 +278,15 @@ function getExpenseTypeBadge(type: TripExpense['expenseType']): string {
                   <span>Chờ Thẩm Định</span>
                 </div>
               </td>
+              <td class="text-end">
+                <button
+                  class="btn btn-outline btn-xs btn-icon-only"
+                  @click="openEditExpenseModal(exp)"
+                  title="Điều chỉnh khoản chi này"
+                >
+                  <Edit :size="14" />
+                </button>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -321,8 +297,9 @@ function getExpenseTypeBadge(type: TripExpense['expenseType']): string {
     <TripExpenseAddModal
       v-if="activeExpenseTrip"
       :trip="activeExpenseTrip"
-      @close="activeExpenseTrip = null"
-      @saved="activeExpenseTrip = null"
+      :editExpenseId="activeEditExpenseId"
+      @close="activeExpenseTrip = null; activeEditExpenseId = null"
+      @saved="activeExpenseTrip = null; activeEditExpenseId = null"
     />
 
     <!-- Lightbox phóng to ảnh hóa đơn -->
@@ -592,6 +569,16 @@ function getExpenseTypeBadge(type: TripExpense['expenseType']): string {
   background: #fef3c7;
   color: #b45309;
   border: 1px solid #fde68a;
+}
+.btn-xs {
+  padding: 4px 8px;
+  font-size: 0.72rem;
+}
+.btn-icon-only {
+  padding: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Badges */

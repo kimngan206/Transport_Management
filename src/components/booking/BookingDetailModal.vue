@@ -108,10 +108,18 @@ function handleCancel() {
           <div class="detail-item">
             <span class="detail-label"><Package :size="14" /> Phương tiện / Tải trọng</span>
             <span class="detail-val">
-              {{ request.vehicleType }}
+              {{ request.vehicleType === 'LatexTruck' ? 'Xe tải chở mủ' : request.vehicleType === 'PassengerCar' ? 'Xe chở người' : 'Máy cán mủ' }}
               <strong v-if="request.estimatedWeightKg"> ({{ request.estimatedWeightKg.toLocaleString() }} kg mủ)</strong>
               <strong v-if="request.passengersCount"> ({{ request.passengersCount }} người)</strong>
             </span>
+          </div>
+          
+          <div v-if="request.vehicleType === 'PassengerCar'" class="detail-item full-width mt-1 p-2 bg-light rounded border">
+            <strong>Thông tin công tác:</strong>
+            <div class="text-sm mt-1">
+              <div>- Giờ đón trả: <strong>{{ request.pickupTime }} ➔ {{ request.dropoffTime }}</strong></div>
+              <div>- Người liên hệ: <strong>{{ request.contactPerson }}</strong> (SĐT: {{ request.contactPhone }})</div>
+            </div>
           </div>
 
           <!-- Lộ trình quy chuẩn trả kết quả cho người đặt xe -->

@@ -181,6 +181,14 @@ function handleEdit() {
                   </span>
                 </span>
               </div>
+              <div class="detail-row" v-if="driver.licenseImageUrl" style="flex-direction: column; align-items: flex-start; gap: 8px;">
+                <span class="lbl">Ảnh giấy phép lái xe:</span>
+                <span class="val">
+                  <a :href="driver.licenseImageUrl" target="_blank" title="Bấm để xem ảnh lớn">
+                    <img :src="driver.licenseImageUrl" alt="GPLX" class="rounded border" style="max-height: 150px; max-width: 100%; object-fit: contain;" />
+                  </a>
+                </span>
+              </div>
             </div>
           </div>
         </div>

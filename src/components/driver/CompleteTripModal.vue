@@ -184,7 +184,7 @@ const totalLatexKg = computed(() => {
 });
 
 const calculatedDistance = computed(() => {
-  if (vehicle?.vehicleType === 'Excavator') return 0;
+  if (vehicle?.vehicleType === 'MillingMachine') return 0;
   return Math.max(0, Number(endOdo.value || 0) - startOdo);
 });
 
@@ -192,13 +192,13 @@ const calculatedFuelLiters = computed(() => {
   if (!vehicle) return 0;
   const dist = props.trip.standardDistanceKm || calculatedDistance.value;
 
-  if (vehicle.vehicleType === 'Truck') {
+  if (vehicle.vehicleType === 'LatexTruck') {
     const emptyFuel = dist * (vehicle.fuelQuotaEmpty || 0.25);
     const loadedFuel = (totalLatexKg.value / 1000) * dist * (vehicle.fuelQuotaLoaded || 0.02);
     return Number((emptyFuel + loadedFuel).toFixed(2));
-  } else if (vehicle.vehicleType === 'Pickup') {
+  } else if (vehicle.vehicleType === 'PassengerCar') {
     return Number((dist * (vehicle.fuelQuotaEmpty || 0.1)).toFixed(2));
-  } else if (vehicle.vehicleType === 'Excavator') {
+  } else if (vehicle.vehicleType === 'MillingMachine') {
     const hours = Math.max(0, Number(endHour.value || 0) - Number(startHour.value || 0));
     return Number((hours * (vehicle.hourMeterQuota || 14.5)).toFixed(2));
   }
@@ -212,7 +212,7 @@ const fuelVariance = computed(() => {
 function handleComplete() {
   errorMsg.value = '';
 
-  if (vehicle?.vehicleType !== 'Excavator' && Number(endOdo.value) < startOdo) {
+  if (vehicle?.vehicleType !== 'MillingMachine' && Number(endOdo.value) < startOdo) {
     errorMsg.value = 'Chỉ số ODO về bến không thể nhỏ hơn ODO xuất bến!';
     dialog.showWarning('Chỉ số ODO về bến không thể nhỏ hơn ODO lúc xuất bến!', 'Sai Lệch Chỉ Số ODO', 'Kiểm tra lại');
     return;
@@ -225,8 +225,8 @@ function handleComplete() {
     weightLatex2Kg: 0,
     weightLatex3Kg: 0,
     weightLatexTapKg: Number(latexScrapKg.value),
-    startHourMeter: vehicle?.vehicleType === 'Excavator' ? Number(startHour.value) : undefined,
-    endHourMeter: vehicle?.vehicleType === 'Excavator' ? Number(endHour.value) : undefined,
+    startHourMeter: vehicle?.vehicleType === 'MillingMachine' ? Number(startHour.value) : undefined,
+    endHourMeter: vehicle?.vehicleType === 'MillingMachine' ? Number(endHour.value) : undefined,
     expenses: expenses.value.filter((e) => e.amount > 0),
     notes: notes.value,
   });
@@ -262,7 +262,7 @@ function handleComplete() {
         </div>
 
         <!-- 1. Chỉ số ODO hoặc Giờ máy -->
-        <div v-if="vehicle?.vehicleType !== 'Excavator'" class="grid-2 section-box">
+        <div v-if="vehicle?.vehicleType !== 'MillingMachine'" class="grid-2 section-box">
           <div class="form-group">
             <label class="form-label">Chỉ số ODO xuất bến</label>
             <input :value="startOdo.toLocaleString() + ' km'" disabled class="form-input bg-gray" />
@@ -299,7 +299,7 @@ function handleComplete() {
         </div>
 
         <!-- 2. Khối lượng mủ cao su thu hoạch -->
-        <div v-if="vehicle?.vehicleType === 'Truck'" class="section-box mt-3">
+        <div v-if="vehicle?.vehicleType === 'LatexTruck'" class="section-box mt-3">
           <h4 class="section-title">Khối lượng mủ thu hoạch</h4>
           <div class="grid-2">
             <div class="form-group">

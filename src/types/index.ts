@@ -23,7 +23,7 @@ export interface Department {
   managerId: number;
 }
 
-export type VehicleType = 'Truck' | 'Pickup' | 'Excavator';
+export type VehicleType = 'LatexTruck' | 'PassengerCar' | 'MillingMachine';
 export type VehicleOperationalStatus = 'Available' | 'OnTrip' | 'UnderMaintenance' | 'Broken';
 export type MaintenanceStatus = 'Normal' | 'Due' | 'Overdue';
 
@@ -61,6 +61,10 @@ export interface Vehicle {
   assignedDriverId?: number;
   assignedDriverName?: string;
   assignedDriverPhone?: string;
+  
+  // Các thuộc tính mở rộng
+  teamName?: string; // Phân loại theo đội (dành cho LatexTruck)
+  isExternal?: boolean; // Xe ngoài không cần quản lý bảo trì (dành cho PassengerCar)
 }
 
 export interface Driver {
@@ -72,6 +76,7 @@ export interface Driver {
   licenseNumber: string;
   licenseClass: string; // Hạng B2, C, D, E, FC...
   licenseExpiryDate: string;
+  licenseImageUrl?: string;
   employmentStatus: 'Active' | 'OnLeave' | 'Suspended';
   isCurrentlyOnTrip: boolean;
 }
@@ -112,6 +117,12 @@ export interface TransportRequest {
   purpose: string;
   passengersCount?: number;
   estimatedWeightKg?: number; // Khối lượng mủ / hàng dự kiến (kg)
+  
+  // Thuộc tính riêng cho xe chở người / xe ngoài
+  pickupTime?: string;
+  dropoffTime?: string;
+  contactPerson?: string;
+  contactPhone?: string;
   status: RequestStatus;
   rejectionReason?: string;
   approvedById?: number;
@@ -152,6 +163,12 @@ export interface TransportTrip {
   startOdo?: number;
   endOdo?: number;
   actualDistanceKm?: number;
+  
+  // Thuộc tính cho xe chở người / xe ngoài
+  pickupTime?: string;
+  dropoffTime?: string;
+  contactPerson?: string;
+  contactPhone?: string;
   
   // Sản lượng mủ (đặc thù xe tải chở mủ cao su)
   weightLatex1Kg?: number; // Mủ nước 1
@@ -219,7 +236,9 @@ export interface MaintenanceRecord {
   vehicleId: number;
   vehiclePlate: string;
   incidentReportId?: number;
-  maintenanceType: 'Periodic5000Km' | 'AccidentRepair' | 'TireChange' | 'HydraulicRepair' | 'Other';
+  maintenanceTypeId?: number;      // ID danh mục bảo dưỡng (MaintenanceType)
+  maintenanceTypeName?: string;    // Tên danh mục để hiển thị nhanh
+  maintenanceType?: string;        // Backward compat (enum cũ)
   maintenanceOdo: number;
   cost: number;
   garageName: string;
@@ -239,12 +258,21 @@ export interface VehicleOdoHistory {
   recordedBy: string;
 }
 
+export interface VehicleAssignmentHistory {
+  id: number;
+  vehicleId: number;
+  driverId?: number;
+  driverName?: string;
+  assignedFrom: string;
+  assignedTo?: string;
+  notes?: string;
+}
+
 export interface MaintenanceType {
   id: number;
   code: string;
   name: string;
   group: 'Bảo dưỡng định kỳ' | 'Sửa chữa phục hồi' | 'Hệ thống chuyên dụng';
-  applicableVehicleType: 'All' | 'Truck' | 'Pickup' | 'Excavator';
   cycleKm?: number;
   cycleMonths?: number;
   cycleHours?: number;
@@ -253,4 +281,5 @@ export interface MaintenanceType {
   description: string;
   checklistItems: string[];
   isActive: boolean;
+  assignedVehicleIds: number[]; // DS xe cụ thể áp dụng danh mục này ([] = chưa gán)
 }

@@ -15,6 +15,7 @@ import {
   Fuel,
   Info,
   Edit2,
+  UserCog,
 } from 'lucide-vue-next';
 
 const props = defineProps<{
@@ -50,7 +51,7 @@ const overdueKm = computed(() => {
 
 // Phần trăm tiến trình chu kỳ định mức
 const progressPercent = computed(() => {
-  if (props.vehicle.vehicleType === 'Excavator') return 0;
+  if (props.vehicle.vehicleType === 'MillingMachine') return 0;
   return Math.min(100, Math.max(0, Math.round((distanceSinceLastMaint.value / maintenanceThreshold.value) * 100)));
 });
 
@@ -59,12 +60,17 @@ const vehicleMaintenanceHistory = computed(() => {
   return fleetStore.maintenances.filter((m) => m.vehicleId === props.vehicle.id);
 });
 
+// Lịch sử phân công tài xế
+const driverAssignmentHistory = computed(() => {
+  return fleetStore.getDriverAssignmentsByVehicleId(props.vehicle.id);
+});
+
 // Dịch loại xe sang tiếng Việt
 function getVehicleTypeLabel(type: string): string {
   switch (type) {
-    case 'Truck': return 'Xe tải chở mủ';
-    case 'Pickup': return 'Bán tải công tác';
-    case 'Excavator': return 'Máy đào mương / san ủi';
+    case 'LatexTruck': return 'Xe tải chở mủ';
+    case 'PassengerCar': return 'Bán tải công tác';
+    case 'MillingMachine': return 'Máy đào mương / san ủi';
     default: return type;
   }
 }
@@ -138,7 +144,7 @@ function handleGoToMaintenanceTypes() {
           </div>
         </div>
 
-        <div v-else-if="vehicle.vehicleType !== 'Excavator'" class="alert alert-success-custom mb-4">
+        <div v-else-if="vehicle.vehicleType !== 'MillingMachine'" class="alert alert-success-custom mb-4">
           <CheckCircle2 :size="20" class="text-success" />
           <div class="alert-content">
             <strong>Tình trạng chu kỳ bảo dưỡng: Bình thường</strong>
@@ -147,7 +153,7 @@ function handleGoToMaintenanceTypes() {
         </div>
 
         <!-- 2. Thẻ Tiến Trình Chu Kỳ Định Mức (Visual Meter) -->
-        <div v-if="vehicle.vehicleType !== 'Excavator'" class="maint-meter-card mb-4">
+        <div v-if="vehicle.vehicleType !== 'MillingMachine'" class="maint-meter-card mb-4">
           <div class="meter-header">
             <div class="meter-title">
               <Gauge :size="16" />
@@ -271,15 +277,15 @@ function handleGoToMaintenanceTypes() {
                   <span v-if="vehicle.passengerCapacity">({{ vehicle.passengerCapacity }} chỗ ngồi)</span>
                 </span>
               </div>
-              <div v-if="vehicle.vehicleType !== 'Excavator'" class="spec-row">
+              <div v-if="vehicle.vehicleType !== 'MillingMachine'" class="spec-row">
                 <span class="spec-label">Định mức không tải (NLP)</span>
                 <span class="spec-val"><strong>{{ vehicle.fuelQuotaEmpty }}</strong> L/km</span>
               </div>
-              <div v-if="vehicle.vehicleType === 'Truck'" class="spec-row">
+              <div v-if="vehicle.vehicleType === 'LatexTruck'" class="spec-row">
                 <span class="spec-label">Định mức có tải (NLC)</span>
                 <span class="spec-val"><strong>{{ vehicle.fuelQuotaLoaded }}</strong> L/tấn.km</span>
               </div>
-              <div v-if="vehicle.vehicleType === 'Excavator'" class="spec-row">
+              <div v-if="vehicle.vehicleType === 'MillingMachine'" class="spec-row">
                 <span class="spec-label">Định mức giờ máy</span>
                 <span class="spec-val"><strong>{{ vehicle.hourMeterQuota }}</strong> L/giờ</span>
               </div>
@@ -325,6 +331,50 @@ function handleGoToMaintenanceTypes() {
                   <td class="font-bold text-success">{{ rec.cost.toLocaleString() }} đ</td>
                   <td>{{ rec.garageName }}</td>
                   <td class="text-muted text-xs">{{ rec.replacedParts || '—' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 5. Lịch Sử Phân Công Tài Xế -->
+        <div class="history-section card-inner mt-4">
+          <div class="flex-between mb-3">
+            <h5 class="group-heading mb-0">
+              <UserCog :size="15" />
+              <span>Lịch Sử Phân Công Tài Xế ({{ driverAssignmentHistory.length }})</span>
+            </h5>
+          </div>
+
+          <div v-if="driverAssignmentHistory.length === 0" class="empty-history text-muted">
+            <Info :size="16" />
+            <span>Chưa có dữ liệu lịch sử phân công tài xế cho xe này.</span>
+          </div>
+
+          <div v-else class="table-container">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>Trạng Thái</th>
+                  <th>Ngày Nhận</th>
+                  <th>Ngày Trả</th>
+                  <th>Tài Xế Phụ Trách</th>
+                  <th>Ghi Chú</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="assign in driverAssignmentHistory" :key="assign.id">
+                  <td>
+                    <span v-if="!assign.assignedTo" class="badge badge-dispatched text-xs">Đang phụ trách</span>
+                    <span v-else class="badge badge-completed text-xs">Đã kết thúc</span>
+                  </td>
+                  <td><span class="text-xs">{{ assign.assignedFrom }}</span></td>
+                  <td>
+                    <span v-if="assign.assignedTo" class="text-xs text-muted">{{ assign.assignedTo }}</span>
+                    <span v-else class="text-xs text-muted">—</span>
+                  </td>
+                  <td><strong>{{ assign.driverName || '—' }}</strong></td>
+                  <td class="text-muted text-xs">{{ assign.notes || '—' }}</td>
                 </tr>
               </tbody>
             </table>

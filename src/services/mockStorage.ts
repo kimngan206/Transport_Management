@@ -11,6 +11,7 @@ import {
   initialMaintenanceRecords,
   initialMaintenanceTypes,
   initialEcotechHubs,
+  initialVehicleAssignments,
 } from '@/mocks';
 import type {
   User,
@@ -24,6 +25,7 @@ import type {
   IncidentReport,
   MaintenanceRecord,
   MaintenanceType,
+  VehicleAssignmentHistory,
 } from '@/types';
 import type { HubLocation } from '@/types/map';
 
@@ -45,6 +47,7 @@ export const STORAGE_KEYS = {
   HANDOVERS: 'qldv_handovers',
   DRIVER_INCIDENTS: 'qldv_driver_incidents',
   ECOTECH_ROUTES: 'qldv_ecotech_routes',
+  DRIVER_ASSIGNMENTS: 'qldv_driver_assignments',
   DATA_VERSION: 'qldv_data_version',
 } as const;
 
@@ -110,6 +113,7 @@ export function cleanupBloatedCookies(): void {
     STORAGE_KEYS.HANDOVERS,
     STORAGE_KEYS.DRIVER_INCIDENTS,
     STORAGE_KEYS.ECOTECH_ROUTES,
+    STORAGE_KEYS.DRIVER_ASSIGNMENTS,
   ];
   heavyCookieKeys.forEach((key) => deleteCookie(key));
 }
@@ -254,6 +258,7 @@ function checkAndMigrateStorage() {
     initIfMissing(STORAGE_KEYS.MAINTENANCES, initialMaintenanceRecords);
     initIfMissing(STORAGE_KEYS.MAINTENANCE_TYPES, initialMaintenanceTypes);
     initIfMissing(STORAGE_KEYS.HUBS, initialEcotechHubs);
+    initIfMissing(STORAGE_KEYS.DRIVER_ASSIGNMENTS, initialVehicleAssignments);
 
     // Cập nhật phiên bản mà không xóa đè dữ liệu của người dùng
     if (typeof localStorage !== 'undefined') localStorage.setItem(STORAGE_KEYS.DATA_VERSION, CURRENT_DATA_VERSION);
@@ -295,6 +300,7 @@ export const mockStorage = {
     saveToStorage(STORAGE_KEYS.MAINTENANCES, initialMaintenanceRecords);
     saveToStorage(STORAGE_KEYS.MAINTENANCE_TYPES, initialMaintenanceTypes);
     saveToStorage(STORAGE_KEYS.HUBS, initialEcotechHubs);
+    saveToStorage(STORAGE_KEYS.DRIVER_ASSIGNMENTS, initialVehicleAssignments);
     saveToStorage(STORAGE_KEYS.CURRENT_USER_ID, 3, true);
     saveToStorage(STORAGE_KEYS.ACTIVE_ROLE, 'Dispatcher', true);
 
@@ -349,11 +355,27 @@ export const mockStorage = {
   },
 
   getDrivers(): Driver[] {
-    const res = getFromStorage(STORAGE_KEYS.DRIVERS, initialDrivers);
+    const res = getFromStorage<Driver[]>(STORAGE_KEYS.DRIVERS, initialDrivers);
     if (!Array.isArray(res) || res.length === 0) {
       saveToStorage(STORAGE_KEYS.DRIVERS, initialDrivers);
       return [...initialDrivers];
     }
+    
+    // Auto-migrate: bổ sung ảnh mẫu cho dữ liệu cũ nếu chưa có
+    let modified = false;
+    res.forEach((d) => {
+      if (d.id <= 4 && !d.licenseImageUrl) {
+        const match = initialDrivers.find(idr => idr.id === d.id);
+        if (match && match.licenseImageUrl) {
+          d.licenseImageUrl = match.licenseImageUrl;
+          modified = true;
+        }
+      }
+    });
+    if (modified) {
+      saveToStorage(STORAGE_KEYS.DRIVERS, res);
+    }
+    
     return res;
   },
   saveDrivers(data: Driver[]) {
@@ -425,6 +447,18 @@ export const mockStorage = {
     if (!Array.isArray(res) || res.length === 0) {
       saveToStorage(STORAGE_KEYS.MAINTENANCE_TYPES, initialMaintenanceTypes);
       return [...initialMaintenanceTypes];
+    }
+    // Auto-migrate: đảm bảo mỗi loại bảo dưỡng có assignedVehicleIds
+    let modified = false;
+    res.forEach((m) => {
+      if (!Array.isArray(m.assignedVehicleIds)) {
+        const match = initialMaintenanceTypes.find((im) => im.id === m.id);
+        m.assignedVehicleIds = match?.assignedVehicleIds ? [...match.assignedVehicleIds] : [];
+        modified = true;
+      }
+    });
+    if (modified) {
+      saveToStorage(STORAGE_KEYS.MAINTENANCE_TYPES, res);
     }
     return res;
   },
@@ -517,6 +551,20 @@ export const mockStorage = {
   },
   saveEcotechRoutes<T = any>(data: T[]) {
     saveToStorage(STORAGE_KEYS.ECOTECH_ROUTES, data);
+  },
+
+  // LỊCH SỬ PHÂN CÔNG TÀI XẾ (DRIVER ASSIGNMENTS)
+  getDriverAssignments(defaultAssignments: VehicleAssignmentHistory[] = []): VehicleAssignmentHistory[] {
+    const fallback = (defaultAssignments && defaultAssignments.length > 0 ? defaultAssignments : (initialVehicleAssignments as VehicleAssignmentHistory[]));
+    const res = getFromStorage<VehicleAssignmentHistory[]>(STORAGE_KEYS.DRIVER_ASSIGNMENTS, fallback);
+    if (!Array.isArray(res)) {
+      saveToStorage(STORAGE_KEYS.DRIVER_ASSIGNMENTS, fallback);
+      return [...fallback];
+    }
+    return res;
+  },
+  saveDriverAssignments(data: VehicleAssignmentHistory[]) {
+    saveToStorage(STORAGE_KEYS.DRIVER_ASSIGNMENTS, data);
   },
 
   getStorageHealth() {

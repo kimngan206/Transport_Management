@@ -58,6 +58,13 @@ const selectedVehicle = computed(() => {
   return fleetStore.vehicles.find((v) => v.id === Number(vehicleId.value));
 });
 
+// Tự động gán tài xế khi chọn phương tiện
+watch(vehicleId, (newId) => {
+  if (newId && selectedVehicle.value && selectedVehicle.value.assignedDriverId) {
+    driverId.value = selectedVehicle.value.assignedDriverId;
+  }
+});
+
 function getVehicleStatusLabel(status: string): string {
   switch (status) {
     case 'Available': return 'Sẵn sàng';
@@ -70,8 +77,11 @@ function getVehicleStatusLabel(status: string): string {
 
 function getVehicleTypeLabel(type: string): string {
   switch (type) {
+    case 'LatexTruck':
     case 'Truck': return 'Xe tải';
+    case 'PassengerCar':
     case 'Pickup': return 'Bán tải';
+    case 'MillingMachine':
     case 'Excavator': return 'Máy đào';
     default: return type;
   }
@@ -102,6 +112,15 @@ const routeMatchResult = computed(() => {
     };
   }
   const first = currentSelectedRequests.value[0];
+  if (first.vehicleType === 'PassengerCar' || first.vehicleType === 'Pickup') {
+    return {
+      route: fleetStore.routes.find(r => r.id === 999) || fleetStore.routes[0],
+      score: 100,
+      reason: 'Tuyến đường tùy chỉnh theo yêu cầu',
+      matchedFromHub: null,
+      matchedToHub: null,
+    };
+  }
   return suggestOptimalRoute(fleetStore.routes, first.fromLocation, first.toLocation);
 });
 
@@ -165,9 +184,9 @@ const condition3_SameRoute = computed(() => {
 
 const condition4_Capacity = computed(() => {
   if (!selectedVehicle.value) return true;
-  if (selectedVehicle.value.vehicleType === 'Truck') {
+  if (selectedVehicle.value.vehicleType === 'LatexTruck') {
     return totalWeightKg.value <= selectedVehicle.value.capacityTons * 1000;
-  } else if (selectedVehicle.value.vehicleType === 'Pickup') {
+  } else if (selectedVehicle.value.vehicleType === 'PassengerCar') {
     return totalPassengers.value <= (selectedVehicle.value.passengerCapacity || 5);
   }
   return true;
@@ -352,7 +371,12 @@ function handleDispatch() {
           <p v-if="currentSelectedRequests.length > 0" class="route-match-hint">
             Dựa trên yêu cầu từ <strong>{{ currentSelectedRequests[0].fromLocation }}</strong>
             <span v-if="currentSelectedRequests[0].toLocation"> ➔ <strong>{{ currentSelectedRequests[0].toLocation }}</strong></span>:
-            Hệ thống đã tự động tra cứu danh mục tuyến quy chuẩn và gợi ý tuyến tối ưu xuất phát từ trạm/nông trường gần nhất.
+            <span v-if="currentSelectedRequests[0].vehicleType === 'PassengerCar' || currentSelectedRequests[0].vehicleType === 'Pickup'">
+              Vì đây là yêu cầu cho xe chở người / xe công tác, hệ thống tự động áp dụng Lộ trình tùy chỉnh.
+            </span>
+            <span v-else>
+              Hệ thống đã tự động tra cứu danh mục tuyến quy chuẩn và gợi ý tuyến tối ưu xuất phát từ trạm/nông trường gần nhất.
+            </span>
           </p>
 
           <div class="form-group mb-3">

@@ -11,6 +11,7 @@ import StatusBadge from '@/components/common/StatusBadge.vue';
 import BatchTripModal from '@/components/dispatch/BatchTripModal.vue';
 import FleetDispatchMap from '@/components/dispatch/FleetDispatchMap.vue';
 import TripExpensesModal from '@/components/common/TripExpensesModal.vue';
+import EditTripModal from '@/components/dispatch/EditTripModal.vue';
 import {
   Layers,
   Truck,
@@ -24,6 +25,7 @@ import {
   Check,
   X,
   Clock,
+  Edit2,
 } from 'lucide-vue-next';
 
 const route = useRoute();
@@ -34,6 +36,7 @@ const dispatchStore = useDispatchStore();
 const fleetStore = useFleetStore();
 const dialog = useDialogStore();
 const viewExpensesTrip = ref<any>(null);
+const editingTrip = ref<TransportTrip | null>(null);
 const fleetMapRef = ref<InstanceType<typeof FleetDispatchMap> | null>(null);
 
 // Chế độ xem: 'map' (Bản đồ & Lộ trình GPS) hoặc 'board' (Bảng thẻ Kanban 3 cột)
@@ -186,11 +189,11 @@ function getVehicleStatusLabel(status: string): string {
 // Chuyển đổi loại xe sang tiếng Việt
 function getVehicleTypeLabel(type: string): string {
   switch (type) {
-    case 'Truck':
+    case 'LatexTruck':
       return 'Xe tải';
-    case 'Pickup':
+    case 'PassengerCar':
       return 'Bán tải';
-    case 'Excavator':
+    case 'MillingMachine':
       return 'Máy đào';
     default:
       return type;
@@ -415,7 +418,7 @@ function getVehicleTypeLabel(type: string): string {
             </div>
 
             <div class="veh-metrics">
-              <span v-if="v.vehicleType !== 'Excavator'">
+              <span v-if="v.vehicleType !== 'MillingMachine'">
                 ODO: <strong>{{ v.currentOdoKm.toLocaleString() }} km</strong>
               </span>
               <span v-else>
@@ -490,17 +493,20 @@ function getVehicleTypeLabel(type: string): string {
               <th>Sản Lượng Mủ (kg)</th>
               <th>Chi Phí & Bằng Chứng</th>
               <th>Trạng Thái</th>
+              <th class="text-center">Thao Tác</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="trips.length === 0">
-              <td colspan="9" class="text-center py-5 text-muted">
+              <td colspan="10" class="text-center py-5 text-muted">
                 Chưa có chuyến xe nào được điều phối.
               </td>
             </tr>
 
             <tr v-for="t in trips" :key="t.id">
-              <td><strong>{{ t.tripCode }}</strong></td>
+              <td>
+                <strong>{{ t.tripCode }}</strong>
+              </td>
               <td>
                 <div class="flex-col">
                   <strong>{{ t.vehiclePlate }}</strong>
@@ -552,6 +558,13 @@ function getVehicleTypeLabel(type: string): string {
               <td>
                 <StatusBadge :status="t.status" />
               </td>
+              <td>
+                <div class="flex justify-center">
+                  <button class="btn btn-icon btn-sm text-primary" @click="editingTrip = t" title="Sửa thông tin điều động">
+                    <Edit2 :size="15" />
+                  </button>
+                </div>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -564,6 +577,14 @@ function getVehicleTypeLabel(type: string): string {
       :initial-selected-requests="preselectedRequests"
       @close="showBatchModal = false"
       @dispatched="showBatchModal = false"
+    />
+
+    <!-- Modal Sửa Chuyến Xe -->
+    <EditTripModal
+      v-if="editingTrip"
+      :trip="editingTrip"
+      @close="editingTrip = null"
+      @updated="editingTrip = null"
     />
 
     <!-- Modal Xem Chi tiết & Thẩm định Bằng chứng Chi phí -->

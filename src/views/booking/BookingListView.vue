@@ -83,9 +83,9 @@ const filteredRequests = computed(() => {
       return false;
     }
     if (filterCargoType.value !== 'ALL') {
-      if (filterCargoType.value === 'LATEX_LIQUID' && (!r.estimatedWeightKg || r.vehicleType !== 'Truck')) return false;
-      if (filterCargoType.value === 'EXCAVATOR' && r.vehicleType !== 'Excavator') return false;
-      if (filterCargoType.value === 'PASSENGER' && (!r.passengersCount || r.vehicleType !== 'Pickup')) return false;
+      if (filterCargoType.value === 'LATEX_LIQUID' && (!r.estimatedWeightKg || r.vehicleType !== 'LatexTruck')) return false;
+      if (filterCargoType.value === 'MillingMachine' && r.vehicleType !== 'MillingMachine') return false;
+      if (filterCargoType.value === 'PASSENGER' && (!r.passengersCount || r.vehicleType !== 'PassengerCar')) return false;
     }
     if (searchKeyword.value) {
       const q = searchKeyword.value.toLowerCase().trim();
@@ -140,80 +140,6 @@ function getInitials(name: string): string {
       </button>
     </div>
 
-    <!-- Dải 4 Thẻ KPI Tóm Tắt Sản Lượng Mủ & Chuyến Xe -->
-    <div class="kpi-strip-grid">
-      <!-- 1. Tổng sản lượng mủ đặt xe -->
-      <div
-        class="kpi-mini-card"
-        :class="{ active: filterStatus === 'ALL' }"
-        @click="setFilterStatus('ALL')"
-      >
-        <div class="kpi-icon-wrap icon-emerald">
-          <Droplets :size="18" />
-        </div>
-        <div class="kpi-meta">
-          <span class="kpi-label">Sản Lượng Đặt Chuyển</span>
-          <div class="kpi-val-row">
-            <span class="kpi-value text-emerald">{{ totalLatexKg.toLocaleString() }}</span>
-            <span class="kpi-unit">kg mủ</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- 2. Chờ phê duyệt -->
-      <div
-        class="kpi-mini-card"
-        :class="{ active: filterStatus === 'PENDING' }"
-        @click="setFilterStatus('PENDING')"
-      >
-        <div class="kpi-icon-wrap icon-amber">
-          <Clock :size="18" />
-        </div>
-        <div class="kpi-meta">
-          <span class="kpi-label">Chờ Lãnh Đạo Duyệt</span>
-          <div class="kpi-val-row">
-            <span class="kpi-value text-amber">{{ pendingCount }}</span>
-            <span class="kpi-unit">yêu cầu</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- 3. Đã duyệt / Chờ điều phối xe bồn -->
-      <div
-        class="kpi-mini-card"
-        :class="{ active: filterStatus === 'APPROVED' }"
-        @click="setFilterStatus('APPROVED')"
-      >
-        <div class="kpi-icon-wrap icon-blue">
-          <Truck :size="18" />
-        </div>
-        <div class="kpi-meta">
-          <span class="kpi-label">Chờ Ghép Chuyến Bồn</span>
-          <div class="kpi-val-row">
-            <span class="kpi-value text-blue">{{ approvedCount }}</span>
-            <span class="kpi-unit">chuyến mủ</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- 4. Đã hoàn thành nhập nhà máy -->
-      <div
-        class="kpi-mini-card"
-        :class="{ active: filterStatus === 'COMPLETED' }"
-        @click="setFilterStatus('COMPLETED')"
-      >
-        <div class="kpi-icon-wrap icon-slate">
-          <Check :size="18" />
-        </div>
-        <div class="kpi-meta">
-          <span class="kpi-label">Đã Nhập Kho Chế Biến</span>
-          <div class="kpi-val-row">
-            <span class="kpi-value text-slate">{{ completedCount }}</span>
-            <span class="kpi-unit">chuyến</span>
-          </div>
-        </div>
-      </div>
-    </div>
 
     <!-- Thanh Tìm Kiếm & Lọc Hiện Đại Chuẩn Ngành -->
     <div class="filter-toolbar card">
@@ -346,14 +272,14 @@ function getInitials(name: string): string {
               <!-- 4. Loại xe nông trường -->
               <td class="col-type">
                 <span class="type-badge" :class="r.vehicleType.toLowerCase()">
-                  <Truck v-if="r.vehicleType === 'Truck'" :size="12" />
-                  <Car v-else-if="r.vehicleType === 'Pickup'" :size="12" />
+                  <Truck v-if="r.vehicleType === 'LatexTruck'" :size="12" />
+                  <Car v-else-if="r.vehicleType === 'PassengerCar'" :size="12" />
                   <Layers v-else :size="12" />
                   <span>
                     {{
-                      r.vehicleType === 'Truck'
+                      r.vehicleType === 'LatexTruck'
                         ? (r.estimatedWeightKg && r.estimatedWeightKg >= 1000 ? 'Xe Bồn Xi-Téc' : 'Xe Tải Mủ')
-                        : r.vehicleType === 'Pickup'
+                        : r.vehicleType === 'PassengerCar'
                         ? 'Bán Tải Tuần Tra'
                         : 'Máy Xúc Lô Vườn'
                     }}

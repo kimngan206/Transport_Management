@@ -504,7 +504,7 @@ function getSeverityBadge(sev: DriverIncident['severity']) {
 .pill-amber { background: #fef3c7; color: #b45309; }
 .pill-red { background: #fee2e2; color: #991b1b; }
 
-.modal-md { max-width: 580px; width: 95%; }
+.modal-md { max-width: 750px; width: 95%; }
 .hidden-input { display: none; }
 .upload-btn { cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
 .proof-box-preview {

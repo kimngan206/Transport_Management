@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useFleetStore } from '@/stores/fleet';
 import { useAuthStore } from '@/stores/auth';
 import { useDialogStore } from '@/stores/dialog';
@@ -21,13 +21,95 @@ const incVehId = ref<number | ''>('');
 const incDesc = ref('');
 const incSeverity = ref<'Warning' | 'StopOperation'>('Warning');
 
-// Form Maintenance
+// Form Maintenance — chọn danh mục bảo dưỡng trước, rồi chọn xe cụ thể
 const recVehId = ref<number | ''>('');
-const recType = ref<'Periodic5000Km' | 'AccidentRepair' | 'TireChange' | 'HydraulicRepair' | 'Other'>('Periodic5000Km');
-const recOdo = ref(126000);
-const recCost = ref(2500000);
-const recGarage = ref('Gara Cao Su Trung Tâm');
-const recParts = ref('Thay dầu nhớt động cơ, lọc dầu, cân chỉnh áp suất lốp');
+const recMaintenanceTypeId = ref<number | ''>('');
+const recOdo = ref<number>(0);
+const recCost = ref<number>(0);
+const recGarage = ref('');
+const recParts = ref('');
+
+// Danh mục bảo dưỡng đang hoạt động
+const activeMaintenanceTypes = computed(() =>
+  fleetStore.maintenanceTypes.filter((m) => m.isActive)
+);
+
+// Danh mục bảo dưỡng đang chọn (để auto-fill chi phí, checklist)
+const selectedMaintenanceType = computed(() =>
+  fleetStore.maintenanceTypes.find((m) => m.id === Number(recMaintenanceTypeId.value)) ?? null
+);
+
+// Xe đang chọn (để auto-fill ODO và đối chiếu)
+const selectedVehicle = computed(() =>
+  fleetStore.vehicles.find((v) => v.id === Number(recVehId.value)) ?? null
+);
+
+// Danh sách xe được cấu hình riêng cho danh mục này
+const configuredVehiclesForType = computed(() => {
+  if (!selectedMaintenanceType.value) return fleetStore.vehicles;
+  const assigned = selectedMaintenanceType.value.assignedVehicleIds || [];
+  if (assigned.length === 0) return fleetStore.vehicles;
+  return fleetStore.vehicles.filter((v) => assigned.includes(v.id));
+});
+
+// Danh sách các xe khác trong đội xe
+const otherVehiclesForType = computed(() => {
+  if (!selectedMaintenanceType.value) return [];
+  const assigned = selectedMaintenanceType.value.assignedVehicleIds || [];
+  if (assigned.length === 0) return [];
+  return fleetStore.vehicles.filter((v) => !assigned.includes(v.id));
+});
+
+// Auto-fill chi phí và nội dung khi chọn danh mục
+watch(selectedMaintenanceType, (mt) => {
+  if (mt) {
+    recCost.value = mt.estimatedCost;
+    recParts.value = mt.checklistItems.join(', ');
+    // Nếu xe đang chọn không thuộc danh sách áp dụng, gợi ý chọn xe đầu tiên trong danh sách áp dụng (nếu có)
+    const assigned = mt.assignedVehicleIds || [];
+    if (assigned.length > 0 && recVehId.value && !assigned.includes(Number(recVehId.value))) {
+      // Giữ nguyên hoặc để người dùng chủ động chọn
+    }
+  }
+});
+
+// Auto-fill ODO khi chọn xe
+watch(selectedVehicle, (v) => {
+  if (v) recOdo.value = v.currentOdoKm;
+});
+
+function openRecordModal(v?: { id: number; currentOdoKm: number }) {
+  if (v) {
+    recVehId.value = v.id;
+    recOdo.value = v.currentOdoKm;
+    // Tìm gói bảo dưỡng định kỳ đầu tiên được gán cho xe này
+    const matchType = fleetStore.maintenanceTypes.find(
+      (m) => m.isActive && (m.assignedVehicleIds?.includes(v.id) || !m.assignedVehicleIds || m.assignedVehicleIds.length === 0)
+    );
+    recMaintenanceTypeId.value = matchType ? matchType.id : (activeMaintenanceTypes.value[0]?.id ?? '');
+    if (matchType) {
+      recCost.value = matchType.estimatedCost;
+      recParts.value = matchType.checklistItems.join(', ');
+    }
+  } else {
+    // Mặc định chọn danh mục đầu tiên trước
+    const firstType = activeMaintenanceTypes.value[0];
+    recMaintenanceTypeId.value = firstType ? firstType.id : '';
+    recCost.value = firstType ? firstType.estimatedCost : 0;
+    recParts.value = firstType ? firstType.checklistItems.join(', ') : '';
+    // Nếu danh mục có xe gán sẵn, chọn xe đầu tiên
+    if (firstType && firstType.assignedVehicleIds && firstType.assignedVehicleIds.length > 0) {
+      recVehId.value = firstType.assignedVehicleIds[0];
+      const autoV = fleetStore.vehicles.find((item) => item.id === firstType.assignedVehicleIds[0]);
+      if (autoV) recOdo.value = autoV.currentOdoKm;
+    } else {
+      recVehId.value = '';
+      recOdo.value = 0;
+    }
+  }
+  recGarage.value = '';
+  showRecordModal.value = true;
+}
 
 function handleCreateIncident() {
   if (!incVehId.value || !incDesc.value) {
@@ -45,20 +127,28 @@ function handleCreateIncident() {
     severity: incSeverity.value,
   });
   showIncidentModal.value = false;
+  incVehId.value = '';
   incDesc.value = '';
   dialog.showSuccess(`Báo cáo sự cố xe ${v?.licensePlate || ''} đã được tiếp nhận và cập nhật trạng thái vận hành thành công!`, 'Báo Cáo Sự Cố Thành Công');
 }
 
 function handleCreateRecord() {
   if (!recVehId.value) {
-    dialog.showWarning('Vui lòng chọn xe đã thực hiện bảo dưỡng!', 'Thiếu Thông Tin Xe', 'Kiểm tra lại');
+    dialog.showWarning('Vui lòng chọn xe cần ghi nhận bảo dưỡng!', 'Thiếu Thông Tin Xe', 'Kiểm tra lại');
+    return;
+  }
+  if (!recMaintenanceTypeId.value) {
+    dialog.showWarning('Vui lòng chọn danh mục bảo dưỡng!', 'Thiếu Danh Mục Bảo Dưỡng', 'Kiểm tra lại');
     return;
   }
   const v = fleetStore.vehicles.find((item) => item.id === Number(recVehId.value));
+  const mt = selectedMaintenanceType.value;
   fleetStore.recordMaintenance({
     vehicleId: Number(recVehId.value),
     vehiclePlate: v?.licensePlate || '',
-    maintenanceType: recType.value,
+    maintenanceTypeId: Number(recMaintenanceTypeId.value),
+    maintenanceTypeName: mt?.name ?? '',
+    maintenanceType: mt?.code ?? '',
     maintenanceOdo: Number(recOdo.value),
     cost: Number(recCost.value),
     garageName: recGarage.value,
@@ -66,7 +156,7 @@ function handleCreateRecord() {
     maintenanceDate: new Date().toISOString().slice(0, 10),
   });
   showRecordModal.value = false;
-  dialog.showSuccess(`Đã lưu hồ sơ bảo dưỡng cho xe ${v?.licensePlate || ''} thành công. ODO và chu kỳ bảo dưỡng kế tiếp đã được cập nhật!`, 'Ghi Nhận Bảo Dưỡng Thành Công');
+  dialog.showSuccess(`Đã lưu hồ sơ bảo dưỡng "${mt?.name}" cho xe ${v?.licensePlate || ''} thành công!`, 'Ghi Nhận Bảo Dưỡng Thành Công');
 }
 
 // Lấy ngưỡng bảo dưỡng an toàn (chống lỗi HMR khi reload store)
@@ -185,7 +275,7 @@ function getThreshold(v: any): number {
               <td>
                 <button
                   class="btn btn-secondary btn-sm"
-                  @click="recVehId = v.id; recOdo = v.currentOdoKm; showRecordModal = true"
+                  @click="openRecordModal(v)"
                 >
                   <Wrench :size="14" />
                   <span>Bảo dưỡng ngay</span>
@@ -260,7 +350,10 @@ function getThreshold(v: any): number {
           <tbody>
             <tr v-for="rec in fleetStore.maintenances" :key="rec.id">
               <td><strong>{{ rec.vehiclePlate }}</strong></td>
-              <td>{{ rec.maintenanceType }}</td>
+              <td>
+                <span v-if="rec.maintenanceTypeName" class="font-medium">{{ rec.maintenanceTypeName }}</span>
+                <span v-else class="text-muted text-xs italic">{{ rec.maintenanceType || '—' }}</span>
+              </td>
               <td>{{ rec.maintenanceOdo.toLocaleString() }} km</td>
               <td>{{ rec.garageName }}</td>
               <td>{{ rec.replacedParts }}</td>
@@ -321,26 +414,100 @@ function getThreshold(v: any): number {
           <h3 class="modal-title text-primary">Ghi Nhận Bảo Dưỡng / Sửa Chữa</h3>
         </div>
         <div class="modal-body">
-          <div class="grid-2">
-            <div class="form-group">
-              <label class="form-label">Chọn xe bảo dưỡng <span class="required">*</span></label>
-              <select v-model="recVehId" class="form-select">
-                <option value="">-- Chọn xe --</option>
-                <option v-for="v in fleetStore.vehicles" :key="v.id" :value="v.id">
-                  {{ v.licensePlate }} (ODO: {{ v.currentOdoKm }} km)
+          <!-- Bước 1: Chọn danh mục bảo dưỡng trước -->
+          <div class="form-group">
+            <label class="form-label">1. Chọn danh mục bảo dưỡng / quy trình kỹ thuật <span class="required">*</span></label>
+            <select v-model="recMaintenanceTypeId" class="form-select">
+              <option value="">-- Chọn danh mục bảo dưỡng --</option>
+              <optgroup
+                v-for="group in ['Bảo dưỡng định kỳ', 'Sửa chữa phục hồi', 'Hệ thống chuyên dụng']"
+                :key="group"
+                :label="group"
+              >
+                <option
+                  v-for="mt in activeMaintenanceTypes.filter(m => m.group === group)"
+                  :key="mt.id"
+                  :value="mt.id"
+                >
+                  {{ mt.name }} — Dự toán: {{ mt.estimatedCost.toLocaleString('vi-VN') }}đ ({{ mt.assignedVehicleIds?.length || 0 }} xe áp dụng)
                 </option>
-              </select>
-            </div>
+              </optgroup>
+            </select>
+          </div>
 
-            <div class="form-group">
-              <label class="form-label">Loại hình</label>
-              <select v-model="recType" class="form-select">
-                <option value="Periodic5000Km">Bảo dưỡng định kỳ 5.000 km</option>
-                <option value="AccidentRepair">Sửa chữa sự cố</option>
-                <option value="TireChange">Thay lốp xe</option>
-                <option value="HydraulicRepair">Bảo dưỡng bơm thủy lực</option>
-                <option value="Other">Khác</option>
-              </select>
+          <!-- Preview danh mục đã chọn -->
+          <div v-if="selectedMaintenanceType" class="maintenance-type-preview">
+            <div class="preview-header">
+              <span class="preview-code">{{ selectedMaintenanceType.code }}</span>
+              <span class="preview-name">{{ selectedMaintenanceType.name }}</span>
+              <span class="preview-cost font-bold text-primary">Dự toán: {{ selectedMaintenanceType.estimatedCost.toLocaleString('vi-VN') }}đ</span>
+            </div>
+            <div v-if="selectedMaintenanceType.checklistItems.length" class="preview-checklist">
+              <p class="preview-checklist-title">Hạng mục kiểm chuẩn & thay thế ({{ selectedMaintenanceType.checklistItems.length }} mục):</p>
+              <ul>
+                <li v-for="(item, i) in selectedMaintenanceType.checklistItems" :key="i">✓ {{ item }}</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Bước 2: Chọn chiếc xe cụ thể cần bảo dưỡng -->
+          <div class="form-group">
+            <label class="form-label">2. Chọn chiếc xe thực hiện bảo dưỡng <span class="required">*</span></label>
+            <select v-model="recVehId" class="form-select">
+              <option value="">-- Chọn xe thực hiện --</option>
+              <optgroup
+                v-if="selectedMaintenanceType && (selectedMaintenanceType.assignedVehicleIds?.length || 0) > 0"
+                label="⭐ Xe đã cài đặt áp dụng danh mục này"
+              >
+                <option
+                  v-for="v in configuredVehiclesForType"
+                  :key="v.id"
+                  :value="v.id"
+                >
+                  {{ v.licensePlate }} — {{ v.model }} (ODO: {{ v.currentOdoKm.toLocaleString('vi-VN') }} km)
+                </option>
+              </optgroup>
+              <optgroup
+                v-if="selectedMaintenanceType && (selectedMaintenanceType.assignedVehicleIds?.length || 0) > 0"
+                label="Các xe khác trong đội xe"
+              >
+                <option
+                  v-for="v in otherVehiclesForType"
+                  :key="v.id"
+                  :value="v.id"
+                >
+                  {{ v.licensePlate }} — {{ v.model }} (ODO: {{ v.currentOdoKm.toLocaleString('vi-VN') }} km)
+                </option>
+              </optgroup>
+              <template v-else>
+                <option v-for="v in fleetStore.vehicles" :key="v.id" :value="v.id">
+                  {{ v.licensePlate }} — {{ v.model }} (ODO: {{ v.currentOdoKm.toLocaleString('vi-VN') }} km)
+                </option>
+              </template>
+            </select>
+          </div>
+
+          <!-- Card thông tin xe đã chọn -->
+          <div v-if="selectedVehicle" class="vehicle-selected-summary">
+            <div class="veh-summary-row">
+              <div class="veh-summary-item">
+                <span class="label">Biển số:</span>
+                <strong class="plate font-mono">{{ selectedVehicle.licensePlate }}</strong>
+              </div>
+              <div class="veh-summary-item">
+                <span class="label">Tài xế phụ trách:</span>
+                <span>{{ selectedVehicle.assignedDriverName || 'Chưa gán tài xế' }}</span>
+              </div>
+              <div class="veh-summary-item">
+                <span class="label">ODO lần bảo dưỡng trước:</span>
+                <span>{{ selectedVehicle.lastMaintenanceOdo.toLocaleString('vi-VN') }} km</span>
+              </div>
+              <div class="veh-summary-item">
+                <span class="label">Đã chạy thêm:</span>
+                <strong :class="(selectedVehicle.currentOdoKm - selectedVehicle.lastMaintenanceOdo) >= getThreshold(selectedVehicle) ? 'text-danger' : 'text-success'">
+                  +{{ (selectedVehicle.currentOdoKm - selectedVehicle.lastMaintenanceOdo).toLocaleString('vi-VN') }} km
+                </strong>
+              </div>
             </div>
           </div>
 
@@ -349,21 +516,20 @@ function getThreshold(v: any): number {
               <label class="form-label">ODO tại thời điểm bảo dưỡng (km)</label>
               <input v-model.number="recOdo" type="number" class="form-input" />
             </div>
-
             <div class="form-group">
-              <label class="form-label">Chi phí (VNĐ)</label>
+              <label class="form-label">Chi phí thực tế (VNĐ)</label>
               <input v-model.number="recCost" type="number" step="50000" class="form-input font-bold" />
             </div>
           </div>
 
           <div class="form-group">
             <label class="form-label">Gara / Đơn vị thực hiện</label>
-            <input v-model="recGarage" type="text" class="form-input" />
+            <input v-model="recGarage" type="text" class="form-input" placeholder="Ví dụ: Gara Cao Su Trung Tâm" />
           </div>
 
           <div class="form-group">
-            <label class="form-label">Linh kiện thay thế / Nội dung bảo dưỡng</label>
-            <textarea v-model="recParts" rows="2" class="form-textarea"></textarea>
+            <label class="form-label">Ghi chú bổ sung / Vật tư phát sinh</label>
+            <textarea v-model="recParts" rows="2" class="form-textarea" placeholder="Ghi chú thêm nếu có..."></textarea>
           </div>
         </div>
         <div class="modal-footer">
@@ -463,5 +629,89 @@ function getThreshold(v: any): number {
 .btn-setting-link-top:hover {
   background: #dcfce7;
   color: #14532d;
+}
+
+/* Preview danh mục bảo dưỡng trong modal ghi phiếu */
+.maintenance-type-preview {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+}
+.preview-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.preview-code {
+  background: #15803d;
+  color: white;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: monospace;
+  letter-spacing: 0.04em;
+}
+.preview-name {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #14532d;
+}
+.preview-cost {
+  margin-left: auto;
+  font-size: 0.8125rem;
+}
+.preview-checklist-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #166534;
+  margin-bottom: 6px;
+}
+.preview-checklist ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.preview-checklist li {
+  font-size: 0.8125rem;
+  color: #15803d;
+}
+
+/* Card tóm tắt phương tiện đang chọn */
+.vehicle-selected-summary {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+}
+.veh-summary-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+.veh-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.75rem;
+}
+.veh-summary-item .label {
+  color: #64748b;
+  font-size: 0.6875rem;
+}
+.veh-summary-item .plate {
+  color: #0f172a;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.font-mono {
+  font-family: monospace;
 }
 </style>

@@ -9,12 +9,10 @@ import {
   Search,
   Edit2,
   Trash2,
-  Power,
   Layers,
   Clock,
   CheckCircle2,
   Truck,
-  Car,
   CheckSquare,
   AlertCircle,
   X,
@@ -26,7 +24,6 @@ const dialog = useDialogStore();
 // Tìm kiếm & Bộ lọc
 const searchQuery = ref('');
 const selectedGroup = ref<string>('ALL');
-const selectedVehicleType = ref<string>('ALL');
 const selectedStatus = ref<string>('ALL');
 
 // Modal Thêm / Chỉnh sửa
@@ -37,11 +34,15 @@ const editingItem = ref<MaintenanceType | null>(null);
 const showDetailModal = ref(false);
 const viewingItem = ref<MaintenanceType | null>(null);
 
+// Modal phân bổ xe áp dụng nhanh
+const showAssignModal = ref(false);
+const assigningItem = ref<MaintenanceType | null>(null);
+const assignVehicleIds = ref<number[]>([]);
+
 // Form state
 const formCode = ref('');
 const formName = ref('');
 const formGroup = ref<'Bảo dưỡng định kỳ' | 'Sửa chữa phục hồi' | 'Hệ thống chuyên dụng'>('Bảo dưỡng định kỳ');
-const formApplicableVehicleType = ref<'All' | 'Truck' | 'Pickup' | 'Excavator'>('All');
 const formCycleKm = ref<number | undefined>(5000);
 const formCycleMonths = ref<number | undefined>(3);
 const formCycleHours = ref<number | undefined>(undefined);
@@ -55,6 +56,7 @@ const formChecklistItems = ref<string[]>([
 ]);
 const newChecklistText = ref('');
 const formIsActive = ref(true);
+const formAssignedVehicleIds = ref<number[]>([]);
 
 // Thống kê nhanh
 const totalTypes = computed(() => fleetStore.maintenanceTypes.length);
@@ -80,17 +82,13 @@ const filteredTypes = computed(() => {
       m.checklistItems.some((c) => c.toLowerCase().includes(q));
 
     const matchGroup = selectedGroup.value === 'ALL' || m.group === selectedGroup.value;
-    const matchVehType =
-      selectedVehicleType.value === 'ALL' ||
-      m.applicableVehicleType === 'All' ||
-      m.applicableVehicleType === selectedVehicleType.value;
 
     const matchStatus =
       selectedStatus.value === 'ALL' ||
       (selectedStatus.value === 'ACTIVE' && m.isActive) ||
       (selectedStatus.value === 'INACTIVE' && !m.isActive);
 
-    return matchSearch && matchGroup && matchVehType && matchStatus;
+    return matchSearch && matchGroup && matchStatus;
   });
 });
 
@@ -99,13 +97,70 @@ function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
 }
 
+// Lấy danh sách đối tượng xe từ ID
+function getAssignedVehicles(vehicleIds?: number[]) {
+  if (!vehicleIds || !vehicleIds.length) return [];
+  return fleetStore.vehicles.filter((v) => vehicleIds.includes(v.id));
+}
+
+// Quản lý gán xe trong Modal riêng
+function openAssignModal(item: MaintenanceType) {
+  assigningItem.value = item;
+  assignVehicleIds.value = item.assignedVehicleIds ? [...item.assignedVehicleIds] : [];
+  showAssignModal.value = true;
+}
+
+function toggleVehicleInAssign(vehId: number) {
+  const idx = assignVehicleIds.value.indexOf(vehId);
+  if (idx >= 0) {
+    assignVehicleIds.value.splice(idx, 1);
+  } else {
+    assignVehicleIds.value.push(vehId);
+  }
+}
+
+function selectAllAssignVehicles() {
+  assignVehicleIds.value = fleetStore.vehicles.map((v) => v.id);
+}
+
+function clearAllAssignVehicles() {
+  assignVehicleIds.value = [];
+}
+
+function saveAssignedVehicles() {
+  if (!assigningItem.value) return;
+  fleetStore.assignVehiclesToMaintenanceType(assigningItem.value.id, assignVehicleIds.value);
+  dialog.showSuccess(
+    `Đã cập nhật cấu hình cho ${assignVehicleIds.value.length} xe áp dụng loại bảo dưỡng "${assigningItem.value.name}"!`,
+    'Cài Đặt Xe Áp Dụng Thành Công'
+  );
+  showAssignModal.value = false;
+}
+
+// Quản lý gán xe trong Form Thêm / Sửa
+function toggleVehicleInForm(vehId: number) {
+  const idx = formAssignedVehicleIds.value.indexOf(vehId);
+  if (idx >= 0) {
+    formAssignedVehicleIds.value.splice(idx, 1);
+  } else {
+    formAssignedVehicleIds.value.push(vehId);
+  }
+}
+
+function selectAllFormVehicles() {
+  formAssignedVehicleIds.value = fleetStore.vehicles.map((v) => v.id);
+}
+
+function clearAllFormVehicles() {
+  formAssignedVehicleIds.value = [];
+}
+
 // Modal actions
 function openAddModal() {
   editingItem.value = null;
   formCode.value = '';
   formName.value = '';
   formGroup.value = 'Bảo dưỡng định kỳ';
-  formApplicableVehicleType.value = 'All';
   formCycleKm.value = 5000;
   formCycleMonths.value = 3;
   formCycleHours.value = undefined;
@@ -119,6 +174,7 @@ function openAddModal() {
   ];
   newChecklistText.value = '';
   formIsActive.value = true;
+  formAssignedVehicleIds.value = [];
   showModal.value = true;
 }
 
@@ -127,7 +183,6 @@ function openEditModal(item: MaintenanceType) {
   formCode.value = item.code;
   formName.value = item.name;
   formGroup.value = item.group;
-  formApplicableVehicleType.value = item.applicableVehicleType;
   formCycleKm.value = item.cycleKm;
   formCycleMonths.value = item.cycleMonths;
   formCycleHours.value = item.cycleHours;
@@ -137,6 +192,7 @@ function openEditModal(item: MaintenanceType) {
   formChecklistItems.value = [...item.checklistItems];
   newChecklistText.value = '';
   formIsActive.value = item.isActive;
+  formAssignedVehicleIds.value = item.assignedVehicleIds ? [...item.assignedVehicleIds] : [];
   showModal.value = true;
 }
 
@@ -162,10 +218,8 @@ function onGroupChange() {
     if (!formCycleKm.value) formCycleKm.value = 5000;
     if (!formCycleMonths.value) formCycleMonths.value = 3;
   } else if (formGroup.value === 'Hệ thống chuyên dụng') {
-    if (formApplicableVehicleType.value === 'Excavator') {
-      formCycleHours.value = 500;
-      formCycleKm.value = undefined;
-    }
+    formCycleHours.value = 500;
+    formCycleKm.value = undefined;
   }
 }
 
@@ -198,7 +252,6 @@ function saveItem() {
     code: formCode.value.trim().toUpperCase(),
     name: formName.value.trim(),
     group: formGroup.value,
-    applicableVehicleType: formApplicableVehicleType.value,
     cycleKm: formCycleKm.value ? Number(formCycleKm.value) : undefined,
     cycleMonths: formCycleMonths.value ? Number(formCycleMonths.value) : undefined,
     cycleHours: formCycleHours.value ? Number(formCycleHours.value) : undefined,
@@ -207,6 +260,7 @@ function saveItem() {
     description: formDescription.value.trim(),
     checklistItems: formChecklistItems.value.filter((t) => t.trim().length > 0),
     isActive: formIsActive.value,
+    assignedVehicleIds: formAssignedVehicleIds.value,
   };
 
   if (editingItem.value) {
@@ -346,16 +400,6 @@ function confirmDelete(item: MaintenanceType) {
       </div>
 
       <div class="filter-group">
-        <label class="filter-label">Loại xe:</label>
-        <select v-model="selectedVehicleType" class="filter-select">
-          <option value="ALL">Tất cả loại xe</option>
-          <option value="Truck">Xe tải chở mủ</option>
-          <option value="Pickup">Xe bán tải công tác</option>
-          <option value="Excavator">Máy đào nông trường</option>
-        </select>
-      </div>
-
-      <div class="filter-group">
         <label class="filter-label">Trạng thái:</label>
         <select v-model="selectedStatus" class="filter-select">
           <option value="ALL">Tất cả trạng thái</option>
@@ -370,20 +414,22 @@ function confirmDelete(item: MaintenanceType) {
       <table class="data-table">
         <thead>
           <tr>
-            <th style="width: 260px">Mã & Tên Loại Bảo Dưỡng</th>
-            <th style="width: 140px">Phân Nhóm</th>
-            <th style="width: 130px">Loại Xe Áp Dụng</th>
-            <th style="width: 160px">Chu Kỳ Kỹ Thuật</th>
-            <th style="width: 150px">Chi Phí Dự Toán</th>
-            <th style="width: 100px">Thời Gian</th>
-            <th style="width: 150px">Hạng Mục Kỹ Thuật</th>
-            <th style="width: 110px">Trạng Thái</th>
-            <th style="width: 110px; text-align: center">Thao Tác</th>
+            <th style="width: 100px">Mã</th>
+            <th style="min-width: 180px">Tên Loại Bảo Dưỡng</th>
+            <th style="width: 125px">Phân Nhóm</th>
+            <th style="width: 105px; text-align: center">Số Xe</th>
+            <th style="width: 175px">Biển Số Xe Áp Dụng</th>
+            <th style="width: 150px">Chu Kỳ Kỹ Thuật</th>
+            <th style="width: 130px">Chi Phí Dự Toán</th>
+            <th style="width: 85px">Thời Gian</th>
+            <th style="width: 125px">Hạng Mục</th>
+            <th style="width: 100px">Trạng Thái</th>
+            <th style="width: 85px; text-align: center">Thao Tác</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="filteredTypes.length === 0">
-            <td colspan="9" class="empty-row">
+            <td colspan="11" class="empty-row">
               <div class="empty-state">
                 <AlertCircle :size="32" class="empty-icon" />
                 <p>Không tìm thấy loại bảo dưỡng nào phù hợp với điều kiện tìm kiếm.</p>
@@ -392,9 +438,11 @@ function confirmDelete(item: MaintenanceType) {
           </tr>
           <tr v-for="item in filteredTypes" :key="item.id" :class="{ 'row-inactive': !item.isActive }">
             <td>
-              <div class="code-name-wrap">
-                <span class="type-code-tag">{{ item.code }}</span>
-                <span class="type-name-text">{{ item.name }}</span>
+              <span class="type-code-tag">{{ item.code }}</span>
+            </td>
+            <td>
+              <div class="type-name-block">
+                <span class="type-name-text font-medium">{{ item.name }}</span>
                 <span v-if="item.description" class="type-desc-mini">{{ item.description }}</span>
               </div>
             </td>
@@ -410,24 +458,31 @@ function confirmDelete(item: MaintenanceType) {
                 {{ item.group }}
               </span>
             </td>
+            <!-- Cột 1: Số lượng xe & nút phân bổ -->
+            <td style="text-align: center">
+              <button
+                class="btn-assigned-vehicles"
+                :class="{ 'has-vehicles': (item.assignedVehicleIds?.length || 0) > 0 }"
+                @click="openAssignModal(item)"
+                title="Bấm để phân bổ xe áp dụng"
+              >
+                <Truck :size="13" />
+                <span>{{ (item.assignedVehicleIds?.length || 0) > 0 ? `${item.assignedVehicleIds?.length} xe` : '0 xe' }}</span>
+              </button>
+            </td>
+            <!-- Cột 2 (Đơn vị khoanh đỏ): Danh sách biển số xe cụ thể -->
             <td>
-              <div class="vehicle-type-tag">
-                <Truck v-if="item.applicableVehicleType === 'Truck'" :size="13" />
-                <Car v-else-if="item.applicableVehicleType === 'Pickup'" :size="13" />
-                <Wrench v-else-if="item.applicableVehicleType === 'Excavator'" :size="13" />
-                <Layers v-else :size="13" />
-                <span>
-                  {{
-                    item.applicableVehicleType === 'Truck'
-                      ? 'Xe tải mủ'
-                      : item.applicableVehicleType === 'Pickup'
-                      ? 'Bán tải'
-                      : item.applicableVehicleType === 'Excavator'
-                      ? 'Máy đào'
-                      : 'Tất cả xe'
-                  }}
+              <div v-if="(item.assignedVehicleIds?.length || 0) > 0" class="vehicle-plate-tags">
+                <span
+                  v-for="v in getAssignedVehicles(item.assignedVehicleIds)"
+                  :key="v.id"
+                  class="plate-mini-tag"
+                  :title="`${v.model} (ODO: ${v.currentOdoKm.toLocaleString('vi-VN')} km)`"
+                >
+                  {{ v.licensePlate }}
                 </span>
               </div>
+              <span v-else class="text-muted-empty">Chưa gán xe</span>
             </td>
             <td>
               <div class="cycle-cell">
@@ -477,14 +532,6 @@ function confirmDelete(item: MaintenanceType) {
                   title="Chỉnh sửa loại bảo dưỡng"
                 >
                   <Edit2 :size="14" />
-                </button>
-                <button
-                  class="action-btn"
-                  :class="item.isActive ? 'btn-power-off' : 'btn-power-on'"
-                  @click="toggleStatus(item)"
-                  :title="item.isActive ? 'Tạm dừng áp dụng' : 'Kích hoạt áp dụng'"
-                >
-                  <Power :size="14" />
                 </button>
                 <button
                   class="action-btn btn-delete"
@@ -545,16 +592,6 @@ function confirmDelete(item: MaintenanceType) {
                 <option value="Bảo dưỡng định kỳ">Bảo dưỡng định kỳ</option>
                 <option value="Sửa chữa phục hồi">Sửa chữa phục hồi</option>
                 <option value="Hệ thống chuyên dụng">Hệ thống chuyên dụng (Bồn mủ/Thủy lực)</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label required">Loại xe áp dụng:</label>
-              <select v-model="formApplicableVehicleType" class="form-control">
-                <option value="All">Tất cả phương tiện</option>
-                <option value="Truck">Xe tải chở mủ cao su</option>
-                <option value="Pickup">Xe bán tải công tác</option>
-                <option value="Excavator">Máy đào mương nông trường</option>
               </select>
             </div>
 
@@ -661,6 +698,52 @@ function confirmDelete(item: MaintenanceType) {
               </div>
             </div>
 
+            <!-- Xe áp dụng cấu hình này (Cài đặt bảo dưỡng theo từng xe cụ thể) -->
+            <div class="form-group full-width">
+              <div class="vehicle-select-header">
+                <label class="form-label required">
+                  Xe áp dụng quy trình bảo dưỡng này (Cài đặt bảo dưỡng theo từng xe cụ thể):
+                </label>
+                <div class="vehicle-select-actions">
+                  <button type="button" class="btn-text-action" @click="selectAllFormVehicles">Chọn tất cả</button>
+                  <span class="sep">•</span>
+                  <button type="button" class="btn-text-action" @click="clearAllFormVehicles">Bỏ chọn</button>
+                  <span class="selected-count-pill">Đã chọn {{ formAssignedVehicleIds.length }}/{{ fleetStore.vehicles.length }} xe</span>
+                </div>
+              </div>
+              <div class="vehicles-checkbox-grid">
+                <div
+                  v-for="v in fleetStore.vehicles"
+                  :key="v.id"
+                  class="vehicle-select-card"
+                  :class="{ selected: formAssignedVehicleIds.includes(v.id) }"
+                  @click="toggleVehicleInForm(v.id)"
+                >
+                  <input
+                    type="checkbox"
+                    :checked="formAssignedVehicleIds.includes(v.id)"
+                    class="veh-checkbox"
+                    @click.stop
+                    @change="toggleVehicleInForm(v.id)"
+                  />
+                  <div class="veh-info">
+                    <div class="veh-plate-row">
+                      <span class="veh-plate">{{ v.licensePlate }}</span>
+                      <span class="veh-type-badge">{{ v.vehicleType }}</span>
+                    </div>
+                    <div class="veh-model">{{ v.model }}</div>
+                    <div class="veh-submeta">
+                      <span>ODO: <strong>{{ v.currentOdoKm.toLocaleString('vi-VN') }}</strong> km</span>
+                      <span v-if="v.assignedDriverName">• {{ v.assignedDriverName }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <span class="form-help-text">
+                🚗 Hệ thống cho phép thiết lập bảo dưỡng dựa trên 1 chiếc xe duy nhất hoặc nhóm xe cụ thể. Ngưỡng cảnh báo tự động sẽ áp dụng chính xác cho từng xe được chọn.
+              </span>
+            </div>
+
             <div class="form-group full-width">
               <label class="checkbox-label">
                 <input v-model="formIsActive" type="checkbox" />
@@ -680,7 +763,7 @@ function confirmDelete(item: MaintenanceType) {
       </div>
     </div>
 
-    <!-- 6. Modal Chi Tiết Hạng Mục Kiểm Chuẩn Kỹ Thuật -->
+    <!-- 6. Modal Chi Tiết Hạng Mục Kiểm Chuẩn Kỹ Thuật & Xe Áp Dụng -->
     <div v-if="showDetailModal && viewingItem" class="modal-backdrop">
       <div class="modal-dialog modal-detail">
         <div class="modal-header">
@@ -703,24 +786,36 @@ function confirmDelete(item: MaintenanceType) {
 
             <div class="detail-meta-grid">
               <div><strong>Phân nhóm:</strong> {{ viewingItem.group }}</div>
-              <div>
-                <strong>Loại xe:</strong>
-                {{
-                  viewingItem.applicableVehicleType === 'Truck'
-                    ? 'Xe tải mủ'
-                    : viewingItem.applicableVehicleType === 'Pickup'
-                    ? 'Bán tải'
-                    : viewingItem.applicableVehicleType === 'Excavator'
-                    ? 'Máy đào'
-                    : 'Tất cả'
-                }}
-              </div>
               <div><strong>Chi phí dự toán:</strong> {{ formatCurrency(viewingItem.estimatedCost) }}</div>
               <div><strong>Thời gian dự kiến:</strong> {{ viewingItem.estimatedDurationHours }} giờ</div>
+              <div><strong>Số xe áp dụng:</strong> {{ viewingItem.assignedVehicleIds?.length || 0 }} xe</div>
             </div>
           </div>
 
-          <h5 class="checklist-section-title">
+          <!-- Danh sách xe áp dụng -->
+          <div class="detail-vehicles-section">
+            <h5 class="checklist-section-title">
+              Xe Áp Dụng Cấu Hình Này ({{ (viewingItem.assignedVehicleIds?.length || 0) }} xe):
+            </h5>
+            <div v-if="getAssignedVehicles(viewingItem.assignedVehicleIds).length === 0" class="empty-assigned-notice">
+              <span>Chưa có xe nào được phân bổ áp dụng cho loại bảo dưỡng này.</span>
+            </div>
+            <div v-else class="detail-vehicles-grid">
+              <div
+                v-for="v in getAssignedVehicles(viewingItem.assignedVehicleIds)"
+                :key="v.id"
+                class="detail-vehicle-card"
+              >
+                <Truck :size="16" class="text-primary" />
+                <div class="detail-veh-info">
+                  <div class="detail-veh-plate">{{ v.licensePlate }}</div>
+                  <div class="detail-veh-meta">{{ v.model }} (ODO: {{ v.currentOdoKm.toLocaleString('vi-VN') }} km)</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <h5 class="checklist-section-title" style="margin-top: 16px;">
             Danh Mục Hạng Mục Kiểm Tra & Thay Thế ({{ viewingItem.checklistItems.length }} mục):
           </h5>
 
@@ -747,6 +842,87 @@ function confirmDelete(item: MaintenanceType) {
           >
             <Edit2 :size="14" />
             <span>Chỉnh sửa cấu hình</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7. Modal Phân Bổ Xe Áp Dụng Nhanh -->
+    <div v-if="showAssignModal && assigningItem" class="modal-backdrop">
+      <div class="modal-dialog modal-assign">
+        <div class="modal-header">
+          <div class="modal-title-wrap">
+            <Truck :size="18" class="text-primary" />
+            <h3 class="modal-title">Phân Bổ Xe Áp Dụng Bảo Dưỡng</h3>
+          </div>
+          <button class="btn-close" @click="showAssignModal = false">
+            <X :size="18" />
+          </button>
+        </div>
+
+        <div class="modal-body">
+          <div class="assign-banner">
+            <div class="assign-banner-code">{{ assigningItem.code }}</div>
+            <div class="assign-banner-info">
+              <h4 class="assign-banner-title">{{ assigningItem.name }}</h4>
+              <p class="assign-banner-sub">
+                Định mức: <strong>{{ assigningItem.cycleKm ? `${assigningItem.cycleKm.toLocaleString('vi-VN')} km` : (assigningItem.cycleHours ? `${assigningItem.cycleHours} giờ` : 'Định kỳ') }}</strong>
+                • Chi phí: <strong>{{ formatCurrency(assigningItem.estimatedCost) }}</strong>
+              </p>
+            </div>
+          </div>
+
+          <div class="vehicle-select-header">
+            <label class="form-label">
+              Tích chọn các xe sẽ áp dụng quy chuẩn bảo dưỡng này:
+            </label>
+            <div class="vehicle-select-actions">
+              <button type="button" class="btn-text-action" @click="selectAllAssignVehicles">Chọn tất cả</button>
+              <span class="sep">•</span>
+              <button type="button" class="btn-text-action" @click="clearAllAssignVehicles">Bỏ chọn</button>
+              <span class="selected-count-pill">Đã chọn {{ assignVehicleIds.length }}/{{ fleetStore.vehicles.length }} xe</span>
+            </div>
+          </div>
+
+          <div class="vehicles-checkbox-grid">
+            <div
+              v-for="v in fleetStore.vehicles"
+              :key="v.id"
+              class="vehicle-select-card"
+              :class="{ selected: assignVehicleIds.includes(v.id) }"
+              @click="toggleVehicleInAssign(v.id)"
+            >
+              <input
+                type="checkbox"
+                :checked="assignVehicleIds.includes(v.id)"
+                class="veh-checkbox"
+                @click.stop
+                @change="toggleVehicleInAssign(v.id)"
+              />
+              <div class="veh-info">
+                <div class="veh-plate-row">
+                  <span class="veh-plate">{{ v.licensePlate }}</span>
+                  <span class="veh-type-badge">{{ v.vehicleType }}</span>
+                </div>
+                <div class="veh-model">{{ v.model }}</div>
+                <div class="veh-submeta">
+                  <span>ODO: <strong>{{ v.currentOdoKm.toLocaleString('vi-VN') }}</strong> km</span>
+                  <span v-if="v.assignedDriverName">• {{ v.assignedDriverName }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <span class="form-help-text">
+            💡 Thiết lập cài đặt bảo dưỡng theo từng xe giúp hệ thống điều vận theo dõi chính xác thời điểm thay nhớt, dầu máy, gầm phanh cho riêng từng phương tiện.
+          </span>
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn btn-outline" @click="showAssignModal = false">Hủy bỏ</button>
+          <button class="btn btn-primary" @click="saveAssignedVehicles">
+            <CheckCircle2 :size="16" />
+            <span>Lưu phân bổ xe ({{ assignVehicleIds.length }})</span>
           </button>
         </div>
       </div>
@@ -1474,5 +1650,311 @@ function confirmDelete(item: MaintenanceType) {
   line-height: 1.4;
   margin-top: 4px;
   font-weight: 500;
+}
+
+/* Cột Xe áp dụng & Tags trong Bảng */
+.assigned-vehicles-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.btn-assigned-vehicles {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  width: fit-content;
+}
+
+.btn-assigned-vehicles:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.btn-assigned-vehicles.has-vehicles {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #065f46;
+}
+
+.btn-assigned-vehicles.has-vehicles:hover {
+  background: #d1fae5;
+}
+
+.vehicle-plate-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.plate-mini-tag {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #1e293b;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  font-family: monospace;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.plate-more-tag {
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 0.625rem;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+
+.type-name-block {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.text-muted-empty {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.btn-assign {
+  color: #0284c7;
+}
+
+.btn-assign:hover {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+/* Vehicle selection UI in Modals */
+.vehicle-select-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.vehicle-select-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-text-action {
+  background: none;
+  border: none;
+  color: #0284c7;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+}
+
+.btn-text-action:hover {
+  text-decoration: underline;
+  color: #0369a1;
+}
+
+.sep {
+  color: #cbd5e1;
+  font-size: 0.75rem;
+}
+
+.selected-count-pill {
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.vehicles-checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 10px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 6px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.vehicle-select-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.vehicle-select-card:hover {
+  border-color: #94a3b8;
+  background: #f8fafc;
+}
+
+.vehicle-select-card.selected {
+  border-color: #16a34a;
+  background: #f0fdf4;
+}
+
+.veh-checkbox {
+  margin-top: 3px;
+  width: 16px;
+  height: 16px;
+  accent-color: #16a34a;
+  cursor: pointer;
+}
+
+.veh-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.veh-plate-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.veh-plate {
+  font-weight: 800;
+  font-family: monospace;
+  font-size: 0.8125rem;
+  color: #0f172a;
+}
+
+.veh-type-badge {
+  font-size: 0.625rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.veh-model {
+  font-size: 0.75rem;
+  color: #475569;
+  font-weight: 500;
+}
+
+.veh-submeta {
+  font-size: 0.6875rem;
+  color: #64748b;
+  display: flex;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+/* Modal Assign */
+.modal-assign {
+  max-width: 650px;
+}
+
+.assign-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.assign-banner-code {
+  background: #15803d;
+  color: #ffffff;
+  font-weight: 800;
+  font-family: monospace;
+  font-size: 0.75rem;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.assign-banner-info {
+  flex: 1;
+}
+
+.assign-banner-title {
+  font-size: 0.875rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+}
+
+.assign-banner-sub {
+  font-size: 0.75rem;
+  color: #475569;
+  margin: 2px 0 0 0;
+}
+
+/* Detail Modal Vehicles */
+.detail-vehicles-section {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px dashed #cbd5e1;
+}
+
+.detail-vehicles-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+}
+
+.detail-vehicle-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+}
+
+.detail-veh-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.detail-veh-plate {
+  font-weight: 800;
+  font-family: monospace;
+  font-size: 0.8125rem;
+  color: #0f172a;
+}
+
+.detail-veh-meta {
+  font-size: 0.6875rem;
+  color: #64748b;
+}
+
+.empty-assigned-notice {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-style: italic;
 }
 </style>

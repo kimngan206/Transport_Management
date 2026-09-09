@@ -898,7 +898,7 @@ onUnmounted(() => {
             <!-- Thông tin tài xế & loại xe -->
             <div class="item-meta">
               <span>Tài xế: <strong>{{ v.driverName }}</strong></span>
-              <span class="model-badge">{{ v.vehicleType === 'Truck' ? 'Xe tải' : v.vehicleType === 'Pickup' ? 'Bán tải' : 'Máy đào' }}</span>
+              <span class="model-badge">{{ v.vehicleType === 'LatexTruck' ? 'Xe tải' : v.vehicleType === 'PassengerCar' ? 'Bán tải' : 'Máy đào' }}</span>
             </div>
 
             <!-- Hàng hóa mô tả -->

@@ -23,6 +23,7 @@ import {
 
 const props = defineProps<{
   trip: TransportTrip;
+  editExpenseId?: number | null;
 }>();
 
 const emit = defineEmits<{
@@ -33,18 +34,35 @@ const emit = defineEmits<{
 const driverStore = useDriverStore();
 const dialog = useDialogStore();
 
+const currentTripId = ref(props.trip.id);
+const currentTrip = computed(() => driverStore.myTrips.find(t => t.id === currentTripId.value) || props.trip);
+
+const isEditing = computed(() => !!props.editExpenseId);
+
 // Form nhập khoản chi mới
 const expenseType = ref<TripExpense['expenseType']>('Toll');
-const amount = ref<number>(35000);
-const receiptNote = ref<string>('Vé trạm thu phí BOT');
-const receiptImage = ref<string | undefined>(
-  getTollReceiptSample(props.trip.vehiclePlate, '35.000 đ')
-);
-const sampleName = ref<string | undefined>('Mẫu Vé BOT ĐT741');
+const amount = ref<number>(0);
+const receiptNote = ref<string>('');
+const receiptImage = ref<string | undefined>(undefined);
+const sampleName = ref<string | undefined>(undefined);
 const previewZoomImage = ref<string | null>(null);
 
+import { onMounted } from 'vue';
+onMounted(() => {
+  if (props.editExpenseId) {
+    const exp = props.trip.expenses?.find(e => e.id === props.editExpenseId);
+    if (exp) {
+      expenseType.value = exp.expenseType;
+      amount.value = exp.amount;
+      receiptNote.value = exp.receiptNote || '';
+      receiptImage.value = exp.receiptImage;
+      sampleName.value = exp.receiptImage ? 'Ảnh chứng từ đã lưu' : undefined;
+    }
+  }
+});
+
 // Danh sách chi phí hiện có của chuyến
-const tripExpenses = computed(() => props.trip.expenses || []);
+const tripExpenses = computed(() => currentTrip.value.expenses || []);
 
 function formatNumberWithDots(val: number | string | undefined | null): string {
   if (val === null || val === undefined || val === '') return '';
@@ -76,7 +94,7 @@ function onFileInputChange(event: Event) {
 }
 
 function applySample(type: 'Toll' | 'Fuel' | 'Weigh' | 'Repair') {
-  const plate = props.trip.vehiclePlate || '51C-889.26';
+  const plate = currentTrip.value.vehiclePlate || '51C-889.26';
   if (type === 'Toll') {
     expenseType.value = 'Toll';
     amount.value = 35000;
@@ -110,7 +128,11 @@ function handleAddExpense() {
     return;
   }
 
-  const res = driverStore.addExpenseToTrip(props.trip.id, {
+  if (isEditing.value && props.editExpenseId) {
+    driverStore.removeExpenseFromTrip(props.trip.id, props.editExpenseId);
+  }
+
+  const res = driverStore.addExpenseToTrip(currentTrip.value.id, {
     expenseType: expenseType.value,
     amount: amount.value,
     receiptNote: receiptNote.value,
@@ -118,7 +140,7 @@ function handleAddExpense() {
   });
 
   if (res.success) {
-    dialog.showSuccess('Đã thêm khoản chi phí phát sinh kèm ảnh bằng chứng thành công!', 'Kê Khai Thành Công');
+    dialog.showSuccess(isEditing.value ? 'Đã cập nhật khoản chi phí thành công!' : 'Đã thêm khoản chi phí phát sinh kèm ảnh bằng chứng thành công!', 'Thành Công');
     // Reset form
     amount.value = 0;
     receiptNote.value = '';
@@ -131,7 +153,7 @@ function handleAddExpense() {
 }
 
 function handleDeleteExpense(expenseId: number) {
-  const res = driverStore.removeExpenseFromTrip(props.trip.id, expenseId);
+  const res = driverStore.removeExpenseFromTrip(currentTrip.value.id, expenseId);
   if (res.success) {
     dialog.showSuccess('Đã xóa khoản chi phí thành công!', 'Đã Xóa');
     emit('saved');
@@ -153,11 +175,16 @@ const verifiedCount = computed(() => {
       <div class="modal-header">
         <div class="header-title-box">
           <Receipt :size="22" class="text-primary" />
-          <div>
+          <div class="flex-1 w-full">
             <h3 class="modal-title">Kê Khai Chi Phí & Tải Bằng Chứng Xác Minh</h3>
-            <span class="modal-subtitle">
-              Chuyến xe: <strong>{{ trip.tripCode }}</strong> | Xe: <strong>{{ trip.vehiclePlate }}</strong>
-            </span>
+            <div class="mt-2 mb-1 w-full">
+              <label class="text-xs font-bold text-muted mb-1 block" style="display: block; margin-bottom: 4px;">Chọn chuyến xe cần kê khai:</label>
+              <select v-model="currentTripId" class="form-select font-semibold text-sm" style="max-width: 450px;">
+                <option v-for="t in driverStore.myTrips" :key="t.id" :value="t.id">
+                  {{ t.tripCode }} - Xe: {{ t.vehiclePlate }} (Ngày: {{ t.scheduledStartTime.split(' ')[0] }})
+                </option>
+              </select>
+            </div>
           </div>
         </div>
         <button class="btn-close" @click="emit('close')">
@@ -179,9 +206,9 @@ const verifiedCount = computed(() => {
           </div>
         </div>
 
-        <!-- FORM KÊ KHAI MỚI -->
+        <!-- FORM KÊ KHAI MỚI / CHỈNH SỬA -->
         <div class="add-expense-card">
-          <h4 class="card-subtitle-custom">Thêm Khoản Chi Phát Sinh Mới</h4>
+          <h4 class="card-subtitle-custom">{{ isEditing ? 'Điều Chỉnh Khoản Chi Đã Chọn' : 'Thêm Khoản Chi Phát Sinh Mới' }}</h4>
 
           <div class="grid-2">
             <div class="form-group">
@@ -303,8 +330,9 @@ const verifiedCount = computed(() => {
 
           <div class="add-btn-row mt-3">
             <button class="btn btn-primary full-w" @click="handleAddExpense">
-              <Plus :size="16" />
-              <span>Thêm Khoản Chi Này Vào Chuyến Xe</span>
+              <Plus v-if="!isEditing" :size="16" />
+              <Edit v-else :size="16" />
+              <span>{{ isEditing ? 'Lưu Cập Nhật Khoản Chi Này' : 'Thêm Khoản Chi Này Vào Chuyến Xe' }}</span>
             </button>
           </div>
         </div>
@@ -400,7 +428,7 @@ const verifiedCount = computed(() => {
 
 <style scoped>
 .modal-md {
-  max-width: 650px;
+  max-width: 800px;
   width: 95%;
 }
 .header-title-box {
@@ -429,6 +457,7 @@ const verifiedCount = computed(() => {
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   padding: 14px;
+  margin-bottom: 24px;
 }
 .card-subtitle-custom {
   font-size: 0.88rem;
