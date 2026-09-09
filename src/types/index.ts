@@ -123,6 +123,8 @@ export interface TransportRequest {
   dropoffTime?: string;
   contactPerson?: string;
   contactPhone?: string;
+  teamName?: string;
+  isExternal?: boolean;
   status: RequestStatus;
   rejectionReason?: string;
   approvedById?: number;
@@ -169,6 +171,8 @@ export interface TransportTrip {
   dropoffTime?: string;
   contactPerson?: string;
   contactPhone?: string;
+  teamName?: string;
+  isExternal?: boolean;
   
   // Sản lượng mủ (đặc thù xe tải chở mủ cao su)
   weightLatex1Kg?: number; // Mủ nước 1

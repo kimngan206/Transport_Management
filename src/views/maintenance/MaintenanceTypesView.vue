@@ -519,7 +519,13 @@ function confirmDelete(item: MaintenanceType) {
               </button>
             </td>
             <td>
-              <span class="status-badge" :class="item.isActive ? 'badge-active' : 'badge-inactive'">
+              <span
+                class="status-badge"
+                :class="item.isActive ? 'badge-active' : 'badge-inactive'"
+                style="cursor: pointer"
+                @click="toggleStatus(item)"
+                title="Bấm để chuyển trạng thái Áp dụng / Tạm dừng"
+              >
                 <span class="status-dot"></span>
                 {{ item.isActive ? 'Áp dụng' : 'Tạm dừng' }}
               </span>

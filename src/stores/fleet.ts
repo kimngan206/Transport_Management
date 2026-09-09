@@ -214,13 +214,14 @@ export const useFleetStore = defineStore('fleet', () => {
     saveState();
   }
 
-  function addVehicle(vehicle: Omit<Vehicle, 'id'>) {
+  function addVehicle(vehicle: Omit<Vehicle, 'id'> & { id?: number }) {
     const newVeh: Vehicle = {
       ...vehicle,
-      id: Date.now(),
+      id: vehicle.id || Date.now(),
     };
     vehicles.value.push(newVeh);
     saveState();
+    return newVeh;
   }
 
   function updateVehicle(vehicle: Vehicle) {

@@ -112,7 +112,7 @@ const routeMatchResult = computed(() => {
     };
   }
   const first = currentSelectedRequests.value[0];
-  if (first.vehicleType === 'PassengerCar' || first.vehicleType === 'Pickup') {
+  if ((first.vehicleType as string) === 'PassengerCar' || (first.vehicleType as string) === 'Pickup') {
     return {
       route: fleetStore.routes.find(r => r.id === 999) || fleetStore.routes[0],
       score: 100,
@@ -371,7 +371,7 @@ function handleDispatch() {
           <p v-if="currentSelectedRequests.length > 0" class="route-match-hint">
             Dựa trên yêu cầu từ <strong>{{ currentSelectedRequests[0].fromLocation }}</strong>
             <span v-if="currentSelectedRequests[0].toLocation"> ➔ <strong>{{ currentSelectedRequests[0].toLocation }}</strong></span>:
-            <span v-if="currentSelectedRequests[0].vehicleType === 'PassengerCar' || currentSelectedRequests[0].vehicleType === 'Pickup'">
+            <span v-if="(currentSelectedRequests[0].vehicleType as string) === 'PassengerCar' || (currentSelectedRequests[0].vehicleType as string) === 'Pickup'">
               Vì đây là yêu cầu cho xe chở người / xe công tác, hệ thống tự động áp dụng Lộ trình tùy chỉnh.
             </span>
             <span v-else>

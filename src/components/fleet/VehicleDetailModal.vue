@@ -76,7 +76,7 @@ function getVehicleTypeLabel(type: string): string {
 }
 
 // Dịch loại bảo dưỡng sang tiếng Việt
-function getMaintTypeLabel(type: string): string {
+function getMaintTypeLabel(type?: string): string {
   switch (type) {
     case 'Periodic5000Km': return 'Bảo dưỡng định kỳ';
     case 'AccidentRepair': return 'Sửa chữa va chạm';

@@ -6,7 +6,7 @@ import { useBookingStore } from '@/stores/booking';
 import { useDispatchStore } from '@/stores/dispatch';
 import { useFleetStore } from '@/stores/fleet';
 import { useDialogStore } from '@/stores/dialog';
-import type { TransportRequest } from '@/types';
+import type { TransportRequest, TransportTrip } from '@/types';
 import StatusBadge from '@/components/common/StatusBadge.vue';
 import BatchTripModal from '@/components/dispatch/BatchTripModal.vue';
 import FleetDispatchMap from '@/components/dispatch/FleetDispatchMap.vue';
