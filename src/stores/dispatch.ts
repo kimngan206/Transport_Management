@@ -244,14 +244,15 @@ export const useDispatchStore = defineStore('dispatch', () => {
     trips.value.unshift(newTrip);
     saveState();
 
-    // Cập nhật trạng thái các request sang DISPATCHED
+    // Cập nhật trạng thái các request sang DISPATCHED và gán lộ trình quy chuẩn
     for (const reqId of payload.requestIds) {
       bookingStore.updateRequestStatus(
         reqId,
         'DISPATCHED',
         payload.dispatcherName,
-        `Đã phân công xe [${vehicle.licensePlate}] và tài xế [${driver.fullName}] trong chuyến [${tripCode}]`,
-        newTrip.id
+        `Đã phân công xe [${vehicle.licensePlate}] và tài xế [${driver.fullName}] theo tuyến quy chuẩn [${route.name}] (${route.standardDistanceKm} km) trong chuyến [${tripCode}]`,
+        newTrip.id,
+        route.id
       );
     }
 

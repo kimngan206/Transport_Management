@@ -1,11 +1,25 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { useBookingStore } from '@/stores/booking';
+import { useFleetStore } from '@/stores/fleet';
+import { useDispatchStore } from '@/stores/dispatch';
 import { useDialogStore } from '@/stores/dialog';
 import type { TransportRequest } from '@/types';
+import { suggestOptimalRoute } from '@/utils/routeMatcher';
 import StatusBadge from '@/components/common/StatusBadge.vue';
-import { X, Calendar, MapPin, Package, User, FileText, Ban } from 'lucide-vue-next';
+import {
+  X,
+  Calendar,
+  MapPin,
+  Package,
+  User,
+  FileText,
+  Ban,
+  Navigation,
+  Sparkles,
+  Truck,
+} from 'lucide-vue-next';
 
 const props = defineProps<{
   request: TransportRequest;
@@ -18,9 +32,27 @@ const emit = defineEmits<{
 
 const authStore = useAuthStore();
 const bookingStore = useBookingStore();
+const fleetStore = useFleetStore();
+const dispatchStore = useDispatchStore();
 const dialog = useDialogStore();
 const cancelReason = ref('');
 const showCancelPrompt = ref(false);
+
+// Tuyến đường quy chuẩn (đã được điều phối phân công hoặc tự động gợi ý từ điểm đi)
+const standardRoute = computed(() => {
+  if (props.request.standardRouteId) {
+    return fleetStore.routes.find((r) => r.id === props.request.standardRouteId);
+  }
+  // Gợi ý tự động từ điểm đi và điểm đến
+  const match = suggestOptimalRoute(fleetStore.routes, props.request.fromLocation, props.request.toLocation);
+  return match.route;
+});
+
+// Chuyến xe đã phân công nếu có
+const assignedTrip = computed(() => {
+  if (!props.request.assignedTripId) return null;
+  return dispatchStore.trips.find((t) => t.id === props.request.assignedTripId);
+});
 
 function handleCancel() {
   if (!cancelReason.value.trim()) {
@@ -80,6 +112,41 @@ function handleCancel() {
               <strong v-if="request.estimatedWeightKg"> ({{ request.estimatedWeightKg.toLocaleString() }} kg mủ)</strong>
               <strong v-if="request.passengersCount"> ({{ request.passengersCount }} người)</strong>
             </span>
+          </div>
+
+          <!-- Lộ trình quy chuẩn trả kết quả cho người đặt xe -->
+          <div class="detail-item full-width" v-if="standardRoute">
+            <span class="detail-label">
+              <Navigation :size="14" class="text-primary" />
+              <span>Lộ trình quy chuẩn {{ request.standardRouteId ? 'được phân công' : 'gợi ý từ điểm đi' }}:</span>
+              <span v-if="!request.standardRouteId" class="badge-suggest-pill">
+                <Sparkles :size="10" /> Gợi ý tự động
+              </span>
+            </span>
+            <div class="route-result-box">
+              <div class="route-header-line">
+                <span class="route-tag">{{ standardRoute.routeCode }}</span>
+                <strong class="route-name">{{ standardRoute.name }}</strong>
+                <span class="dist-badge">{{ standardRoute.standardDistanceKm }} km</span>
+              </div>
+              <div v-if="standardRoute.description" class="route-desc-line">
+                {{ standardRoute.description }}
+              </div>
+            </div>
+          </div>
+
+          <!-- Thông tin xe & tài xế đã điều phối (nếu có) -->
+          <div class="detail-item full-width" v-if="assignedTrip">
+            <span class="detail-label">
+              <Truck :size="14" class="text-success" />
+              <span>Chuyến xe & Phương tiện điều phối:</span>
+            </span>
+            <div class="assigned-trip-box">
+              <span class="trip-tag">{{ assignedTrip.tripCode }}</span>
+              <span>Xe: <strong>{{ assignedTrip.vehiclePlate }}</strong></span>
+              <span>•</span>
+              <span>Tài xế: <strong>{{ assignedTrip.driverName }}</strong> ({{ assignedTrip.driverPhone }})</span>
+            </div>
           </div>
         </div>
 
@@ -185,6 +252,82 @@ function handleCancel() {
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--text-primary);
+}
+.full-width {
+  grid-column: 1 / -1;
+}
+.badge-suggest-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 0.625rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  border: 1px solid #86efac;
+}
+.route-result-box {
+  background: white;
+  border: 1px solid #cbd5e1;
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.route-header-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.route-tag {
+  background: #1e293b;
+  color: white;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.route-name {
+  font-size: 0.8125rem;
+  color: #0f172a;
+}
+.dist-badge {
+  margin-left: auto;
+  background: #ecfdf5;
+  color: #059669;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid #a7f3d0;
+}
+.route-desc-line {
+  font-size: 0.7188rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+.assigned-trip-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.8125rem;
+  color: #166534;
+}
+.trip-tag {
+  background: #16a34a;
+  color: white;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
 }
 .purpose-box {
   background: white;

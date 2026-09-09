@@ -3,7 +3,9 @@ import { ref, computed, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useBookingStore } from '@/stores/booking';
+import { useFleetStore } from '@/stores/fleet';
 import type { TransportRequest } from '@/types';
+import { suggestOptimalRoute } from '@/utils/routeMatcher';
 import StatusBadge from '@/components/common/StatusBadge.vue';
 import BookingCreateModal from '@/components/booking/BookingCreateModal.vue';
 import BookingDetailModal from '@/components/booking/BookingDetailModal.vue';
@@ -27,6 +29,19 @@ import {
 const route = useRoute();
 const authStore = useAuthStore();
 const bookingStore = useBookingStore();
+const fleetStore = useFleetStore();
+
+// Lấy thông tin lộ trình quy chuẩn hiển thị (tuyến đã phân công hoặc gợi ý từ điểm đi)
+function getRouteDisplayInfo(r: TransportRequest): { code: string; distanceKm: number; isAssigned: boolean } {
+  if (r.standardRouteId) {
+    const found = fleetStore.routes.find((item) => item.id === r.standardRouteId);
+    if (found) {
+      return { code: found.routeCode, distanceKm: found.standardDistanceKm, isAssigned: true };
+    }
+  }
+  const match = suggestOptimalRoute(fleetStore.routes, r.fromLocation, r.toLocation);
+  return { code: match.route.routeCode, distanceKm: match.route.standardDistanceKm, isAssigned: false };
+}
 
 const searchKeyword = ref('');
 const filterScope = ref<'all' | 'mine'>('all');
@@ -361,7 +376,7 @@ function getInitials(name: string): string {
                 </div>
               </td>
 
-              <!-- 6. Lộ trình trực quan -->
+              <!-- 6. Lộ trình trực quan & Tuyến quy chuẩn gợi ý -->
               <td class="col-route">
                 <div class="route-display">
                   <div class="route-point from">
@@ -375,6 +390,12 @@ function getInitials(name: string): string {
                     <span class="point-dot dot-blue"></span>
                     <span class="location-name">{{ r.toLocation }}</span>
                   </div>
+                </div>
+                <!-- Badge lộ trình quy chuẩn trả kết quả cho người xem -->
+                <div class="route-suggested-sub">
+                  <span class="badge-sub-code" :class="{ 'assigned': r.standardRouteId }">
+                    {{ getRouteDisplayInfo(r).isAssigned ? 'Tuyến đã xếp:' : 'Gợi ý:' }} {{ getRouteDisplayInfo(r).code }} ({{ getRouteDisplayInfo(r).distanceKm }} km)
+                  </span>
                 </div>
               </td>
 
@@ -1042,6 +1063,26 @@ function getInitials(name: string): string {
 
 .text-muted {
   color: #94a3b8;
+}
+
+.route-suggested-sub {
+  margin-top: 4px;
+}
+.badge-sub-code {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #15803d;
+  background: #f0fdf4;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid #bbf7d0;
+  display: inline-block;
+  white-space: nowrap;
+}
+.badge-sub-code.assigned {
+  color: #1e40af;
+  background: #eff6ff;
+  border-color: #bfdbfe;
 }
 
 @media (max-width: 1024px) {

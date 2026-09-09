@@ -225,12 +225,14 @@ export const useBookingStore = defineStore('booking', () => {
     status: RequestStatus,
     actorName: string,
     note: string,
-    tripId?: number
+    tripId?: number,
+    routeId?: number
   ) {
     const req = requests.value.find((r) => r.id === requestId);
     if (!req) return;
     req.status = status;
     if (tripId) req.assignedTripId = tripId;
+    if (routeId) req.standardRouteId = routeId;
     const nowStr = new Date().toISOString().slice(0, 16).replace('T', ' ');
     req.timeline.push({
       status,
