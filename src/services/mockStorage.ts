@@ -338,9 +338,10 @@ export const mockStorage = {
       saveToStorage(STORAGE_KEYS.VEHICLES, initialVehicles);
       return [...initialVehicles];
     }
+    let modified = false;
+
     // Auto-migrate: nếu dữ liệu hiện tại chưa có xe thuê ngoài nào, tự động nạp thêm các xe thuê ngoài mẫu
     const hasExternal = res.some((v) => v.isExternal);
-    let modified = false;
     if (!hasExternal) {
       const externalMocks = initialVehicles.filter((v) => v.isExternal);
       if (externalMocks.length > 0) {
@@ -348,13 +349,41 @@ export const mockStorage = {
         modified = true;
       }
     }
-    // Đảm bảo xe thuê ngoài không giữ ID tài xế nội bộ
+
+    // Auto-sync & bổ sung dữ liệu bị thiếu: Số chỗ ngồi (passengerCapacity) và tài xế mặc định cho từng xe
     res.forEach((v) => {
+      const initV = initialVehicles.find((iv) => iv.id === v.id || iv.licensePlate === v.licensePlate);
+      if (initV) {
+        // 1. Bổ sung số chỗ ngồi nếu đang bị thiếu
+        if (v.passengerCapacity === undefined || v.passengerCapacity === null) {
+          v.passengerCapacity = initV.passengerCapacity;
+          modified = true;
+        }
+        // 2. Bổ sung hoặc khôi phục tài xế trực thuộc chuẩn hóa cho xe công ty nếu chưa phân công hoặc bị gán nhầm
+        if (!v.isExternal) {
+          if (!v.assignedDriverName || (v.id === 4 && v.assignedDriverName === 'Nguyễn Văn Lái')) {
+            v.assignedDriverId = initV.assignedDriverId;
+            v.assignedDriverName = initV.assignedDriverName;
+            v.assignedDriverPhone = initV.assignedDriverPhone;
+            modified = true;
+          }
+        } else {
+          // Xe thuê ngoài: cập nhật tên tài xế đối tác nếu chưa có
+          if (!v.assignedDriverName && initV.assignedDriverName) {
+            v.assignedDriverName = initV.assignedDriverName;
+            v.assignedDriverPhone = initV.assignedDriverPhone;
+            modified = true;
+          }
+        }
+      }
+
+      // Đảm bảo xe thuê ngoài không giữ ID tài xế nội bộ
       if (v.isExternal && v.assignedDriverId) {
         v.assignedDriverId = undefined;
         modified = true;
       }
     });
+
     if (modified) {
       saveToStorage(STORAGE_KEYS.VEHICLES, res);
     }

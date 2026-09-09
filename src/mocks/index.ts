@@ -299,6 +299,7 @@ export const initialVehicles: Vehicle[] = [
     isExternal: false,
     model: 'Hino 5 tấn mui bạt chở mủ',
     capacityTons: 5.0,
+    passengerCapacity: 3,
     fuelQuotaEmpty: 0.25, // Khớp chuẩn danh mục TRUCK_LATEX
     fuelQuotaLoaded: 0.02,
     currentOdoKm: 28540,
@@ -318,6 +319,7 @@ export const initialVehicles: Vehicle[] = [
     isExternal: false,
     model: 'Isuzu 7.5 tấn bồn inox chở mủ nước',
     capacityTons: 7.5,
+    passengerCapacity: 3,
     fuelQuotaEmpty: 0.28, // Khớp chuẩn danh mục TANKER_LATEX
     fuelQuotaLoaded: 0.022,
     currentOdoKm: 146800,
@@ -355,6 +357,7 @@ export const initialVehicles: Vehicle[] = [
     isExternal: false,
     model: 'Komatsu PC200-8 máy đào mương vườn cây',
     capacityTons: 20.0,
+    passengerCapacity: 1,
     fuelQuotaEmpty: 0,
     fuelQuotaLoaded: 0,
     hourMeterQuota: 14.5, // Khớp chuẩn danh mục EXCAVATOR
@@ -374,6 +377,7 @@ export const initialVehicles: Vehicle[] = [
     vehicleType: 'LatexTruck',
     model: 'Hino 500 FG 8 tấn thùng mui bạt (Thuê ngoài - HTX An Lạc)',
     capacityTons: 8.0,
+    passengerCapacity: 3,
     fuelQuotaEmpty: 0.26,
     fuelQuotaLoaded: 0.02,
     currentOdoKm: 65200,
@@ -392,6 +396,7 @@ export const initialVehicles: Vehicle[] = [
     vehicleType: 'LatexTruck',
     model: 'Hyundai HD210 bồn inox 12 tấn (Thuê ngoài - Đạt Thành)',
     capacityTons: 12.0,
+    passengerCapacity: 3,
     fuelQuotaEmpty: 0.32,
     fuelQuotaLoaded: 0.025,
     currentOdoKm: 118400,
