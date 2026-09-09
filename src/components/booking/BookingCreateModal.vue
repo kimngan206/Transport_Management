@@ -2,10 +2,10 @@
 import { ref, computed } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { useBookingStore } from '@/stores/booking';
-import { useFleetStore } from '@/stores/fleet';
 import { useDialogStore } from '@/stores/dialog';
+import { mockStorage } from '@/services/mockStorage';
 import type { VehicleType } from '@/types';
-import { X, AlertCircle, CheckCircle2, Clock } from 'lucide-vue-next';
+import { X, AlertCircle, CheckCircle2, Clock, MapPin, Compass } from 'lucide-vue-next';
 
 const emit = defineEmits<{
   (e: 'close'): void;
@@ -14,17 +14,33 @@ const emit = defineEmits<{
 
 const authStore = useAuthStore();
 const bookingStore = useBookingStore();
-const fleetStore = useFleetStore();
 const dialog = useDialogStore();
 
 // Form state
 const vehicleType = ref<VehicleType>('Truck');
-const standardRouteId = ref<number | ''>(1);
 const fromLocation = ref<string>('Trạm cân 1');
 const toLocation = ref<string>('Đội 1');
 const purpose = ref<string>('Vận chuyển mủ cao su ca thu hoạch ngày lẻ');
 const estimatedWeightKg = ref<number>(2500);
 const passengersCount = ref<number>(3);
+
+// Danh sách các điểm trạm / đội sản xuất gợi ý cho Requester
+const popularHubs = computed(() => {
+  const hubs = mockStorage.getHubs();
+  if (hubs && hubs.length > 0) {
+    return hubs.map((h: any) => h.shortName || h.name);
+  }
+  return [
+    'Trạm cân 1',
+    'Đội 1',
+    'Đội 2',
+    'Đội 3',
+    'Đội 4',
+    'Đội 5',
+    'Nhà máy chế biến ECOTECH 2A',
+    'Văn phòng Công ty',
+  ];
+});
 
 // Helper default times (tự động tìm khung giờ trống hợp lệ: sau hiện tại ít nhất 30 phút và không trùng các chuyến đã duyệt)
 function getNextValidTimeSlot(): { start: string; end: string } {
@@ -78,17 +94,6 @@ function setQuickSlot(type: 'today_next' | 'tomorrow_morning' | 'tomorrow_aftern
     const et = new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate(), 16, 0);
     startTime.value = format(st);
     endTime.value = format(et);
-  }
-}
-
-// Khi đổi tuyến chuẩn thì tự động điền From & To
-function handleRouteChange() {
-  if (standardRouteId.value) {
-    const r = fleetStore.routes.find((item) => item.id === Number(standardRouteId.value));
-    if (r) {
-      fromLocation.value = r.startPoint;
-      toLocation.value = r.endPoint;
-    }
   }
 }
 
@@ -146,9 +151,8 @@ function handleSubmit() {
     vehicleType: vehicleType.value,
     startTime: startTime.value.replace('T', ' '),
     endTime: endTime.value.replace('T', ' '),
-    fromLocation: fromLocation.value,
-    toLocation: toLocation.value,
-    standardRouteId: standardRouteId.value ? Number(standardRouteId.value) : undefined,
+    fromLocation: fromLocation.value.trim(),
+    toLocation: toLocation.value.trim(),
     purpose: purpose.value,
     estimatedWeightKg: vehicleType.value === 'Truck' ? Number(estimatedWeightKg.value) : undefined,
     passengersCount: vehicleType.value === 'Pickup' ? Number(passengersCount.value) : undefined,
@@ -189,36 +193,75 @@ function handleSubmit() {
           Người yêu cầu: <strong>{{ authStore.currentUser.fullName }}</strong> ({{ authStore.currentUser.departmentName }})
         </div>
 
-        <div class="grid-2">
-          <div class="form-group">
-            <label class="form-label">Loại phương tiện <span class="required">*</span></label>
-            <select v-model="vehicleType" class="form-select">
-              <option value="Truck">Xe tải chở mủ cao su</option>
-              <option value="Pickup">Xe bán tải đưa đón / công tác</option>
-              <option value="Excavator">Xe máy xúc nông trường</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Tuyến đường quy chuẩn</label>
-            <select v-model="standardRouteId" @change="handleRouteChange" class="form-select">
-              <option value="">-- Tuyến tự do ngoài danh mục --</option>
-              <option v-for="r in fleetStore.routes" :key="r.id" :value="r.id">
-                {{ r.routeCode }} - {{ r.name }} ({{ r.standardDistanceKm }} km)
-              </option>
-            </select>
-          </div>
+        <!-- 1. Loại phương tiện yêu cầu -->
+        <div class="form-group">
+          <label class="form-label">Loại phương tiện yêu cầu <span class="required">*</span></label>
+          <select v-model="vehicleType" class="form-select">
+            <option value="Truck">Xe tải chở mủ cao su (Bồn inox / Mui bạt)</option>
+            <option value="Pickup">Xe bán tải đưa đón / công tác nông trường (5 chỗ)</option>
+            <option value="Excavator">Xe máy xúc nông trường (Đào mương vườn cây)</option>
+          </select>
         </div>
 
-        <div class="grid-2">
-          <div class="form-group">
-            <label class="form-label">Điểm xuất phát <span class="required">*</span></label>
-            <input v-model="fromLocation" type="text" class="form-input" placeholder="Ví dụ: Trạm cân 1" />
+        <!-- 2. Chọn địa điểm đi và đến (Không cần chọn lộ trình, bên điều phối sẽ tự động gợi ý) -->
+        <div class="route-select-box">
+          <div class="grid-2">
+            <div class="form-group">
+              <label class="form-label">
+                <MapPin :size="14" class="text-primary" />
+                <span>Điểm xuất phát (Điểm đi) <span class="required">*</span></span>
+              </label>
+              <input
+                v-model="fromLocation"
+                list="hub-options-from"
+                type="text"
+                class="form-input"
+                placeholder="Chọn hoặc nhập điểm đi (vd: Trạm cân 1)"
+              />
+              <datalist id="hub-options-from">
+                <option v-for="hub in popularHubs" :key="'from-' + hub" :value="hub" />
+              </datalist>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">
+                <MapPin :size="14" class="text-danger" />
+                <span>Điểm đến <span class="required">*</span></span>
+              </label>
+              <input
+                v-model="toLocation"
+                list="hub-options-to"
+                type="text"
+                class="form-input"
+                placeholder="Chọn hoặc nhập điểm đến (vd: Đội 1)"
+              />
+              <datalist id="hub-options-to">
+                <option v-for="hub in popularHubs" :key="'to-' + hub" :value="hub" />
+              </datalist>
+            </div>
           </div>
 
-          <div class="form-group">
-            <label class="form-label">Điểm đến <span class="required">*</span></label>
-            <input v-model="toLocation" type="text" class="form-input" placeholder="Ví dụ: Đội 1" />
+          <!-- Nút chọn nhanh điểm đi / đến phổ biến -->
+          <div class="quick-locations-bar">
+            <span class="quick-loc-label">Chọn nhanh:</span>
+            <button type="button" class="btn-loc-chip" @click="fromLocation = 'Trạm cân 1'; toLocation = 'Đội 1'">
+              Trạm cân 1 ➔ Đội 1
+            </button>
+            <button type="button" class="btn-loc-chip" @click="fromLocation = 'Trạm cân 1'; toLocation = 'Đội 2'">
+              Trạm cân 1 ➔ Đội 2
+            </button>
+            <button type="button" class="btn-loc-chip" @click="fromLocation = 'Trạm cân 1'; toLocation = 'Nhà máy chế biến ECOTECH 2A'">
+              Trạm cân 1 ➔ Nhà máy
+            </button>
+            <button type="button" class="btn-loc-chip" @click="fromLocation = 'Văn phòng Công ty'; toLocation = 'Nhà máy chế biến ECOTECH 2A'">
+              Văn phòng ➔ Nhà máy
+            </button>
+          </div>
+
+          <!-- Banner giải thích rõ ràng theo quy chuẩn -->
+          <div class="route-hint-banner">
+            <Compass :size="15" class="text-primary" />
+            <span>Người đặt xe chỉ cần chọn điểm xuất phát và điểm đến. Lộ trình quy chuẩn tối ưu sẽ được Bộ phận Điều phối tự động gợi ý và xếp tuyến khi duyệt.</span>
           </div>
         </div>
 

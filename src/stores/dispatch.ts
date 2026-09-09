@@ -4,6 +4,7 @@ import { mockStorage } from '@/services/mockStorage';
 import { useBookingStore } from './booking';
 import { useFleetStore } from './fleet';
 import type { TransportTrip, TransportRequest } from '@/types';
+import { areRequestsRouteCompatible } from '@/utils/routeMatcher';
 
 export const useDispatchStore = defineStore('dispatch', () => {
   const trips = ref<TransportTrip[]>(mockStorage.getTrips());
@@ -120,17 +121,13 @@ export const useDispatchStore = defineStore('dispatch', () => {
       }
     }
 
-    // Điều kiện 3: Chung cung đường
-    const firstRouteId = requestList[0].standardRouteId;
-    const firstFrom = requestList[0].fromLocation;
-    const firstTo = requestList[0].toLocation;
-    const isSameRoute = requestList.every(
-      (r) =>
-        (firstRouteId && r.standardRouteId === firstRouteId) ||
-        (r.fromLocation === firstFrom && r.toLocation === firstTo)
+    // Điều kiện 3: Chung cung đường / tương thích lộ trình quy chuẩn
+    const firstReq = requestList[0];
+    const isSameRoute = requestList.every((r) =>
+      areRequestsRouteCompatible(firstReq, r, fleetStore.routes)
     );
     if (!isSameRoute) {
-      errors.push('Điều kiện 3 không đạt: Các yêu cầu phải đi cùng một cung đường / lộ trình!');
+      errors.push('Điều kiện 3 không đạt: Các yêu cầu phải đi cùng một cung đường / lộ trình tương thích!');
     }
 
     // Điều kiện 4: Không vượt sức chứa / tải trọng
