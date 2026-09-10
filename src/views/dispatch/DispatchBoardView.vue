@@ -513,15 +513,7 @@ function getServingTeam(req: TransportRequest): { label: string; isFactory: bool
 
               <!-- Thao tác -->
               <td class="text-center whitespace-nowrap">
-                <div class="flex items-center justify-center gap-2">
-                  <button
-                    v-if="authStore.activeRole === 'Dispatcher' || authStore.activeRole === 'Admin'"
-                    class="btn btn-icon btn-sm text-primary hover-btn-edit"
-                    @click="openEditRequest(req)"
-                    title="Sửa yêu cầu đặt xe"
-                  >
-                    <Edit2 :size="15" />
-                  </button>
+                <div class="flex items-center justify-center">
                   <button
                     class="btn-row-batch"
                     @click="openBatchWithDirectApprove(req)"
