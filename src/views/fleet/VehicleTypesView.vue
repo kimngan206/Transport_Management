@@ -101,7 +101,6 @@ function openEditModal(category: VehicleCategory) {
   formCapacityTons.value = category.standardCapacityTons;
   formSeats.value = category.standardSeats;
   formFuelQuotaType.value = category.fuelQuotaType;
-  applyVehicleTypeDefaults(formVehicleType.value);
   formDefaultQuotaEmpty.value = category.defaultQuotaEmpty;
   formDefaultQuotaLoaded.value = category.defaultQuotaLoaded;
   formDescription.value = category.description;
@@ -385,14 +384,6 @@ function deleteCategory(category: VehicleCategory) {
             />
           </div>
 
-          <div class="form-item">
-            <label class="form-label">Loại Xe</label>
-            <select v-model="formVehicleType" class="form-select">
-              <option value="LatexTruck">Xe tải chở mủ</option>
-              <option value="PassengerCar">Xe bán tải / công tác</option>
-              <option value="MillingMachine">Máy đào / cơ giới nông trường</option>
-            </select>
-          </div>
 
           <div class="form-item">
             <label class="form-label">Mô Tả Nhiệm Vụ & Phạm Vi Áp Dụng</label>
@@ -521,67 +512,6 @@ function deleteCategory(category: VehicleCategory) {
   color: var(--text-muted);
 }
 
-/* KPI Grid */
-.kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-}
-
-.kpi-card {
-  background: #ffffff;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-card);
-  padding: 16px;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  box-shadow: var(--shadow-sm);
-  transition: all 0.2s;
-}
-.kpi-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-card);
-}
-
-.kpi-icon-box {
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.icon-green { background: #f0fdf4; color: #16a34a; }
-.icon-amber { background: #fefce8; color: #d97706; }
-.icon-blue { background: #f0f9ff; color: #0284c7; }
-.icon-purple { background: #f5f3ff; color: #7c3aed; }
-
-.kpi-info {
-  display: flex;
-  flex-direction: column;
-}
-
-.kpi-label {
-  font-size: 0.625rem;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
-}
-
-.kpi-value {
-  font-size: 1.5rem;
-  font-weight: 800;
-  color: var(--text-main);
-  line-height: 1.2;
-}
-
-.kpi-desc {
-  font-size: 0.6875rem;
-  color: #64748b;
-  margin-top: 2px;
-}
 
 /* Content Card */
 .content-card {
@@ -755,45 +685,6 @@ function deleteCategory(category: VehicleCategory) {
 .group-machine { background: #fefce8; color: #854d0e; border: 1px solid #fef08a; }
 .group-work { background: #f0f9ff; color: #075985; border: 1px solid #bae6fd; }
 
-.type-pill-sm {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  background: #f1f5f9;
-  color: #475569;
-  padding: 2px 6px;
-  border-radius: 4px;
-  white-space: nowrap;
-}
-
-.capacity-box {
-  display: flex;
-  flex-direction: column;
-  white-space: nowrap;
-}
-
-.quota-box {
-  display: flex;
-  flex-direction: column;
-  font-size: 0.75rem;
-  white-space: nowrap;
-}
-
-.quota-val {
-  font-weight: 700;
-  color: #15803d;
-}
-
-.quota-lbl {
-  font-size: 0.625rem;
-  color: #64748b;
-}
-
-.quota-two-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  white-space: nowrap;
-}
 
 .fleet-count-badge {
   display: inline-flex;
@@ -861,8 +752,6 @@ function deleteCategory(category: VehicleCategory) {
   color: #0f172a;
 }
 .btn-edit:hover { border-color: #0284c7; color: #0284c7; }
-.btn-toggle-off:hover { border-color: #d97706; color: #d97706; }
-.btn-toggle-on:hover { border-color: #16a34a; color: #16a34a; }
 .btn-delete:hover { border-color: #dc2626; color: #dc2626; }
 
 /* Modal Styles */
@@ -946,12 +835,6 @@ function deleteCategory(category: VehicleCategory) {
   gap: 12px;
 }
 
-.form-grid-3 {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 12px;
-}
-
 .form-item {
   display: flex;
   flex-direction: column;
@@ -984,24 +867,10 @@ function deleteCategory(category: VehicleCategory) {
   box-shadow: 0 0 0 2px rgba(21, 128, 61, 0.15);
 }
 
-.form-group-box {
-  background: #f8fafc;
-  border: 1px solid var(--border-card);
-  border-radius: var(--radius-md);
-  padding: 12px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.box-title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.8125rem;
-  font-weight: 700;
-  color: #15803d;
-  margin: 0;
+.hint-text {
+  font-weight: 400;
+  color: var(--text-muted);
+  font-size: 0.6875rem;
 }
 
 .form-switch-row {

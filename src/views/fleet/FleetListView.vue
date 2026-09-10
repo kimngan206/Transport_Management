@@ -99,10 +99,6 @@ const paginatedDrivers = computed(() => {
 // Phân trang danh sách bàn giao
 const handoverCurrentPage = ref(1);
 const handoverPageSize = ref(8);
-const paginatedHandovers = computed(() => {
-  const start = (handoverCurrentPage.value - 1) * handoverPageSize.value;
-  return handoverList.value.slice(start, start + handoverPageSize.value);
-});
 
 // Modal chi tiết phương tiện & chu kỳ bảo dưỡng (Section 4 - baoduong.md)
 const selectedVehicleForDetail = ref<Vehicle | null>(null);
@@ -163,24 +159,62 @@ const defaultHandovers: HandoverRecord[] = [
     id: 2,
     vehicleId: 3,
     vehiclePlate: '51A-992.34',
-    workflowType: 'TRANSFER',
-    fromTeam: 'Nhà máy',
-    toTeam: 'Trạm Cán 2',
-    fromStation: 'Nhà máy trung tâm',
-    toStation: 'Trạm Cán 2',
-    transferReason: 'Xe chính hỏng máy, cần mượn xe dự phòng trong 7 ngày để tiếp tục thu gom mủ',
-    replacingVehiclePlate: '51D-334.01',
+    workflowType: 'HANDOVER',
+    fromTeam: 'Đội 1',
+    toTeam: 'Đội 3',
     driverName: 'Lê Văn Tài',
-    fromDriverId: 103,
+    fromDriverId: 102,
     borrowStartAt: '2026-09-06 13:00',
     expectedReturnAt: '2026-09-06 17:30',
     actualReturnAt: '2026-09-06 17:30',
     handoverOdo: 89400,
     returnOdo: 89480,
     fuelLevel: '90%',
-    conditionNotes: 'Đã trả xe nguyên trạng về bãi đỗ văn phòng công ty',
+    conditionNotes: 'Đã bàn giao ca theo biên bản kiểm tra tình trạng xe',
     status: 'RETURNED',
     createdAt: '2026-09-06 13:00',
+  },
+  {
+    id: 3,
+    vehicleId: 2,
+    vehiclePlate: '70C-123.45',
+    workflowType: 'TRANSFER',
+    fromTeam: 'Nông trường 1',
+    toTeam: 'Nông trường 3',
+    fromStation: 'Trạm 1',
+    toStation: 'Trạm 3',
+    transferReason: 'Điều chuyển xe bồn chi viện thu gom mủ đợt cao điểm',
+    driverName: 'Trần Văn Vận',
+    fromDriverId: 101,
+    borrowStartAt: '2026-09-08 08:00',
+    expectedReturnAt: '2026-09-15 17:00',
+    handoverOdo: 146800,
+    fuelLevel: '95%',
+    conditionNotes: 'Điều chuyển mượn xe bồn chở mủ trong 7 ngày',
+    status: 'BORROWING',
+    createdAt: '2026-09-08 08:00',
+  },
+  {
+    id: 4,
+    vehicleId: 4,
+    vehiclePlate: '60C-567.89',
+    workflowType: 'TRANSFER',
+    fromTeam: 'Nhà máy chế biến',
+    toTeam: 'Nông trường 2',
+    fromStation: 'Nhà máy',
+    toStation: 'Nông trường 2',
+    transferReason: 'Điều chuyển máy đào làm đường lô vườn cây',
+    driverName: 'Đỗ Văn Máy',
+    fromDriverId: 104,
+    borrowStartAt: '2026-09-02 07:00',
+    expectedReturnAt: '2026-09-05 17:00',
+    actualReturnAt: '2026-09-05 16:30',
+    handoverOdo: 4820,
+    returnOdo: 4850,
+    fuelLevel: '80%',
+    conditionNotes: 'Đã hoàn thành đợt điều chuyển và bàn giao lại cho nhà máy',
+    status: 'RETURNED',
+    createdAt: '2026-09-02 07:00',
   },
 ];
 const handoverList = ref<HandoverRecord[]>(mockStorage.getHandovers(defaultHandovers));
@@ -231,6 +265,15 @@ const filteredHandovers = computed(() => {
   }
 
   return result;
+});
+
+const paginatedHandovers = computed(() => {
+  const start = (handoverCurrentPage.value - 1) * handoverPageSize.value;
+  return filteredHandovers.value.slice(start, start + handoverPageSize.value);
+});
+
+watch([handoverSectionTab, handoverStatusFilter, searchHandoverKeyword], () => {
+  handoverCurrentPage.value = 1;
 });
 
 const handoverSummary = computed(() => {
@@ -981,8 +1024,8 @@ function resetHandoverForm() {
   newHandoverPlate.value = firstVehicle?.licensePlate || '';
   newHandoverFromDriver.value = firstVehicle?.assignedDriverName || firstDriver?.fullName || '';
   newHandoverDriver.value = firstDriver?.fullName || '';
-  newHandoverVehicleTeam.value = firstVehicle?.teamName || '';
-  newHandoverFromTeam.value = '';
+  newHandoverVehicleTeam.value = firstVehicle?.teamName || 'Đội 1';
+  newHandoverFromTeam.value = firstVehicle?.teamName || '';
   newHandoverToTeam.value = '';
   newHandoverFromStation.value = 'Nhà máy';
   newHandoverToStation.value = 'Trạm Cán 1';
@@ -995,6 +1038,22 @@ function resetHandoverForm() {
   newHandoverReturnOdo.value = undefined;
   newHandoverFuel.value = '90%';
   newHandoverNotes.value = 'Xe sạch, áp suất lốp đủ, phanh hoạt động tốt, đầy đủ giấy tờ';
+}
+
+function onHandoverVehicleChange() {
+  const v = fleetStore.vehicles.find((veh) => veh.licensePlate === newHandoverPlate.value);
+  if (!v) return;
+
+  if (v.assignedDriverName) {
+    newHandoverFromDriver.value = v.assignedDriverName;
+  }
+  if (v.teamName) {
+    newHandoverVehicleTeam.value = v.teamName;
+    newHandoverFromTeam.value = v.teamName;
+  }
+  if (v.currentOdoKm) {
+    newHandoverOdo.value = v.currentOdoKm;
+  }
 }
 
 function openAddHandoverModal() {
@@ -1308,10 +1367,10 @@ function handleDeleteHandover(record: HandoverRecord) {
               <th style="min-width: 140px;">Định Mức Nhiên Liệu</th>
               <th style="min-width: 155px;">Chỉ Số Vận Hành (ODO)</th>
               <th style="min-width: 110px;">Trạng Thái Xe</th>
-              <th style="min-width: 125px;">Số Lần Vận Chuyển</th>
-              <th style="min-width: 115px;">Chu Kỳ Bảo Dưỡng</th>
+              <th style="min-width: 145px;">Số Lần Vận Chuyển</th>
+              <th style="min-width: 130px;">Chu Kỳ Bảo Dưỡng</th>
               <th style="min-width: 140px;">Ghi Chú</th>
-              <th class="text-center sticky-action-col" style="min-width: 90px; width: 90px;">Hành Động</th>
+              <th class="text-center sticky-action-col" style="min-width: 100px; width: 100px;">Hành Động</th>
             </tr>
           </thead>
           <tbody>
@@ -1654,74 +1713,60 @@ function handleDeleteHandover(record: HandoverRecord) {
       </div>
 
       <!-- Thanh chuyển đổi phân hệ: Bàn giao ca vs Điều chuyển & Bộ lọc -->
-      <div class="card-header flex-between" style="margin-bottom: 12px; flex-wrap: wrap; gap: 12px;">
-        <div class="flex-actions" style="gap: 10px; flex-wrap: wrap;">
+      <div class="handover-toolbar">
+        <!-- Segmented Tab Toggle -->
+        <div class="segmented-control">
           <button
             type="button"
-            class="btn btn-small"
-            :class="handoverSectionTab === 'HANDOVER' ? 'btn-primary' : 'btn-outline'"
+            class="segmented-tab"
+            :class="{ active: handoverSectionTab === 'HANDOVER' }"
             @click="handoverSectionTab = 'HANDOVER'"
           >
             Bàn giao ca
           </button>
           <button
             type="button"
-            class="btn btn-small"
-            :class="handoverSectionTab === 'TRANSFER' ? 'btn-primary' : 'btn-outline'"
+            class="segmented-tab"
+            :class="{ active: handoverSectionTab === 'TRANSFER' }"
             @click="handoverSectionTab = 'TRANSFER'"
           >
             Điều chuyển
           </button>
         </div>
 
-        <div class="handover-search-wrap" style="max-width: 320px;">
-          <Search :size="15" class="handover-search-ico" />
-          <input
-            v-model="searchHandoverKeyword"
-            type="text"
-            class="handover-search-input"
-            placeholder="Tìm biển số, tài xế, đội..."
-          />
-          <button
-            v-if="searchHandoverKeyword"
-            class="btn-clear-search"
-            @click="searchHandoverKeyword = ''"
-            title="Xóa tìm kiếm"
-          >
-            <X :size="13" />
-          </button>
-        </div>
+        <!-- Cụm Tìm kiếm & Bộ lọc kế bên nhau -->
+        <div class="handover-toolbar-right">
+          <div class="handover-search-wrap">
+            <Search :size="15" class="handover-search-ico" />
+            <input
+              v-model="searchHandoverKeyword"
+              type="text"
+              class="handover-search-input"
+              placeholder="Tìm biển số, tài xế, đội..."
+            />
+            <button
+              v-if="searchHandoverKeyword"
+              class="btn-clear-search"
+              @click="searchHandoverKeyword = ''"
+              title="Xóa tìm kiếm"
+            >
+              <X :size="13" />
+            </button>
+          </div>
 
-        <div class="filter-item">
-          <span class="filter-label">Trạng thái:</span>
-          <select v-model="handoverStatusFilter" class="filter-select">
-            <option value="ALL">Tất cả ({{ handoverSummary.total }})</option>
-            <option value="BORROWING">Đang mượn / còn hiệu lực ({{ handoverSummary.borrowing }})</option>
-            <option value="RETURNED">Đã trả / đã đóng đợt ({{ handoverSummary.returned }})</option>
-            <option value="OVERDUE">Quá hạn / cần xử lý ({{ handoverSummary.overdue }})</option>
-            <option value="CANCELLED">Đã hủy ({{ handoverSummary.cancelled }})</option>
-          </select>
+          <div class="handover-filter-item">
+            <span class="filter-label">Trạng thái:</span>
+            <select v-model="handoverStatusFilter" class="filter-select-input">
+              <option value="ALL">Tất cả ({{ handoverSummary.total }})</option>
+              <option value="BORROWING">Đang mượn / còn hiệu lực ({{ handoverSummary.borrowing }})</option>
+              <option value="RETURNED">Đã trả / đã đóng đợt ({{ handoverSummary.returned }})</option>
+              <option value="OVERDUE">Quá hạn / cần xử lý ({{ handoverSummary.overdue }})</option>
+              <option value="CANCELLED">Đã hủy ({{ handoverSummary.cancelled }})</option>
+            </select>
+          </div>
         </div>
       </div>
 
-      <div style="display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px;">
-        <div style="padding: 12px 14px; border-radius: 12px; border: 1px solid #dfe7ef; background: linear-gradient(135deg, #fef3c7, #fff7ed);">
-          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #8a5b00; font-weight: 700;">Đang mượn / còn hiệu lực</div>
-          <div style="margin-top: 8px; font-size: 22px; font-weight: 800; color: #7c3f00;">{{ handoverSummary.borrowing }}</div>
-        </div>
-        <div style="padding: 12px 14px; border-radius: 12px; border: 1px solid #dfe7ef; background: linear-gradient(135deg, #dcfce7, #f0fdf4);">
-          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #166534; font-weight: 700;">Đã trả / đã đóng đợt</div>
-          <div style="margin-top: 8px; font-size: 22px; font-weight: 800; color: #166534;">{{ handoverSummary.returned }}</div>
-        </div>
-        <div style="padding: 12px 14px; border-radius: 12px; border: 1px solid #dfe7ef; background: linear-gradient(135deg, #fce7f3, #fff1f2);">
-          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #9d174d; font-weight: 700;">Quá hạn / cần xử lý</div>
-          <div style="margin-top: 8px; font-size: 22px; font-weight: 800; color: #9d174d;">{{ handoverSummary.overdue }}</div>
-        </div>
-        <div style="padding: 12px 14px; border-radius: 12px; border: 1px solid #dfe7ef; background: linear-gradient(135deg, #dbeafe, #eff6ff);">
-          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #1d4ed8; font-weight: 700;">Tổng phiếu</div>
-          <div style="margin-top: 8px; font-size: 22px; font-weight: 800; color: #1e3a8a;">{{ handoverSummary.total }}</div>
-        </div>
-      </div>
 
       <div class="table-container">
         <table class="table">
@@ -1729,8 +1774,10 @@ function handleDeleteHandover(record: HandoverRecord) {
             <tr>
               <th>Phương Tiện</th>
               <th>Loại</th>
-              <th v-if="!isDriverRole">Đội Gửi / Nhận</th>
-              <th v-if="!isDriverRole && handoverSectionTab === 'HANDOVER'">Người Nhận / Tài Xế</th>
+              <template v-if="!isDriverRole">
+                <th>{{ handoverSectionTab === 'TRANSFER' ? 'Tài Xế Sở Hữu' : 'Tài Xế Cũ' }}</th>
+                <th>{{ handoverSectionTab === 'TRANSFER' ? 'Tài Xế Tạm Thời' : 'Tài Xế Hiện Tại' }}</th>
+              </template>
               <th>Thời Gian Mượn</th>
               <th>Thời Gian Trả</th>
               <th>ODO Bàn Giao</th>
@@ -1756,24 +1803,19 @@ function handleDeleteHandover(record: HandoverRecord) {
             </tr>
             <tr v-for="h in paginatedHandovers" :key="h.id">
               <td>
-                <strong>{{ h.vehiclePlate }}</strong>
+                <button class="btn-plate-link" @click="openHandoverDetailModal(h)" title="Xem chi tiết phiếu bàn giao / điều chuyển">
+                  <strong>{{ h.vehiclePlate }}</strong>
+                </button>
               </td>
               <td>
                 <span class="badge badge-secondary">
                   {{ getHandoverWorkflowLabel(h.workflowType) }}
                 </span>
               </td>
-              <td v-if="!isDriverRole">
-                <div v-if="h.workflowType === 'TRANSFER'" class="text-sm">
-                  <div><strong>Từ:</strong> {{ h.fromTeam || '—' }}</div>
-                  <div><strong>Đến:</strong> {{ h.toTeam || '—' }}</div>
-                </div>
-                <div v-else class="text-sm">
-                  <div><strong>Tài xế cũ:</strong> {{ getDriverNameById(h.fromDriverId) || '—' }}</div>
-                  <div><strong>Tài xế mới:</strong> {{ h.driverName || '—' }}</div>
-                </div>
-              </td>
-              <td v-if="!isDriverRole && handoverSectionTab === 'HANDOVER'">{{ h.driverName }}</td>
+              <template v-if="!isDriverRole">
+                <td>{{ getDriverNameById(h.fromDriverId) || h.fromTeam || '—' }}</td>
+                <td>{{ h.driverName || h.toTeam || '—' }}</td>
+              </template>
               <td>{{ h.borrowStartAt }}</td>
               <td>{{ h.actualReturnAt || h.expectedReturnAt || '—' }}</td>
               <td><strong>{{ h.handoverOdo.toLocaleString() }} km</strong></td>
@@ -1790,13 +1832,6 @@ function handleDeleteHandover(record: HandoverRecord) {
               </td>
               <td class="text-center">
                 <div v-if="isDriverRole" class="actions-group">
-                  <button
-                    class="btn-action btn-edit"
-                    @click="openHandoverDetailModal(h)"
-                    title="Xem chi tiết phiếu"
-                  >
-                    <Info :size="14" />
-                  </button>
                   <button
                     v-if="currentDriverId && h.fromDriverId === currentDriverId && h.status === 'BORROWING'"
                     class="btn-action btn-primary"
@@ -1817,9 +1852,6 @@ function handleDeleteHandover(record: HandoverRecord) {
                 <div v-else class="actions-group">
                   <button class="btn-action btn-edit" @click="openEditHandoverModal(h)" title="Chỉnh sửa phiếu bàn giao">
                     <Edit2 :size="14" />
-                  </button>
-                  <button class="btn-action btn-primary" @click="handleReturnHandover(h)" title="Xác nhận trả xe">
-                    <Info :size="14" />
                   </button>
                   <button class="btn-action btn-delete" @click="handleDeleteHandover(h)" title="Xóa phiếu bàn giao">
                     <Trash2 :size="14" />
@@ -2287,12 +2319,12 @@ function handleDeleteHandover(record: HandoverRecord) {
         <div class="modal-body">
           <div class="form-group">
             <label class="form-label">Loại biên bản <span class="required">*</span></label>
-            <div class="flex gap-5">
-              <label class="flex items-center gap-2 px-3 py-2 rounded border border-slate-300 bg-white flex-1 cursor-pointer" :class="{ 'border-emerald-500 bg-emerald-50': newHandoverWorkflowType === 'HANDOVER' }">
+            <div class="workflow-radio-group">
+              <label class="radio-pill-item" :class="{ active: newHandoverWorkflowType === 'HANDOVER' }">
                 <input v-model="newHandoverWorkflowType" type="radio" value="HANDOVER" />
                 <span>Bàn giao xe</span>
               </label>
-              <label class="flex items-center gap-2 px-3 py-2 rounded border border-slate-300 bg-white flex-1 cursor-pointer" :class="{ 'border-emerald-500 bg-emerald-50': newHandoverWorkflowType === 'TRANSFER' }">
+              <label class="radio-pill-item" :class="{ active: newHandoverWorkflowType === 'TRANSFER' }">
                 <input v-model="newHandoverWorkflowType" type="radio" value="TRANSFER" />
                 <span>Điều chuyển xe</span>
               </label>
@@ -2304,9 +2336,9 @@ function handleDeleteHandover(record: HandoverRecord) {
               {{ newHandoverWorkflowType === 'TRANSFER' ? 'Phương tiện mượn / xe chi viện' : 'Phương tiện bàn giao' }}
               <span class="required">*</span>
             </label>
-            <select v-model="newHandoverPlate" class="form-select">
+            <select v-model="newHandoverPlate" class="form-select" @change="onHandoverVehicleChange">
               <option v-for="v in fleetStore.vehicles" :key="v.id" :value="v.licensePlate">
-                {{ v.licensePlate }} - {{ v.model }} ({{ v.vehicleType }})
+                {{ v.licensePlate }} - {{ v.model }} ({{ v.vehicleType }}) {{ v.assignedDriverName ? `— TX: ${v.assignedDriverName}` : '' }}
               </option>
             </select>
           </div>
@@ -2324,15 +2356,15 @@ function handleDeleteHandover(record: HandoverRecord) {
           <div v-if="newHandoverWorkflowType === 'HANDOVER'" class="grid-2">
             <div class="form-group">
               <label class="form-label">Tài xế trả xe <span class="required">*</span></label>
-              <div class="flex gap-2 items-center">
-                <select v-model="newHandoverFromDriver" class="form-select" style="flex: 1; min-width: 0;">
+              <div class="driver-select-row">
+                <select v-model="newHandoverFromDriver" class="form-select">
                   <option v-for="d in fleetStore.drivers" :key="d.id" :value="d.fullName">
                     {{ d.fullName }} ({{ d.licenseClass }})
                   </option>
                 </select>
                 <button
                   type="button"
-                  class="btn btn-outline btn-small"
+                  class="btn btn-secondary btn-sm"
                   :disabled="!newHandoverFromDriver"
                   @click="openDriverDetailByName(newHandoverFromDriver)"
                 >
@@ -2342,15 +2374,15 @@ function handleDeleteHandover(record: HandoverRecord) {
             </div>
             <div class="form-group">
               <label class="form-label">Tài xế nhận xe</label>
-              <div class="flex gap-2 items-center">
-                <select v-model="newHandoverDriver" class="form-select" style="flex: 1; min-width: 0;">
+              <div class="driver-select-row">
+                <select v-model="newHandoverDriver" class="form-select">
                   <option v-for="d in fleetStore.drivers" :key="d.id" :value="d.fullName">
                     {{ d.fullName }} ({{ d.licenseClass }})
                   </option>
                 </select>
                 <button
                   type="button"
-                  class="btn btn-outline btn-small"
+                  class="btn btn-secondary btn-sm"
                   :disabled="!newHandoverDriver"
                   @click="openDriverDetailByName(newHandoverDriver)"
                 >
@@ -2999,21 +3031,10 @@ function handleDeleteHandover(record: HandoverRecord) {
   transform: translateY(-1px);
 }
 
-/* Sticky Action Column */
+/* Action Column - Normal Flow */
 .table th.sticky-action-col,
 .table td.sticky-action-col {
-  position: sticky !important;
-  right: 0 !important;
-  background-color: #ffffff !important;
-  z-index: 4;
-  box-shadow: -4px 0 10px rgba(15, 23, 42, 0.08);
-}
-.table th.sticky-action-col {
-  background-color: #f8fafc !important;
-  z-index: 5;
-}
-.table tbody tr:hover td.sticky-action-col {
-  background-color: #f8fafc !important;
+  position: static;
 }
 
 /* Compact fleet table styling */
@@ -3318,27 +3339,62 @@ function handleDeleteHandover(record: HandoverRecord) {
   color: #d97706;
 }
 
-/* Handover Toolbar */
+/* Handover Toolbar Redesign */
 .handover-toolbar {
   display: flex;
+  align-items: center;
   justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 12px 20px;
+  background: #f8fafc;
+  border-bottom: 1px solid var(--border-subtle, #edf4ed);
+}
+
+.segmented-control {
+  display: inline-flex;
+  background: #e2e8f0;
+  padding: 3px;
+  border-radius: 8px;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.segmented-tab {
+  padding: 6px 14px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: #475569;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.segmented-tab.active {
+  background: #15803d;
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.segmented-tab:hover:not(.active) {
+  color: #0f172a;
+}
+
+.handover-toolbar-right {
+  display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
-  padding: 10px 14px;
-  background: #f8fafc;
-  border-radius: 10px;
-  border: 1px solid #e2e8f0;
-  margin-top: 14px;
-  margin-bottom: 16px;
 }
 
 .handover-search-wrap {
   position: relative;
   display: flex;
   align-items: center;
-  flex: 1;
-  min-width: 260px;
+  width: 260px;
 }
 
 .handover-search-ico {
@@ -3350,63 +3406,53 @@ function handleDeleteHandover(record: HandoverRecord) {
 
 .handover-search-input {
   width: 100%;
-  padding: 8px 32px 8px 34px;
-  border-radius: 7px;
+  padding: 7px 32px 7px 34px;
+  border-radius: 6px;
   border: 1px solid #cbd5e1;
   background-color: #ffffff;
   font-size: 0.8125rem;
   color: #0f172a;
   outline: none;
-  transition: all 0.2s;
+  transition: all 0.15s ease;
   font-family: inherit;
 }
 
 .handover-search-input:focus {
-  border-color: #059669;
-  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.15);
+  border-color: #15803d;
+  box-shadow: 0 0 0 2px rgba(21, 128, 61, 0.15);
 }
 
-.handover-filter-right {
+.handover-filter-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
-.filter-select-box {
-  position: relative;
-  display: flex;
-  align-items: center;
+.handover-filter-item .filter-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #475569;
+  white-space: nowrap;
 }
 
-.filter-select-ico {
-  position: absolute;
-  left: 10px;
-  color: #64748b;
-  pointer-events: none;
-}
-
-.custom-select-input {
-  appearance: none;
-  padding: 7px 28px 7px 30px;
-  border-radius: 7px;
+.filter-select-input {
+  padding: 6px 12px;
+  border-radius: 6px;
   border: 1px solid #cbd5e1;
   background-color: #ffffff;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  color: #334155;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #0f172a;
   cursor: pointer;
   outline: none;
-  transition: all 0.2s;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 8px center;
-  background-size: 14px;
+  transition: all 0.15s ease;
+  font-family: inherit;
 }
 
-.custom-select-input:focus {
-  border-color: #059669;
-  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.15);
+.filter-select-input:focus {
+  border-color: #15803d;
+  box-shadow: 0 0 0 2px rgba(21, 128, 61, 0.15);
 }
 
 .btn-clear-search {
@@ -3559,5 +3605,58 @@ function handleDeleteHandover(record: HandoverRecord) {
   padding: 3px 8px;
   border-radius: 6px;
   white-space: nowrap;
+}
+
+/* Radio Pill Selector for Handover Modal */
+.workflow-radio-group {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.radio-pill-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background-color: #ffffff;
+  flex: 1;
+  cursor: pointer;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #334155;
+  transition: all 0.15s ease;
+}
+
+.radio-pill-item:hover {
+  border-color: #15803d;
+  background-color: #f8fafc;
+}
+
+.radio-pill-item.active {
+  border-color: #15803d;
+  background-color: #f0fdf4;
+  color: #166534;
+}
+
+.radio-pill-item input[type="radio"] {
+  accent-color: #15803d;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.driver-select-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.driver-select-row .form-select {
+  flex: 1;
+  min-width: 0;
 }
 </style>

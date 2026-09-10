@@ -467,7 +467,7 @@ const showSection = computed(() => {
 
             <div v-show="openGroups.dispatch" class="sub-links-list">
               <router-link to="/dispatch?view=board" class="sub-nav-link" :class="{ active: route.path === '/dispatch' && route.query.view === 'board' }">
-                <span>Tạo chuyến xe</span>
+                <span>Ghép chuyến</span>
                 <span v-if="pendingCount > 0" class="mini-badge badge-amber">{{ pendingCount }}</span>
               </router-link>
               <router-link to="/dispatch" class="sub-nav-link" :class="{ active: route.path === '/dispatch' && (!route.query.view || route.query.view === 'map') }">

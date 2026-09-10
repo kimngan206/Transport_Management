@@ -15,6 +15,8 @@ import {
   Save,
   Info,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Filter,
   Search,
   Sparkles,
@@ -37,8 +39,11 @@ import {
 const fleetStore = useFleetStore();
 const dispatchStore = useDispatchStore();
 
-// Tab đang chọn: 'timeline' | 'vehicles' | 'categories'
-const activeTab = ref<'timeline' | 'vehicles' | 'categories'>('timeline');
+// Tab đang chọn: 'timeline' | 'vehicles'
+const activeTab = ref<'timeline' | 'vehicles'>('timeline');
+
+// Mặc định thu gọn / mở rộng Accordion Quy chuẩn chung
+const isGeneralRulesExpanded = ref(false);
 
 // Trạng thái cấu hình
 const config = ref<TripSettingsConfig>(mockStorage.getTripSettings());
@@ -53,6 +58,7 @@ const filterUnit = ref<string>('ALL');
 // Bộ lọc cho Tab Cài đặt từng xe
 const searchPlate = ref('');
 const filterVehicleTeam = ref('ALL');
+const filterVehicleType = ref('ALL');
 
 onMounted(() => {
   config.value = mockStorage.getTripSettings();
@@ -253,6 +259,9 @@ const filteredVehicleSettings = computed(() => {
     if (searchPlate.value && !s.licensePlate.toLowerCase().includes(searchPlate.value.toLowerCase())) {
       return false;
     }
+    if (filterVehicleType.value !== 'ALL' && s.vehicleType !== filterVehicleType.value) {
+      return false;
+    }
     if (filterVehicleTeam.value !== 'ALL') {
       if (filterVehicleTeam.value === 'Factory' && s.operatingUnitType !== 'Factory') return false;
       if (filterVehicleTeam.value.startsWith('Team:') && s.teamName !== filterVehicleTeam.value.replace('Team:', '')) return false;
@@ -268,7 +277,7 @@ const paginatedVehicleSettings = computed(() => {
   const start = (vehPage.value - 1) * vehPageSize.value;
   return filteredVehicleSettings.value.slice(start, start + vehPageSize.value);
 });
-watch([searchPlate, filterVehicleTeam], () => {
+watch([searchPlate, filterVehicleTeam, filterVehicleType], () => {
   vehPage.value = 1;
 });
 
@@ -296,6 +305,15 @@ function applyBatchTemplate(type: VehicleType) {
         s.interVehicleIntervalMinutes = typeCfg.interVehicleIntervalMinutes;
         s.cleaningDurationMinutes = typeCfg.cleaningDurationMinutes;
       });
+  }
+}
+
+function handleBatchTemplateChange(event: Event) {
+  const target = event.target as HTMLSelectElement;
+  const val = target.value as VehicleType;
+  if (val) {
+    applyBatchTemplate(val);
+    target.value = ''; // Reset select back to placeholder
   }
 }
 </script>
@@ -339,7 +357,6 @@ function applyBatchTemplate(type: VehicleType) {
       >
         <Calendar :size="15" />
         <span>Sơ Đồ Giãn Cách & Trục Thời Gian</span>
-        <span class="tab-badge">{{ dayTrips.length }} chuyến</span>
       </button>
 
       <button
@@ -347,18 +364,8 @@ function applyBatchTemplate(type: VehicleType) {
         :class="{ active: activeTab === 'vehicles' }"
         @click="activeTab = 'vehicles'"
       >
-        <Truck :size="15" />
-        <span>Cài Đặt Từng Xe Cụ Thể</span>
-        <span class="tab-badge">{{ config.specificVehicleSettings.length }} xe</span>
-      </button>
-
-      <button
-        class="tab-item-btn"
-        :class="{ active: activeTab === 'categories' }"
-        @click="activeTab = 'categories'"
-      >
         <Sliders :size="15" />
-        <span>Quy Chuẩn Chung & Loại Xe</span>
+        <span>Cài Đặt Quy Chuẩn & Từng Xe Cụ Thể</span>
       </button>
     </div>
 
@@ -597,9 +604,326 @@ function applyBatchTemplate(type: VehicleType) {
     </div>
 
     <!-- ======================================================= -->
-    <!-- TAB 2: CÀI ĐẶT TỪNG XE CỤ THỂ -->
+    <!-- TAB 2: CÀI ĐẶT QUY CHUẨN & TỪNG XE CỤ THỂ -->
     <!-- ======================================================= -->
     <div v-if="activeTab === 'vehicles'" class="tab-content mt-3">
+      <!-- KHỐI 1: QUY CHUẨN CHUNG & THEO LOẠI XE (ACCORDION THU GỌN) -->
+      <div class="card rules-accordion-card mb-3">
+        <div
+          class="rules-accordion-header"
+          :class="{ active: isGeneralRulesExpanded }"
+          @click="isGeneralRulesExpanded = !isGeneralRulesExpanded"
+        >
+          <div class="rules-header-left">
+            <div class="rules-header-icon">
+              <Settings :size="16" />
+            </div>
+            <div class="rules-header-text">
+              <div class="flex items-center gap-2">
+                <span class="rules-header-title">Quy Chuẩn Định Mức Mặc Định & Theo Loại Xe</span>
+                <span class="badge-rules-status" :class="isGeneralRulesExpanded ? 'badge-open' : 'badge-closed'">
+                  {{ isGeneralRulesExpanded ? 'Đang mở cấu hình' : 'Nhấn để xem / sửa' }}
+                </span>
+              </div>
+              <p class="rules-header-subtitle">
+                Đệm hệ thống: <strong>{{ config.defaultTurnaroundMinutes }}p</strong> • 
+                Giãn cách bến: <strong>{{ config.defaultInterVehicleIntervalMinutes }}p</strong> • 
+                Xe bồn mủ: <strong>{{ config.vehicleTypeSettings.LatexTruck.turnaroundBufferMinutes }}p</strong> đệm / <strong>{{ config.vehicleTypeSettings.LatexTruck.interVehicleIntervalMinutes }}p</strong> bến • 
+                Xe khách: <strong>{{ config.vehicleTypeSettings.PassengerCar.turnaroundBufferMinutes }}p</strong> đệm
+              </p>
+            </div>
+          </div>
+
+          <div class="rules-header-right">
+            <button type="button" class="btn-toggle-rules-accordion">
+              <span>{{ isGeneralRulesExpanded ? 'Thu gọn' : 'Chi tiết quy chuẩn chung' }}</span>
+              <ChevronUp v-if="isGeneralRulesExpanded" :size="15" />
+              <ChevronDown v-else :size="15" />
+            </button>
+          </div>
+        </div>
+
+        <!-- NỘI DUNG FORM QUY CHUẨN KHI MỞ RỘNG -->
+        <div v-show="isGeneralRulesExpanded" class="rules-accordion-body p-4 border-top">
+          <div class="grid-2 gap-4">
+            <!-- Cột 1: Cấu hình mặc định toàn hệ thống -->
+            <div class="card p-4 category-panel-card">
+              <div class="panel-card-header">
+                <div class="panel-header-title-wrap">
+                  <div class="panel-icon-wrap primary">
+                    <Settings :size="18" />
+                  </div>
+                  <div>
+                    <h3 class="panel-title">Quy Chuẩn Mặc Định Toàn Hệ Thống</h3>
+                    <p class="panel-subtitle">Áp dụng cho các phương tiện chưa có cấu hình tùy biến riêng</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="default-rules-list">
+                <!-- Rule 1: Đệm 2 chuyến -->
+                <div class="rule-setting-card">
+                  <div class="rule-info">
+                    <div class="rule-title-row">
+                      <Clock :size="16" class="text-primary" />
+                      <strong class="rule-title">Thời gian đệm nghỉ giữa 2 chuyến:</strong>
+                    </div>
+                    <p class="rule-desc">
+                      Thời gian bàn giao chứng từ, kiểm tra lốp, phanh và nghỉ ngơi trước chuyến mới (khuyến nghị 30 - 45 phút).
+                    </p>
+                  </div>
+                  <div class="rule-input-wrap">
+                    <div class="input-unit-composite">
+                      <input
+                        v-model.number="config.defaultTurnaroundMinutes"
+                        type="number"
+                        class="composite-input"
+                        min="10"
+                        max="180"
+                        step="5"
+                      />
+                      <span class="composite-unit">phút</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Rule 2: Giãn cách xuất bến -->
+                <div class="rule-setting-card">
+                  <div class="rule-info">
+                    <div class="rule-title-row">
+                      <ArrowRight :size="16" class="text-emerald-600" />
+                      <strong class="rule-title">Giãn cách xuất bến tối thiểu giữa 2 xe:</strong>
+                    </div>
+                    <p class="rule-desc">
+                      Khoảng cách thời gian tối thiểu giữa giờ xuất bến của 2 xe khác nhau, tránh dồn ứ trạm cân hoặc trạm tiếp nhận nhà máy.
+                    </p>
+                  </div>
+                  <div class="rule-input-wrap">
+                    <div class="input-unit-composite">
+                      <input
+                        v-model.number="config.defaultInterVehicleIntervalMinutes"
+                        type="number"
+                        class="composite-input"
+                        min="5"
+                        max="60"
+                        step="5"
+                      />
+                      <span class="composite-unit">phút</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Rule 3: Chế độ điều xe cứu viện khẩn cấp -->
+                <div class="emergency-override-card" :class="{ active: config.allowEmergencyOverride }">
+                  <div class="emergency-card-body">
+                    <div class="emergency-icon-wrap">
+                      <ShieldCheck v-if="config.allowEmergencyOverride" :size="20" class="text-amber-600" />
+                      <AlertTriangle v-else :size="20" class="text-slate-400" />
+                    </div>
+                    <div class="emergency-info">
+                      <strong class="emergency-title">Bỏ qua đệm khi Điều Xe Cứu Viện Khẩn Cấp</strong>
+                      <p class="emergency-desc">
+                        Cho phép điều phối viên xuất chuyến ngay lập tức cho xe rỗng ứng cứu sự cố, không áp dụng thời gian đệm thông thường.
+                      </p>
+                    </div>
+                    <div class="emergency-toggle">
+                      <label class="toggle-switch-label">
+                        <input
+                          v-model="config.allowEmergencyOverride"
+                          type="checkbox"
+                          class="toggle-switch-input"
+                        />
+                        <span class="toggle-switch-slider"></span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Cột 2: Cấu hình quy chuẩn theo từng loại phương tiện -->
+            <div class="card p-4 category-panel-card">
+              <div class="panel-card-header">
+                <div class="panel-header-title-wrap">
+                  <div class="panel-icon-wrap info">
+                    <Layers :size="18" />
+                  </div>
+                  <div>
+                    <h3 class="panel-title">Định Mức Theo Chủng Loại Xe</h3>
+                    <p class="panel-subtitle">Thời gian đệm nghỉ và khoảng cách xuất phát an toàn theo từng phương tiện</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="type-cards-list">
+                <!-- Xe bồn téc chở mủ -->
+                <div class="type-setting-card">
+                  <div class="type-card-header">
+                    <div class="type-title-box">
+                      <div class="type-icon-circle latex">
+                        <Truck :size="18" />
+                      </div>
+                      <div>
+                        <strong class="type-name">Xe Bồn Chở Mủ</strong>
+                        <span class="type-name-sub">Latex Truck</span>
+                      </div>
+                    </div>
+                    <span class="badge-cat latex">Mủ Cao Su</span>
+                  </div>
+
+                  <div class="type-params-grid">
+                    <div class="type-param-item">
+                      <span class="type-param-label">
+                        <Clock :size="13" class="text-slate-400" />
+                        Đệm 2 chuyến:
+                      </span>
+                      <div class="input-unit-composite">
+                        <input
+                          v-model.number="config.vehicleTypeSettings.LatexTruck.turnaroundBufferMinutes"
+                          type="number"
+                          class="composite-input"
+                          min="10"
+                          max="180"
+                          step="5"
+                        />
+                        <span class="composite-unit">phút</span>
+                      </div>
+                    </div>
+
+                    <div class="type-param-item">
+                      <span class="type-param-label">
+                        <ArrowRight :size="13" class="text-slate-400" />
+                        Giãn cách xuất bến:
+                      </span>
+                      <div class="input-unit-composite">
+                        <input
+                          v-model.number="config.vehicleTypeSettings.LatexTruck.interVehicleIntervalMinutes"
+                          type="number"
+                          class="composite-input"
+                          min="5"
+                          max="60"
+                          step="5"
+                        />
+                        <span class="composite-unit">phút</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Xe chở người / cán bộ -->
+                <div class="type-setting-card">
+                  <div class="type-card-header">
+                    <div class="type-title-box">
+                      <div class="type-icon-circle passenger">
+                        <Car :size="18" />
+                      </div>
+                      <div>
+                        <strong class="type-name">Xe Chở Người / Cán Bộ</strong>
+                        <span class="type-name-sub">Passenger Car</span>
+                      </div>
+                    </div>
+                    <span class="badge-cat passenger">Công Vụ</span>
+                  </div>
+
+                  <div class="type-params-grid">
+                    <div class="type-param-item">
+                      <span class="type-param-label">
+                        <Clock :size="13" class="text-slate-400" />
+                        Đệm 2 chuyến:
+                      </span>
+                      <div class="input-unit-composite">
+                        <input
+                          v-model.number="config.vehicleTypeSettings.PassengerCar.turnaroundBufferMinutes"
+                          type="number"
+                          class="composite-input"
+                          min="10"
+                          max="180"
+                          step="5"
+                        />
+                        <span class="composite-unit">phút</span>
+                      </div>
+                    </div>
+
+                    <div class="type-param-item">
+                      <span class="type-param-label">
+                        <ArrowRight :size="13" class="text-slate-400" />
+                        Giãn cách xuất bến:
+                      </span>
+                      <div class="input-unit-composite">
+                        <input
+                          v-model.number="config.vehicleTypeSettings.PassengerCar.interVehicleIntervalMinutes"
+                          type="number"
+                          class="composite-input"
+                          min="5"
+                          max="60"
+                          step="5"
+                        />
+                        <span class="composite-unit">phút</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Xe cơ giới / Máy xúc -->
+                <div class="type-setting-card">
+                  <div class="type-card-header">
+                    <div class="type-title-box">
+                      <div class="type-icon-circle milling">
+                        <Sliders :size="18" />
+                      </div>
+                      <div>
+                        <strong class="type-name">Xe Cơ Giới / Máy Xúc</strong>
+                        <span class="type-name-sub">Milling Machine</span>
+                      </div>
+                    </div>
+                    <span class="badge-cat milling">Cơ Giới</span>
+                  </div>
+
+                  <div class="type-params-grid">
+                    <div class="type-param-item">
+                      <span class="type-param-label">
+                        <Clock :size="13" class="text-slate-400" />
+                        Đệm 2 ca máy:
+                      </span>
+                      <div class="input-unit-composite">
+                        <input
+                          v-model.number="config.vehicleTypeSettings.MillingMachine.turnaroundBufferMinutes"
+                          type="number"
+                          class="composite-input"
+                          min="10"
+                          max="180"
+                          step="5"
+                        />
+                        <span class="composite-unit">phút</span>
+                      </div>
+                    </div>
+
+                    <div class="type-param-item">
+                      <span class="type-param-label">
+                        <ArrowRight :size="13" class="text-slate-400" />
+                        Giãn cách xuất bến:
+                      </span>
+                      <div class="input-unit-composite">
+                        <input
+                          v-model.number="config.vehicleTypeSettings.MillingMachine.interVehicleIntervalMinutes"
+                          type="number"
+                          class="composite-input"
+                          min="5"
+                          max="60"
+                          step="5"
+                        />
+                        <span class="composite-unit">phút</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- KHỐI 2: CÀI ĐẶT TỪNG XE CỤ THỂ -->
       <!-- THANH TÌM KIẾM & BỘ LỌC XE GỌN GÀNG, ĐỒNG BỘ -->
       <div class="filter-toolbar card">
         <div class="veh-filter-toolbar-inner">
@@ -628,6 +952,17 @@ function applyBatchTemplate(type: VehicleType) {
               </select>
             </div>
 
+            <!-- CHỌN LOẠI PHƯƠNG TIỆN -->
+            <div class="veh-select-box">
+              <Truck :size="14" class="veh-select-icon" />
+              <select v-model="filterVehicleType" class="veh-select-control">
+                <option value="ALL">-- Tất cả loại xe --</option>
+                <option value="LatexTruck">Xe bồn chở mủ</option>
+                <option value="PassengerCar">Xe chở người / khách</option>
+                <option value="MillingMachine">Xe cơ giới / xúc</option>
+              </select>
+            </div>
+
             <!-- CHIP ĐẾM SỐ XE -->
             <div class="veh-counter-tag">
               <span>Hiển thị:</span>
@@ -636,28 +971,7 @@ function applyBatchTemplate(type: VehicleType) {
             </div>
           </div>
 
-          <!-- NÚT ÁP DỤNG NHANH THEO MẪU -->
-          <div class="veh-batch-actions">
-            <span class="veh-batch-label">Áp dụng mẫu:</span>
-            <button
-              type="button"
-              class="btn-batch-template btn-batch-latex"
-              @click="applyBatchTemplate('LatexTruck')"
-              title="Áp dụng chuẩn 45p đệm & 20p giãn cách cho toàn bộ xe bồn mủ"
-            >
-              <Truck :size="14" />
-              <span>Xe Bồn Mủ (45p)</span>
-            </button>
-            <button
-              type="button"
-              class="btn-batch-template btn-batch-passenger"
-              @click="applyBatchTemplate('PassengerCar')"
-              title="Áp dụng chuẩn 20p đệm & 10p giãn cách cho toàn bộ xe khách"
-            >
-              <Car :size="14" />
-              <span>Xe Khách (20p)</span>
-            </button>
-          </div>
+
         </div>
       </div>
 
@@ -759,287 +1073,6 @@ function applyBatchTemplate(type: VehicleType) {
           :totalItems="filteredVehicleSettings.length"
           :pageSizeOptions="[5, 8, 15, 30]"
         />
-      </div>
-    </div>
-
-    <!-- ======================================================= -->
-    <!-- TAB 3: QUY CHUẨN CHUNG & THEO LOẠI XE -->
-    <!-- ======================================================= -->
-    <div v-if="activeTab === 'categories'" class="tab-content mt-3">
-      <div class="grid-2 gap-4">
-        <!-- Cột 1: Cấu hình mặc định toàn hệ thống -->
-        <div class="card p-4 category-panel-card">
-          <div class="panel-card-header">
-            <div class="panel-header-title-wrap">
-              <div class="panel-icon-wrap primary">
-                <Settings :size="18" />
-              </div>
-              <div>
-                <h3 class="panel-title">Quy Chuẩn Mặc Định Toàn Hệ Thống</h3>
-                <p class="panel-subtitle">Áp dụng cho các phương tiện chưa có cấu hình tùy biến riêng</p>
-              </div>
-            </div>
-          </div>
-
-          <div class="default-rules-list">
-            <!-- Rule 1: Đệm 2 chuyến -->
-            <div class="rule-setting-card">
-              <div class="rule-info">
-                <div class="rule-title-row">
-                  <Clock :size="16" class="text-primary" />
-                  <strong class="rule-title">Thời gian đệm nghỉ giữa 2 chuyến:</strong>
-                </div>
-                <p class="rule-desc">
-                  Thời gian bàn giao chứng từ, kiểm tra lốp, phanh và nghỉ ngơi trước chuyến mới (khuyến nghị 30 - 45 phút).
-                </p>
-              </div>
-              <div class="rule-input-wrap">
-                <div class="input-unit-composite">
-                  <input
-                    v-model.number="config.defaultTurnaroundMinutes"
-                    type="number"
-                    class="composite-input"
-                    min="10"
-                    max="180"
-                    step="5"
-                  />
-                  <span class="composite-unit">phút</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Rule 2: Giãn cách xuất bến -->
-            <div class="rule-setting-card">
-              <div class="rule-info">
-                <div class="rule-title-row">
-                  <ArrowRight :size="16" class="text-emerald-600" />
-                  <strong class="rule-title">Giãn cách xuất bến tối thiểu giữa 2 xe:</strong>
-                </div>
-                <p class="rule-desc">
-                  Khoảng cách thời gian tối thiểu giữa giờ xuất bến của 2 xe khác nhau, tránh dồn ứ trạm cân hoặc trạm tiếp nhận nhà máy.
-                </p>
-              </div>
-              <div class="rule-input-wrap">
-                <div class="input-unit-composite">
-                  <input
-                    v-model.number="config.defaultInterVehicleIntervalMinutes"
-                    type="number"
-                    class="composite-input"
-                    min="5"
-                    max="60"
-                    step="5"
-                  />
-                  <span class="composite-unit">phút</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Rule 3: Chế độ điều xe cứu viện khẩn cấp -->
-            <div class="emergency-override-card" :class="{ active: config.allowEmergencyOverride }">
-              <div class="emergency-card-body">
-                <div class="emergency-icon-wrap">
-                  <ShieldCheck v-if="config.allowEmergencyOverride" :size="20" class="text-amber-600" />
-                  <AlertTriangle v-else :size="20" class="text-slate-400" />
-                </div>
-                <div class="emergency-info">
-                  <strong class="emergency-title">Bỏ qua đệm khi Điều Xe Cứu Viện Khẩn Cấp</strong>
-                  <p class="emergency-desc">
-                    Cho phép điều phối viên xuất chuyến ngay lập tức cho xe rỗng ứng cứu sự cố, không áp dụng thời gian đệm thông thường.
-                  </p>
-                </div>
-                <div class="emergency-toggle">
-                  <label class="toggle-switch-label">
-                    <input
-                      v-model="config.allowEmergencyOverride"
-                      type="checkbox"
-                      class="toggle-switch-input"
-                    />
-                    <span class="toggle-switch-slider"></span>
-                  </label>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Cột 2: Cấu hình quy chuẩn theo từng loại phương tiện -->
-        <div class="card p-4 category-panel-card">
-          <div class="panel-card-header">
-            <div class="panel-header-title-wrap">
-              <div class="panel-icon-wrap info">
-                <Layers :size="18" />
-              </div>
-              <div>
-                <h3 class="panel-title">Định Mức Theo Chủng Loại Xe</h3>
-                <p class="panel-subtitle">Thời gian đệm nghỉ và khoảng cách xuất phát an toàn theo từng phương tiện</p>
-              </div>
-            </div>
-          </div>
-
-          <div class="type-cards-list">
-            <!-- Xe bồn téc chở mủ -->
-            <div class="type-setting-card">
-              <div class="type-card-header">
-                <div class="type-title-box">
-                  <div class="type-icon-circle latex">
-                    <Truck :size="18" />
-                  </div>
-                  <div>
-                    <strong class="type-name">Xe Bồn Chở Mủ</strong>
-                    <span class="type-name-sub">Latex Truck</span>
-                  </div>
-                </div>
-                <span class="badge-cat latex">Mủ Cao Su</span>
-              </div>
-
-              <div class="type-params-grid">
-                <div class="type-param-item">
-                  <span class="type-param-label">
-                    <Clock :size="13" class="text-slate-400" />
-                    Đệm 2 chuyến:
-                  </span>
-                  <div class="input-unit-composite">
-                    <input
-                      v-model.number="config.vehicleTypeSettings.LatexTruck.turnaroundBufferMinutes"
-                      type="number"
-                      class="composite-input"
-                      min="10"
-                      max="180"
-                      step="5"
-                    />
-                    <span class="composite-unit">phút</span>
-                  </div>
-                </div>
-
-                <div class="type-param-item">
-                  <span class="type-param-label">
-                    <ArrowRight :size="13" class="text-slate-400" />
-                    Giãn cách xuất bến:
-                  </span>
-                  <div class="input-unit-composite">
-                    <input
-                      v-model.number="config.vehicleTypeSettings.LatexTruck.interVehicleIntervalMinutes"
-                      type="number"
-                      class="composite-input"
-                      min="5"
-                      max="60"
-                      step="5"
-                    />
-                    <span class="composite-unit">phút</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Xe chở người / cán bộ -->
-            <div class="type-setting-card">
-              <div class="type-card-header">
-                <div class="type-title-box">
-                  <div class="type-icon-circle passenger">
-                    <Car :size="18" />
-                  </div>
-                  <div>
-                    <strong class="type-name">Xe Chở Người / Cán Bộ</strong>
-                    <span class="type-name-sub">Passenger Car</span>
-                  </div>
-                </div>
-                <span class="badge-cat passenger">Công Vụ</span>
-              </div>
-
-              <div class="type-params-grid">
-                <div class="type-param-item">
-                  <span class="type-param-label">
-                    <Clock :size="13" class="text-slate-400" />
-                    Đệm 2 chuyến:
-                  </span>
-                  <div class="input-unit-composite">
-                    <input
-                      v-model.number="config.vehicleTypeSettings.PassengerCar.turnaroundBufferMinutes"
-                      type="number"
-                      class="composite-input"
-                      min="10"
-                      max="180"
-                      step="5"
-                    />
-                    <span class="composite-unit">phút</span>
-                  </div>
-                </div>
-
-                <div class="type-param-item">
-                  <span class="type-param-label">
-                    <ArrowRight :size="13" class="text-slate-400" />
-                    Giãn cách xuất bến:
-                  </span>
-                  <div class="input-unit-composite">
-                    <input
-                      v-model.number="config.vehicleTypeSettings.PassengerCar.interVehicleIntervalMinutes"
-                      type="number"
-                      class="composite-input"
-                      min="5"
-                      max="60"
-                      step="5"
-                    />
-                    <span class="composite-unit">phút</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Xe cơ giới / Máy xúc -->
-            <div class="type-setting-card">
-              <div class="type-card-header">
-                <div class="type-title-box">
-                  <div class="type-icon-circle milling">
-                    <Sliders :size="18" />
-                  </div>
-                  <div>
-                    <strong class="type-name">Xe Cơ Giới / Máy Xúc</strong>
-                    <span class="type-name-sub">Milling Machine</span>
-                  </div>
-                </div>
-                <span class="badge-cat milling">Cơ Giới</span>
-              </div>
-
-              <div class="type-params-grid">
-                <div class="type-param-item">
-                  <span class="type-param-label">
-                    <Clock :size="13" class="text-slate-400" />
-                    Đệm 2 ca máy:
-                  </span>
-                  <div class="input-unit-composite">
-                    <input
-                      v-model.number="config.vehicleTypeSettings.MillingMachine.turnaroundBufferMinutes"
-                      type="number"
-                      class="composite-input"
-                      min="10"
-                      max="180"
-                      step="5"
-                    />
-                    <span class="composite-unit">phút</span>
-                  </div>
-                </div>
-
-                <div class="type-param-item">
-                  <span class="type-param-label">
-                    <ArrowRight :size="13" class="text-slate-400" />
-                    Giãn cách xuất bến:
-                  </span>
-                  <div class="input-unit-composite">
-                    <input
-                      v-model.number="config.vehicleTypeSettings.MillingMachine.interVehicleIntervalMinutes"
-                      type="number"
-                      class="composite-input"
-                      min="5"
-                      max="60"
-                      step="5"
-                    />
-                    <span class="composite-unit">phút</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   </div>
@@ -2264,6 +2297,105 @@ function applyBatchTemplate(type: VehicleType) {
   background: #f0f9ff;
   color: #0369a1;
   border: 1px solid #bae6fd;
+}
+
+/* RULES ACCORDION CARD */
+.rules-accordion-card {
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  transition: all 0.2s ease;
+  background: #ffffff;
+}
+
+.rules-accordion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  background: #f8fafc;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s ease;
+}
+
+.rules-accordion-header:hover {
+  background: #f1f5f9;
+}
+
+.rules-accordion-header.active {
+  background: #f0fdf4;
+}
+
+.rules-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.rules-header-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #ecfdf5;
+  color: #16a34a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid #bbf7d0;
+}
+
+.rules-header-title {
+  font-size: 0.875rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.rules-header-subtitle {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-bottom: 0;
+  margin-top: 2px;
+}
+
+.badge-rules-status {
+  display: inline-flex;
+  padding: 1px 7px;
+  border-radius: 9999px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+}
+
+.badge-rules-status.badge-closed {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.badge-rules-status.badge-open {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.btn-toggle-rules-accordion {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-toggle-rules-accordion:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
 }
 
 @media (max-width: 1024px) {

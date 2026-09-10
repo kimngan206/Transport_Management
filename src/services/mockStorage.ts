@@ -696,6 +696,12 @@ export const mockStorage = {
       return [...fallback] as T[];
     }
     // Tự động chuẩn hóa dữ liệu cũ (backward compatibility & self-healing)
+    const hasTransfer = res.some((h: any) => h.workflowType === 'TRANSFER');
+    if (!hasTransfer && initialHandovers && initialHandovers.length > 0) {
+      saveToStorage(STORAGE_KEYS.HANDOVERS, initialHandovers);
+      return [...initialHandovers] as T[];
+    }
+
     let modified = false;
     const normalized = res.map((h: any) => {
       let status = h.status;
@@ -705,16 +711,23 @@ export const mockStorage = {
       else if (status === 'Đã hủy') { status = 'CANCELLED'; modified = true; }
       else if (!status) { status = 'BORROWING'; modified = true; }
 
+      let workflowType = h.workflowType;
+      if (!workflowType) {
+        workflowType = (h.id % 2 === 0) ? 'TRANSFER' : 'HANDOVER';
+        modified = true;
+      }
+
       const borrowStartAt = h.borrowStartAt || h.borrowTime || '2026-09-07 07:30';
       const expectedReturnAt = h.expectedReturnAt || h.returnTime || '2026-09-07 11:30';
       const actualReturnAt = h.actualReturnAt || (status === 'RETURNED' ? (h.returnTime || expectedReturnAt) : undefined);
       const fromTeam = h.fromTeam || (h.id === 1 ? 'Đội 1' : 'Đội công ty');
       const toTeam = h.toTeam || (h.id === 1 ? 'Đội 2' : 'Đội kỹ thuật');
 
-      if (!h.fromTeam || !h.toTeam || !h.borrowStartAt) modified = true;
+      if (!h.fromTeam || !h.toTeam || !h.borrowStartAt || !h.workflowType) modified = true;
 
       return {
         ...h,
+        workflowType,
         status,
         fromTeam,
         toTeam,
