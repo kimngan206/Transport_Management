@@ -439,7 +439,7 @@ function applyBatchTemplate(type: VehicleType) {
             <span class="legend-item"><span class="legend-color bg-completed"></span> Hoàn thành</span>
             <span class="legend-item"><span class="legend-color bg-inprogress"></span> Đang chạy</span>
             <span class="legend-item"><span class="legend-color bg-dispatched"></span> Đã xếp lịch</span>
-            <span class="legend-item"><span class="legend-color bg-gap"></span> Đệm nghỉ / Vệ sinh</span>
+            <span class="legend-item"><span class="legend-color bg-gap"></span> Đệm nghỉ giữa 2 chuyến</span>
           </div>
         </div>
 
@@ -668,8 +668,7 @@ function applyBatchTemplate(type: VehicleType) {
                 <th style="width: 120px;">Đơn Vị</th>
                 <th style="width: 150px;" class="text-center">Chế Độ Áp Dụng</th>
                 <th style="width: 140px;" class="text-center">Đệm 2 Chuyến</th>
-                <th style="width: 140px;" class="text-center">Giãn Cách Xe Khác</th>
-                <th style="width: 140px;" class="text-center">Vệ Sinh Bồn</th>
+                <th style="width: 150px;" class="text-center">Giãn Cách Xuất Bến</th>
                 <th>Ghi Chú Vận Hành</th>
               </tr>
             </thead>
@@ -724,21 +723,6 @@ function applyBatchTemplate(type: VehicleType) {
                       class="form-control text-center font-bold"
                       :disabled="!s.useCustom"
                       min="5"
-                      max="60"
-                      step="5"
-                    />
-                    <span class="input-unit">phút</span>
-                  </div>
-                </td>
-
-                <td class="text-center">
-                  <div class="input-spin-group" :class="{ disabled: !s.useCustom }">
-                    <input
-                      v-model.number="s.cleaningDurationMinutes"
-                      type="number"
-                      class="form-control text-center font-bold"
-                      :disabled="!s.useCustom"
-                      min="0"
                       max="60"
                       step="5"
                     />
@@ -843,7 +827,7 @@ function applyBatchTemplate(type: VehicleType) {
               <Layers :size="15" class="text-primary inline mr-1" />
               <span>Định Mức Theo Chủng Loại Xe</span>
             </h3>
-            <span class="text-xs text-muted">Thời gian đệm và vệ sinh theo đặc thù phương tiện</span>
+            <span class="text-xs text-muted">Thời gian đệm nghỉ và giãn cách xuất bến theo từng loại xe</span>
           </div>
 
           <!-- Xe bồn téc chở mủ -->
@@ -864,16 +848,9 @@ function applyBatchTemplate(type: VehicleType) {
                 </div>
               </div>
               <div class="cat-input-item">
-                <span class="cat-input-lbl">Giãn cách:</span>
+                <span class="cat-input-lbl">Giãn cách xuất bến:</span>
                 <div class="input-with-unit-mini">
                   <input v-model.number="config.vehicleTypeSettings.LatexTruck.interVehicleIntervalMinutes" type="number" class="form-control" />
-                  <span>phút</span>
-                </div>
-              </div>
-              <div class="cat-input-item">
-                <span class="cat-input-lbl">Súc rửa bồn:</span>
-                <div class="input-with-unit-mini">
-                  <input v-model.number="config.vehicleTypeSettings.LatexTruck.cleaningDurationMinutes" type="number" class="form-control" />
                   <span>phút</span>
                 </div>
               </div>
@@ -898,16 +875,9 @@ function applyBatchTemplate(type: VehicleType) {
                 </div>
               </div>
               <div class="cat-input-item">
-                <span class="cat-input-lbl">Giãn cách:</span>
+                <span class="cat-input-lbl">Giãn cách xuất bến:</span>
                 <div class="input-with-unit-mini">
                   <input v-model.number="config.vehicleTypeSettings.PassengerCar.interVehicleIntervalMinutes" type="number" class="form-control" />
-                  <span>phút</span>
-                </div>
-              </div>
-              <div class="cat-input-item">
-                <span class="cat-input-lbl">Vệ sinh:</span>
-                <div class="input-with-unit-mini">
-                  <input v-model.number="config.vehicleTypeSettings.PassengerCar.cleaningDurationMinutes" type="number" class="form-control" />
                   <span>phút</span>
                 </div>
               </div>
@@ -932,16 +902,9 @@ function applyBatchTemplate(type: VehicleType) {
                 </div>
               </div>
               <div class="cat-input-item">
-                <span class="cat-input-lbl">Giãn cách:</span>
+                <span class="cat-input-lbl">Giãn cách xuất bến:</span>
                 <div class="input-with-unit-mini">
                   <input v-model.number="config.vehicleTypeSettings.MillingMachine.interVehicleIntervalMinutes" type="number" class="form-control" />
-                  <span>phút</span>
-                </div>
-              </div>
-              <div class="cat-input-item">
-                <span class="cat-input-lbl">Kiểm tra máy:</span>
-                <div class="input-with-unit-mini">
-                  <input v-model.number="config.vehicleTypeSettings.MillingMachine.cleaningDurationMinutes" type="number" class="form-control" />
                   <span>phút</span>
                 </div>
               </div>
