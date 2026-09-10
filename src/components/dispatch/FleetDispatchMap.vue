@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
 import type { HubLocation, VehicleMapState } from '@/types/map';
 import { ECOTECH_HUBS, ECOTECH_ROUTES, initialVehicleMapStates } from '@/mocks/mapData';
+import { getRoadRouteBetweenHubs } from '@/services/routingService';
 import { useDispatchStore } from '@/stores/dispatch';
 import { mockStorage } from '@/services/mockStorage';
 import {
@@ -27,7 +28,7 @@ const isFullScreen = ref(false);
 const filterStatus = ref<'ALL' | 'RUNNING' | 'AVAILABLE' | 'MAINTENANCE'>('ALL');
 const searchQuery = ref('');
 const selectedVehicleId = ref<number | null>(null);
-const mapStyle = ref<'osm' | 'topo'>('osm');
+const mapStyle = ref<'google_streets' | 'google_hybrid' | 'osm'>('google_streets');
 
 // Tra cứu thông tin chuyến xe liên kết của phương tiện (nếu có)
 function getTripForVehicle(vehiclePlate?: string) {
@@ -161,7 +162,7 @@ function updateTileLayer() {
   tileLayer.addTo(mapInstance.value);
 }
 
-// Hàm chuẩn hóa waypoints chính xác chỉ nằm giữa Điểm đi A và Điểm đến B
+// Hàm chuẩn hóa waypoints chính xác theo đường bộ thực tế (Road Network Navigation)
 function getVehicleTripWaypoints(v: VehicleMapState): [number, number][] {
   if (!v.fromHub || !v.toHub) return [];
 
@@ -187,28 +188,22 @@ function getVehicleTripWaypoints(v: VehicleMapState): [number, number][] {
         rWps.reverse();
       }
 
-      // Luôn ghim chính xác đầu mút 0 là startPt và đầu mút cuối là endPt
-      rWps[0] = startPt;
-      rWps[rWps.length - 1] = endPt;
+      // Sử dụng đúng danh sách tọa độ đường bộ của tuyến
       finalPts = rWps;
     }
   }
 
-  // Nếu không có lộ trình mẫu, tự sinh 3 điểm uốn lượn trực tiếp nối giữa startPt và endPt
-  if (finalPts.length < 2) {
-    finalPts = [startPt];
-    const steps = 3;
-    for (let i = 1; i <= steps; i++) {
-      const frac = i / (steps + 1);
-      const lat = startPt[0] + (endPt[0] - startPt[0]) * frac;
-      const lng = startPt[1] + (endPt[1] - startPt[1]) * frac;
-      const jitter = Math.sin(frac * Math.PI) * 0.002;
-      finalPts.push([
-        Number((lat + jitter).toFixed(4)),
-        Number((lng - jitter * 0.6).toFixed(4)),
-      ]);
+  // Nếu chưa có lộ trình quy chuẩn, sử dụng ma trận đường bộ thực tế giữa 2 trạm
+  if (finalPts.length < 2 && v.fromHub.code && v.toHub.code) {
+    const roadRes = getRoadRouteBetweenHubs(v.fromHub.code, v.toHub.code);
+    if (roadRes.waypoints && roadRes.waypoints.length >= 2) {
+      finalPts = roadRes.waypoints.map((wp) => [wp[0], wp[1]] as [number, number]);
     }
-    finalPts.push(endPt);
+  }
+
+  // Fallback an toàn nếu không tìm thấy đường bộ
+  if (finalPts.length < 2) {
+    finalPts = [startPt, endPt];
   }
 
   return finalPts;
@@ -231,43 +226,36 @@ function renderStandardRoutes() {
 
     const activeWaypoints = getVehicleTripWaypoints(v);
     if (activeWaypoints.length >= 2) {
-      // 1. Viền sáng phát quang (Glow)
-      L.polyline(activeWaypoints, {
-        color: '#22c55e',
-        weight: 12,
-        opacity: 0.45,
-        lineCap: 'round',
-      }).addTo(routeLayerGroup);
-
-      // 2. Tuyến đường chính
-      L.polyline(activeWaypoints, {
-        color: '#15803d',
-        weight: 6,
-        opacity: 1,
-        lineCap: 'round',
-      }).addTo(routeLayerGroup);
-
-      // 3. Vạch chỉ hướng đứt đoạn trắng
+      // 1. Viền đệm trắng bảo vệ đường (Casing) giúp phân tách rõ với nền bản đồ
       L.polyline(activeWaypoints, {
         color: '#ffffff',
-        weight: 2.5,
+        weight: 7.5,
         opacity: 0.95,
-        dashArray: '10, 14',
         lineCap: 'round',
+        lineJoin: 'round',
       }).addTo(routeLayerGroup);
 
-      // 4. PIN ĐIỂM ĐẦU (A) - Ghim chính xác đầu mút xuất phát (Đầu 1 của quãng đường)
+      // 2. Tuyến đường chính sắc nét Google Maps
+      L.polyline(activeWaypoints, {
+        color: '#16a34a',
+        weight: 4.5,
+        opacity: 1,
+        lineCap: 'round',
+        lineJoin: 'round',
+      }).addTo(routeLayerGroup);
+
+      // 4. PIN ĐIỂM ĐẦU (XUẤT PHÁT) - Ghim chính xác đầu mút xuất phát (Đầu 1 của quãng đường)
       const originPoint = activeWaypoints[0];
-      const originShort = v.fromHub?.shortName || 'Điểm Đi';
+      const originShort = v.fromHub?.shortName || 'Xuất phát';
       const originCode = v.fromHub?.code || '';
       const originIcon = L.divIcon({
         className: 'route-endpoint-divicon',
         html: `
           <div class="route-pin-node is-start">
             <div class="pin-pill">
-              <span class="pin-letter">A</span>
+              <span class="pin-letter">Đi</span>
               ${originCode ? `<span class="pin-code-tag">${originCode}</span>` : ''}
-              <span class="pin-text">Điểm đi: <strong>${originShort}</strong></span>
+              <span class="pin-text">Xuất phát: <strong>${originShort}</strong></span>
             </div>
             <div class="pin-anchor-dot"></div>
           </div>
@@ -277,18 +265,18 @@ function renderStandardRoutes() {
       });
       L.marker(originPoint, { icon: originIcon, zIndexOffset: 2500 }).addTo(routeLayerGroup);
 
-      // 5. PIN ĐIỂM CUỐI (B) - Ghim chính xác đầu mút đích đến (Đầu 2 của quãng đường)
+      // 5. PIN ĐIỂM CUỐI (ĐÍCH ĐẾN) - Ghim chính xác đầu mút đích đến (Đầu 2 của quãng đường)
       const destPoint = activeWaypoints[activeWaypoints.length - 1];
-      const destShort = v.toHub?.shortName || 'Điểm Đến';
+      const destShort = v.toHub?.shortName || 'Đích đến';
       const destCode = v.toHub?.code || '';
       const destIcon = L.divIcon({
         className: 'route-endpoint-divicon',
         html: `
           <div class="route-pin-node is-end">
             <div class="pin-pill">
-              <span class="pin-letter">B</span>
+              <span class="pin-letter">Đến</span>
               ${destCode ? `<span class="pin-code-tag">${destCode}</span>` : ''}
-              <span class="pin-text">Điểm đến: <strong>${destShort}</strong></span>
+              <span class="pin-text">Đích đến: <strong>${destShort}</strong></span>
             </div>
             <div class="pin-anchor-dot"></div>
           </div>
@@ -448,13 +436,36 @@ function renderVehicleMarkers() {
       iconAnchor: [55, 15],
     });
 
+    let vLat = v.currentLat;
+    let vLng = v.currentLng;
+
+    // Khi xe đang chạy: ghim vị trí xe khớp hoàn toàn vào lộ trình đường bộ của tuyến
+    if (v.status === 'RUNNING') {
+      const tripWps = getVehicleTripWaypoints(v);
+      if (tripWps.length >= 2) {
+        let bestDist = Infinity;
+        let bestPt: [number, number] = [vLat, vLng];
+        for (const wp of tripWps) {
+          const d = Math.hypot(wp[0] - vLat, wp[1] - vLng);
+          if (d < bestDist) {
+            bestDist = d;
+            bestPt = wp;
+          }
+        }
+        if (bestDist < 0.05) {
+          vLat = bestPt[0];
+          vLng = bestPt[1];
+        }
+      }
+    }
+
     if (vehicleMarkers.has(v.id)) {
       const marker = vehicleMarkers.get(v.id);
-      marker.setLatLng([v.currentLat, v.currentLng]);
+      marker.setLatLng([vLat, vLng]);
       marker.setIcon(icon);
       marker.setZIndexOffset(isSelected ? 3500 : 500);
     } else {
-      const marker = L.marker([v.currentLat, v.currentLng], { icon, zIndexOffset: isSelected ? 3500 : 500 }).addTo(mapInstance.value);
+      const marker = L.marker([vLat, vLng], { icon, zIndexOffset: isSelected ? 3500 : 500 }).addTo(mapInstance.value);
       marker.on('click', () => focusVehicle(v));
       vehicleMarkers.set(v.id, marker);
     }
@@ -530,21 +541,37 @@ function focusVehicle(v: VehicleMapState) {
 
       const popupContent = `
         <div class="map-popup-card vehicle-popup">
-          <div class="popup-header">
-            <span class="badge ${badgeClass}">
+          <div class="popup-header-row">
+            <h4 class="popup-plate">🚚 ${v.licensePlate}</h4>
+            <span class="popup-status-badge ${badgeClass}">
               ${statusText}
             </span>
-            <h4 class="popup-title">${v.licensePlate}</h4>
           </div>
-          <div class="popup-info">
-            <div>👤 <strong>Tài xế:</strong> ${v.driverName}</div>
-            <div>📦 <strong>Mô tả:</strong> ${v.cargoDescription || 'Chưa nhận lệnh vận chuyển'}</div>
-            ${v.fromHub && v.toHub ? `<div>📍 <strong>Lộ trình:</strong> ${v.fromHub.shortName} ➔ ${v.toHub.shortName}</div>` : ''}
+          <div class="popup-body">
+            <div class="popup-detail-row">
+              <span class="detail-icon">👤</span>
+              <span class="detail-text"><strong>${v.driverName}</strong> · ${v.driverPhone}</span>
+            </div>
+            ${v.fromHub && v.toHub ? `
+            <div class="popup-route-pill">
+              <span>📍 ${v.fromHub.shortName}</span>
+              <span class="route-arrow">➔</span>
+              <span>🏁 ${v.toHub.shortName}</span>
+            </div>` : ''}
+            <div class="popup-detail-row cargo-row">
+              <span class="detail-icon">📦</span>
+              <span class="detail-text">${v.cargoDescription || 'Chưa nhận lệnh vận chuyển'}</span>
+            </div>
             ${tripStatusHtml}
           </div>
         </div>
       `;
-      marker.bindPopup(popupContent, { maxWidth: 300, className: 'custom-leaflet-popup' }).openPopup();
+      marker.bindPopup(popupContent, {
+        maxWidth: 320,
+        offset: [0, -22],
+        autoPanPadding: [50, 50],
+        className: 'custom-leaflet-popup'
+      }).openPopup();
     }
   }
 }
@@ -674,22 +701,31 @@ onUnmounted(() => {
         </div>
 
         <!-- Chế độ bản đồ -->
+        <!-- Nút chuyển đổi kiểu bản đồ Google Maps -->
         <div class="layer-toggle">
+          <button
+            class="btn-layer"
+            :class="{ active: mapStyle === 'google_streets' }"
+            @click="mapStyle = 'google_streets'"
+            title="Bản đồ giao thông đường bộ Google Maps"
+          >
+            Đường Bộ
+          </button>
+          <button
+            class="btn-layer"
+            :class="{ active: mapStyle === 'google_hybrid' }"
+            @click="mapStyle = 'google_hybrid'"
+            title="Bản đồ ảnh vệ tinh Google Maps"
+          >
+            Vệ Tinh
+          </button>
           <button
             class="btn-layer"
             :class="{ active: mapStyle === 'osm' }"
             @click="mapStyle = 'osm'"
-            title="Bản đồ giao thông OSM"
+            title="Bản đồ OpenStreetMap"
           >
-            Giao thông
-          </button>
-          <button
-            class="btn-layer"
-            :class="{ active: mapStyle === 'topo' }"
-            @click="mapStyle = 'topo'"
-            title="Bản đồ địa hình nông trường"
-          >
-            Địa hình
+            Bản Đồ Mở
           </button>
         </div>
 
@@ -712,9 +748,9 @@ onUnmounted(() => {
           <span>Sơ đồ lộ trình xe: <strong>{{ selectedVehicle.licensePlate }}</strong></span>
         </span>
         <span class="active-veh-route">
-          📍 <strong>{{ selectedVehicle.fromHub?.shortName || 'Điểm đi' }}</strong>
+          📍 <strong>{{ selectedVehicle.fromHub?.shortName || 'Xuất phát' }}</strong>
           ➔
-          🏁 <strong>{{ selectedVehicle.toHub?.shortName || 'Điểm đến' }}</strong>
+          🏁 <strong>{{ selectedVehicle.toHub?.shortName || 'Đích đến' }}</strong>
         </span>
         <span v-if="selectedRoute" class="active-veh-km">
           (Cự ly quy chuẩn: <strong>{{ selectedRoute.distanceKm }} km</strong>)
@@ -736,7 +772,7 @@ onUnmounted(() => {
         </span>
       </div>
       <button class="btn-clear-selection" @click="resetMapView">
-        ✕ Bỏ chọn / Hiện tất cả
+        ✕ Bỏ chọn / Xem tất cả
       </button>
     </div>
 
@@ -769,12 +805,12 @@ onUnmounted(() => {
       <div v-else class="map-legend-card single-vehicle-legend">
         <h5 class="legend-title">Sơ Đồ Xe {{ selectedVehicle.licensePlate }}</h5>
         <div class="legend-item">
-          <span class="legend-icon icon-start-pin">A</span>
-          <span>Điểm đi: <strong>{{ selectedVehicle.fromHub?.shortName || 'Xuất phát' }}</strong></span>
+          <span class="legend-icon icon-start-pin">Đi</span>
+          <span>Điểm xuất phát: <strong>{{ selectedVehicle.fromHub?.shortName || 'Xuất phát' }}</strong></span>
         </div>
         <div class="legend-item">
-          <span class="legend-icon icon-end-pin">B</span>
-          <span>Điểm đến: <strong>{{ selectedVehicle.toHub?.shortName || 'Đích đến' }}</strong></span>
+          <span class="legend-icon icon-end-pin">Đến</span>
+          <span>Điểm đích đến: <strong>{{ selectedVehicle.toHub?.shortName || 'Đích đến' }}</strong></span>
         </div>
         <div v-if="selectedRoute" class="legend-item">
           <span class="legend-line line-running"></span>
@@ -1517,24 +1553,32 @@ onUnmounted(() => {
 
 .icon-start-pin {
   background: #0284c7;
+  color: white;
   font-weight: 800;
-  border-radius: 50%;
-  width: 16px;
-  height: 16px;
+  font-size: 0.625rem;
+  border-radius: 9999px;
+  min-width: 24px;
+  height: 17px;
+  padding: 0 4px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  letter-spacing: -0.01em;
 }
 
 .icon-end-pin {
   background: #dc2626;
+  color: white;
   font-weight: 800;
-  border-radius: 50%;
-  width: 16px;
-  height: 16px;
+  font-size: 0.625rem;
+  border-radius: 9999px;
+  min-width: 24px;
+  height: 17px;
+  padding: 0 4px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  letter-spacing: -0.01em;
 }
 
 .single-vehicle-legend {

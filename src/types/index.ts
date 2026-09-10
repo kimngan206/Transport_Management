@@ -25,7 +25,7 @@ export interface Department {
 
 export type VehicleType = 'LatexTruck' | 'PassengerCar' | 'MillingMachine';
 export type VehicleOperationalStatus = 'Available' | 'OnTrip' | 'UnderMaintenance' | 'Broken';
-export type MaintenanceStatus = 'Normal' | 'Due' | 'Overdue';
+export type MaintenanceStatus = 'Normal' | 'Due' | 'Overdue' | 'UnderMaintenance';
 export type HandoverStatus = 'BORROWING' | 'RETURNED' | 'OVERDUE' | 'CANCELLED';
 
 export interface VehicleCategory {
@@ -66,8 +66,10 @@ export interface Vehicle {
   assignedDriverPhone?: string;
 
   // Các thuộc tính mở rộng
-  teamName?: string; // Phân loại theo đội (dành cho LatexTruck)
+  operatingUnitType?: 'Team' | 'Factory'; // Đơn vị/Đối tượng sử dụng: 'Team' (Đội nông trường) | 'Factory' (Nhà máy chế biến)
+  teamName?: string; // Phân loại theo đội (dành cho Đội nông trường)
   isExternal?: boolean; // Xe ngoài không cần quản lý bảo trì (dành cho PassengerCar)
+  notes?: string; // Ghi chú phương tiện, lưu ý bảo dưỡng hoặc tình trạng vận hành
 }
 
 export interface Driver {
@@ -331,4 +333,46 @@ export interface MaintenanceType {
   checklistItems: string[];
   isActive: boolean;
   assignedVehicleIds: number[]; // DS xe cụ thể áp dụng danh mục này ([] = chưa gán)
+}
+
+// Cấu hình Cài đặt chuyến và Giãn cách thời gian giữa các xe
+export interface VehicleTripSetting {
+  vehicleId: number;
+  licensePlate: string;
+  vehicleType: VehicleType;
+  teamName?: string;
+  operatingUnitType?: 'Team' | 'Factory';
+  useCustom: boolean; // true = dùng cấu hình riêng xe này; false = theo chuẩn loại xe
+  turnaroundBufferMinutes: number; // Thời gian đệm nghỉ/quay đầu giữa 2 chuyến của xe này (phút)
+  interVehicleIntervalMinutes: number; // Giãn cách tối thiểu so với xe khác xuất phát cùng điểm/tuyến (phút)
+  cleaningDurationMinutes: number; // Thời gian súc rửa bồn téc / vệ sinh sau mỗi chuyến (phút)
+  notes?: string; // Ghi chú đặc thù vận hành của xe
+}
+
+export interface TripSettingsConfig {
+  defaultTurnaroundMinutes: number; // Mặc định chung thời gian đệm giữa 2 chuyến: 30p
+  defaultInterVehicleIntervalMinutes: number; // Mặc định giãn cách giữa các xe: 15p
+  allowEmergencyOverride: boolean; // Cho phép rút ngắn thời gian đệm khi điều xe cứu viện khẩn cấp
+  vehicleTypeSettings: {
+    LatexTruck: {
+      turnaroundBufferMinutes: number;
+      interVehicleIntervalMinutes: number;
+      cleaningDurationMinutes: number;
+      description: string;
+    };
+    PassengerCar: {
+      turnaroundBufferMinutes: number;
+      interVehicleIntervalMinutes: number;
+      cleaningDurationMinutes: number;
+      description: string;
+    };
+    MillingMachine: {
+      turnaroundBufferMinutes: number;
+      interVehicleIntervalMinutes: number;
+      cleaningDurationMinutes: number;
+      description: string;
+    };
+  };
+  specificVehicleSettings: VehicleTripSetting[];
+  updatedAt?: string;
 }

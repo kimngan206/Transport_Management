@@ -28,6 +28,7 @@ import {
   X,
   Phone,
   ShieldCheck,
+  Info,
 } from 'lucide-vue-next';
 
 const props = defineProps<{
@@ -44,6 +45,34 @@ const fleetStore = useFleetStore();
 const dispatchStore = useDispatchStore();
 const authStore = useAuthStore();
 const dialog = useDialogStore();
+
+// Đơn vị / Đội phục vụ của yêu cầu này
+const servingTeam = computed(() => {
+  const req = props.request;
+  if (!req) return { label: 'Đội 1', isFactory: false };
+  if (req.teamName) {
+    if (req.teamName.toLowerCase().includes('nhà máy') || req.teamName === 'Factory') {
+      return { label: 'Nhà máy', isFactory: true };
+    }
+    return { label: req.teamName, isFactory: false };
+  }
+  if (req.departmentName?.toLowerCase().includes('nhà máy')) {
+    return { label: 'Nhà máy', isFactory: true };
+  }
+  if (req.fromLocation?.includes('Đội 1') || req.toLocation?.includes('Đội 1')) {
+    return { label: 'Đội 1', isFactory: false };
+  }
+  if (req.fromLocation?.includes('Đội 2') || req.toLocation?.includes('Đội 2')) {
+    return { label: 'Đội 2', isFactory: false };
+  }
+  if (req.fromLocation?.includes('Đội 3') || req.toLocation?.includes('Đội 3')) {
+    return { label: 'Đội 3', isFactory: false };
+  }
+  if (req.fromLocation?.includes('Nhà Máy') || req.toLocation?.includes('Nhà Máy')) {
+    return { label: 'Nhà máy', isFactory: true };
+  }
+  return { label: 'Đội 1', isFactory: false };
+});
 
 const vehicleId = ref<number | ''>('');
 const driverId = ref<number | ''>('');
@@ -100,13 +129,16 @@ const activeRoute = computed(() => {
   );
 });
 
-// Danh sách xe phù hợp loại xe yêu cầu
+// Danh sách xe tương thích loại xe yêu cầu
 const compatibleVehicles = computed(() => {
   const reqType = (props.request.vehicleType || '').toLowerCase();
   return fleetStore.vehicles.filter((v) => {
     const vType = (v.vehicleType || '').toLowerCase();
     if (reqType === 'latextruck' || reqType === 'truck') {
       return vType === 'latextruck' || vType === 'truck';
+    }
+    if (reqType === 'millingmachine' || reqType === 'excavator') {
+      return vType === 'millingmachine' || vType === 'excavator';
     }
     if (reqType === 'passengercar' || reqType === 'pickup') {
       return vType === 'passengercar' || vType === 'pickup';
@@ -115,16 +147,139 @@ const compatibleVehicles = computed(() => {
   });
 });
 
-// Danh sách tất cả xe (ưu tiên xe phù hợp lên trước)
+import {
+  getVehicleDailyTrips,
+  getDriverDailyTrips,
+  checkVehicleSlotConflict,
+  checkDriverSlotConflict,
+  getVehicleBufferMinutes,
+  checkInterVehicleIntervalConflict,
+} from '@/utils/tripHelpers';
+
+// Đánh giá tình trạng khả dụng theo khung giờ cho từng xe
+function getVehicleSlotAvailability(v: any) {
+  if (v.status === 'Broken') {
+    return {
+      isAvailable: false,
+      label: '[Hỏng hóc - Không thể điều xe]',
+      tripsCount: 0,
+    };
+  }
+  if (v.status === 'UnderMaintenance') {
+    return {
+      isAvailable: false,
+      label: '[Đang bảo dưỡng]',
+      tripsCount: 0,
+    };
+  }
+  const conflict = checkVehicleSlotConflict(
+    v.id,
+    scheduledStartTime.value,
+    scheduledEndTime.value,
+    dispatchStore.trips
+  );
+  const dailyTrips = getVehicleDailyTrips(v.id, scheduledStartTime.value, dispatchStore.trips);
+  const count = dailyTrips.length;
+
+  if (conflict.hasConflict) {
+    return {
+      isAvailable: false,
+      label: `[Trùng lịch: ${conflict.reason}]`,
+      tripsCount: count,
+    };
+  }
+
+  if (count > 0) {
+    return {
+      isAvailable: true,
+      label: `[Hôm nay: ${count} chuyến • Khung giờ này rảnh]`,
+      tripsCount: count,
+    };
+  }
+
+  return {
+    isAvailable: true,
+    label: '[Chưa có chuyến hôm nay • Sẵn sàng]',
+    tripsCount: 0,
+  };
+}
+
+// Đánh giá tình trạng khả dụng theo khung giờ cho từng tài xế
+function getDriverSlotAvailability(d: any) {
+  if (d.employmentStatus !== 'Active') {
+    return {
+      isAvailable: false,
+      label: '[Nghỉ việc / Tạm dừng]',
+      tripsCount: 0,
+    };
+  }
+  if (new Date(d.licenseExpiryDate).getTime() < new Date().getTime()) {
+    return {
+      isAvailable: false,
+      label: '[Bằng lái đã hết hạn]',
+      tripsCount: 0,
+    };
+  }
+  const conflict = checkDriverSlotConflict(
+    d.id,
+    scheduledStartTime.value,
+    scheduledEndTime.value,
+    dispatchStore.trips
+  );
+  const dailyTrips = getDriverDailyTrips(d.id, scheduledStartTime.value, dispatchStore.trips);
+  const count = dailyTrips.length;
+
+  if (conflict.hasConflict) {
+    return {
+      isAvailable: false,
+      label: `[Trùng lịch: ${conflict.reason}]`,
+      tripsCount: count,
+    };
+  }
+
+  if (count > 0) {
+    return {
+      isAvailable: true,
+      label: `[Hôm nay: ${count} chuyến • Khung giờ này rảnh]`,
+      tripsCount: count,
+    };
+  }
+
+  return {
+    isAvailable: true,
+    label: '[Chưa có chuyến hôm nay • Sẵn sàng]',
+    tripsCount: 0,
+  };
+}
+
+// Danh sách tất cả xe (ưu tiên loại xe phù hợp, đúng Đội/Nhà máy và rảnh trong khung giờ)
 const sortedVehicles = computed(() => {
   const reqType = (props.request.vehicleType || '').toLowerCase();
+  const reqTeam = servingTeam.value;
   return [...fleetStore.vehicles].sort((a, b) => {
+    // 1. Cùng loại xe
     const aMatch = (a.vehicleType || '').toLowerCase() === reqType ? 1 : 0;
     const bMatch = (b.vehicleType || '').toLowerCase() === reqType ? 1 : 0;
     if (aMatch !== bMatch) return bMatch - aMatch;
-    const aAvail = a.status === 'Available' ? 1 : 0;
-    const bAvail = b.status === 'Available' ? 1 : 0;
-    return bAvail - aAvail;
+
+    // 2. Đúng Đội / Nhà máy yêu cầu
+    const aTeamMatch = reqTeam.isFactory
+      ? (a.operatingUnitType === 'Factory' ? 1 : 0)
+      : (a.operatingUnitType === 'Team' && (a.teamName === reqTeam.label || a.teamName === 'Toàn đội') ? 1 : 0);
+    const bTeamMatch = reqTeam.isFactory
+      ? (b.operatingUnitType === 'Factory' ? 1 : 0)
+      : (b.operatingUnitType === 'Team' && (b.teamName === reqTeam.label || b.teamName === 'Toàn đội') ? 1 : 0);
+    if (aTeamMatch !== bTeamMatch) return bTeamMatch - aTeamMatch;
+
+    // 3. Khả dụng trong khung giờ (không bị trùng lịch và không hỏng hóc)
+    const aAvail = getVehicleSlotAvailability(a).isAvailable ? 1 : 0;
+    const bAvail = getVehicleSlotAvailability(b).isAvailable ? 1 : 0;
+    if (aAvail !== bAvail) return bAvail - aAvail;
+
+    // 4. Ưu tiên xe ít chuyến hơn trong ngày để phân bổ đều tải
+    const aCount = getVehicleSlotAvailability(a).tripsCount;
+    const bCount = getVehicleSlotAvailability(b).tripsCount;
+    return aCount - bCount;
   });
 });
 
@@ -132,8 +287,52 @@ const selectedVehicle = computed(() => {
   return fleetStore.vehicles.find((v) => v.id === Number(vehicleId.value));
 });
 
+// Lịch trình các chuyến xe trong ngày của xe được chọn
+const selectedVehicleDailyTrips = computed(() => {
+  if (!selectedVehicle.value || !scheduledStartTime.value) return [];
+  return getVehicleDailyTrips(selectedVehicle.value.id, scheduledStartTime.value, dispatchStore.trips);
+});
+
+// Chuyến dự kiến tiếp theo trong ngày
+const projectedTripOrder = computed(() => {
+  return selectedVehicleDailyTrips.value.length + 1;
+});
+
+// Đánh giá mức độ khớp giữa Đơn vị xe trực thuộc và Đội phục vụ của yêu cầu
+const teamMatchStatus = computed(() => {
+  if (!selectedVehicle.value) return { isMatch: false, isCrossTeam: false, teamText: '' };
+  const reqTeam = servingTeam.value;
+  const v = selectedVehicle.value;
+  if (reqTeam.isFactory) {
+    const isMatch = v.operatingUnitType === 'Factory';
+    return { isMatch, isCrossTeam: !isMatch, teamText: 'Nhà máy' };
+  } else {
+    const isMatch = v.operatingUnitType === 'Team' && (v.teamName === reqTeam.label || v.teamName === 'Toàn đội');
+    const isCrossTeam = v.operatingUnitType === 'Team' && !isMatch;
+    return { isMatch, isCrossTeam, teamText: reqTeam.label };
+  }
+});
+
 const selectedDriver = computed(() => {
   return fleetStore.drivers.find((d) => d.id === Number(driverId.value));
+});
+
+// Thông tin quy chuẩn thời gian đệm và giãn cách của xe được chọn
+const vehicleBufferInfo = computed(() => {
+  if (!vehicleId.value) return null;
+  return getVehicleBufferMinutes(Number(vehicleId.value), selectedVehicle.value?.vehicleType);
+});
+
+// Cảnh báo giãn cách xuất phát nếu quá gần một xe khác
+const interVehicleWarning = computed(() => {
+  if (!vehicleId.value || !scheduledStartTime.value) return null;
+  const res = checkInterVehicleIntervalConflict(
+    Number(vehicleId.value),
+    scheduledStartTime.value,
+    dispatchStore.trips,
+    selectedRouteId.value ? Number(selectedRouteId.value) : undefined
+  );
+  return res.hasWarning ? res.message : null;
 });
 
 // Tự động gán tài xế khi chọn xe
@@ -143,21 +342,13 @@ watch(vehicleId, (newId) => {
   }
 });
 
-// Khởi tạo tự động chọn xe phù hợp nhất còn trống
+// Khởi tạo tự động chọn xe phù hợp nhất còn trống khung giờ
 onMounted(() => {
-  const firstAvailable = compatibleVehicles.value.find((v) => v.status === 'Available');
+  const firstAvailable = sortedVehicles.value.find((v) => getVehicleSlotAvailability(v).isAvailable);
   if (firstAvailable) {
     vehicleId.value = firstAvailable.id;
     if (firstAvailable.assignedDriverId) {
       driverId.value = firstAvailable.assignedDriverId;
-    }
-  } else if (sortedVehicles.value.length > 0) {
-    const anyAvailable = sortedVehicles.value.find((v) => v.status === 'Available');
-    if (anyAvailable) {
-      vehicleId.value = anyAvailable.id;
-      if (anyAvailable.assignedDriverId) {
-        driverId.value = anyAvailable.assignedDriverId;
-      }
     }
   }
 });
@@ -341,6 +532,22 @@ function handleSave() {
 
           <div class="summary-col">
             <span class="summary-lbl">
+              <Building :size="14" class="text-primary" />
+              <span>Đội Phục Vụ</span>
+            </span>
+            <div class="summary-val">
+              <span v-if="servingTeam.isFactory" class="badge-unit-factory font-bold">
+                Nhà máy
+              </span>
+              <span v-else class="badge-unit-team font-bold">
+                {{ servingTeam.label }}
+              </span>
+              <div class="text-xs text-muted mt-1">{{ props.request.departmentName }}</div>
+            </div>
+          </div>
+
+          <div class="summary-col">
+            <span class="summary-lbl">
               <Calendar :size="14" class="text-amber" />
               <span>Thời Gian Cần Xe</span>
             </span>
@@ -454,7 +661,7 @@ function handleSave() {
             <h4 class="col-title">2. Chọn Phương Tiện Vận Tải <span class="text-danger">*</span></h4>
           </div>
 
-          <div class="form-group mb-3">
+          <div class="form-group select-resource-group">
             <label class="form-label">Phương tiện điều động:</label>
             <select v-model="vehicleId" class="form-select">
               <option value="">-- Chọn xe phù hợp --</option>
@@ -462,39 +669,65 @@ function handleSave() {
                 v-for="v in sortedVehicles"
                 :key="v.id"
                 :value="v.id"
-                :disabled="v.status !== 'Available'"
+                :disabled="!getVehicleSlotAvailability(v).isAvailable"
               >
-                {{ v.licensePlate }} ({{ getVehicleTypeLabel(v.vehicleType) }} - Tải {{ v.capacityTons }}T) [{{ getVehicleStatusLabel(v.status) }}]
+                {{ v.licensePlate }} ({{ getVehicleTypeLabel(v.vehicleType) }} - Tải {{ v.capacityTons }}T) [{{ v.operatingUnitType === 'Factory' ? 'Nhà máy' : (v.teamName || 'Đội') }}] - {{ getVehicleSlotAvailability(v).label }}
               </option>
             </select>
           </div>
 
           <!-- Card thông tin xe được chọn -->
           <div v-if="selectedVehicle" class="resource-preview-card">
-            <div class="preview-row">
-              <span class="preview-lbl">Biển số:</span>
-              <strong class="font-mono text-base text-slate-800">{{ selectedVehicle.licensePlate }}</strong>
+            <div class="preview-top-bar">
+              <div class="preview-main-info">
+                <span class="preview-lbl">Biển số:</span>
+                <strong class="font-mono preview-plate">{{ selectedVehicle.licensePlate }}</strong>
+              </div>
               <span class="status-pill-avail" :class="'status-' + selectedVehicle.status.toLowerCase()">
                 {{ getVehicleStatusLabel(selectedVehicle.status) }}
               </span>
             </div>
-            <div class="preview-row mt-1">
-              <span class="preview-lbl">Loại xe:</span>
-              <span class="text-slate-700">{{ getVehicleTypeLabel(selectedVehicle.vehicleType) }}</span>
+
+            <div class="preview-info-list">
+              <div class="preview-row">
+                <span class="preview-lbl">Đơn vị xe trực thuộc:</span>
+                <span class="preview-val font-semibold">
+                  <span v-if="selectedVehicle.operatingUnitType === 'Factory'" class="badge-unit-factory">Nhà máy</span>
+                  <span v-else class="badge-unit-team">{{ selectedVehicle.teamName || 'Đội' }}</span>
+                </span>
+              </div>
+              <div class="preview-row">
+                <span class="preview-lbl">Loại xe:</span>
+                <span class="preview-val">{{ getVehicleTypeLabel(selectedVehicle.vehicleType) }}</span>
+              </div>
+              <div class="preview-row">
+                <span class="preview-lbl">Sức chứa định mức:</span>
+                <span class="preview-val font-semibold">
+                  {{ (selectedVehicle.capacityTons * 1000).toLocaleString() }} kg
+                  <span class="text-muted font-normal">({{ selectedVehicle.capacityTons }} tấn)</span>
+                </span>
+              </div>
             </div>
-            <div class="preview-row mt-1">
-              <span class="preview-lbl">Sức chứa định mức:</span>
-              <strong class="text-slate-800">
-                {{ (selectedVehicle.capacityTons * 1000).toLocaleString() }} kg
-                <span class="text-muted font-normal">({{ selectedVehicle.capacityTons }} tấn)</span>
-              </strong>
+
+            <!-- Đánh giá mức độ khớp Đội phục vụ -->
+            <div v-if="teamMatchStatus.isMatch" class="team-match-notice match-exact">
+              <CheckCircle2 :size="13" class="text-success" />
+              <span>Đúng xe trực thuộc <strong>{{ teamMatchStatus.teamText }}</strong> (Tối ưu điều xe đúng Đội)</span>
+            </div>
+            <div v-else-if="teamMatchStatus.isCrossTeam" class="team-match-notice match-cross">
+              <Info :size="13" class="text-amber-600" />
+              <span>Xe thuộc <strong>{{ selectedVehicle.teamName || 'Đội khác' }}</strong> — Điều phối hỗ trợ cho <strong>{{ teamMatchStatus.teamText }}</strong></span>
+            </div>
+            <div v-else class="team-match-notice match-factory">
+              <Info :size="13" class="text-sky-700" />
+              <span>Xe thuộc <strong>Nhà máy</strong> — Điều động phục vụ cho <strong>{{ teamMatchStatus.teamText }}</strong></span>
             </div>
 
             <!-- Thanh kiểm tra sức chứa -->
-            <div class="capacity-bar-wrap mt-3">
+            <div class="capacity-bar-wrap">
               <div class="capacity-header">
-                <span class="text-xs font-semibold text-slate-700">Tải trọng yêu cầu:</span>
-                <span class="text-xs font-bold" :class="isCapacityOk ? 'text-success' : 'text-danger'">
+                <span class="cap-lbl">Tải trọng yêu cầu:</span>
+                <span class="cap-val" :class="isCapacityOk ? 'text-success' : 'text-danger'">
                   {{ (props.request.estimatedWeightKg || 0).toLocaleString() }} kg / {{ (selectedVehicle.capacityTons * 1000).toLocaleString() }} kg ({{ loadPercentage }}%)
                 </span>
               </div>
@@ -505,13 +738,65 @@ function handleSave() {
                   :class="isCapacityOk ? 'bg-success' : 'bg-danger'"
                 ></div>
               </div>
-              <div v-if="isCapacityOk" class="capacity-status-ok mt-1">
+              <div v-if="isCapacityOk" class="capacity-status-ok">
                 <CheckCircle2 :size="13" class="text-success" />
                 <span>Không vượt sức chứa phương tiện</span>
               </div>
-              <div v-else class="capacity-status-fail mt-1">
+              <div v-else class="capacity-status-fail">
                 <AlertCircle :size="13" class="text-danger" />
                 <span>Vượt quá tải trọng tối đa của xe! Vui lòng chọn xe tải lớn hơn.</span>
+              </div>
+            </div>
+
+            <!-- Lịch trình các chuyến trong ngày của xe -->
+            <div class="vehicle-daily-schedule-box mt-3">
+              <div class="schedule-box-header">
+                <Clock :size="13" class="text-primary" />
+                <span class="font-bold text-xs">Lịch trình xe ngày {{ (scheduledStartTime || '').slice(0, 10) }}:</span>
+                <span class="badge-daily-count">
+                  {{ selectedVehicleDailyTrips.length }} chuyến đã lên lịch
+                </span>
+              </div>
+              <div v-if="selectedVehicleDailyTrips.length > 0" class="schedule-trip-list mt-1.5">
+                <div
+                  v-for="(t, idx) in selectedVehicleDailyTrips"
+                  :key="t.id"
+                  class="schedule-trip-item"
+                >
+                  <span class="trip-item-order">Chuyến #{{ idx + 1 }}</span>
+                  <span class="trip-item-time">{{ t.scheduledStartTime.slice(11, 16) }} - {{ t.scheduledEndTime.slice(11, 16) }}</span>
+                  <span class="trip-item-route" :title="t.routeName">{{ t.routeName }}</span>
+                  <span class="trip-item-status" :class="'status-' + t.status.toLowerCase()">
+                    {{ t.status === 'COMPLETED' ? 'Đã xong' : t.status === 'INPROGRESS' ? 'Đang chạy' : 'Đã xếp' }}
+                  </span>
+                </div>
+              </div>
+              <div v-else class="text-xxs text-muted mt-1 italic">
+                Phương tiện này chưa có chuyến nào được gán trong ngày.
+              </div>
+              <div class="projected-trip-notice mt-2">
+                <span class="font-bold text-emerald-700">➔ Chuyến đang tạo:</span>
+                <span class="badge-projected-trip">Chuyến thứ {{ projectedTripOrder }} trong ngày</span>
+              </div>
+
+              <!-- Thông tin quy chuẩn thời gian đệm và giãn cách -->
+              <div v-if="vehicleBufferInfo" class="vehicle-buffer-spec mt-2.5 pt-2 border-t border-slate-200">
+                <div class="flex items-center justify-between text-xxs">
+                  <span class="text-slate-600 font-bold flex items-center gap-1">
+                    <Clock :size="11" class="text-primary" />
+                    <span>Quy chuẩn đệm giữa 2 chuyến:</span>
+                  </span>
+                  <span class="font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                    {{ vehicleBufferInfo.turnaroundMinutes }} phút đệm
+                  </span>
+                </div>
+                <div class="text-xxs text-slate-500 mt-0.5 italic">{{ vehicleBufferInfo.sourceText }}</div>
+              </div>
+
+              <!-- Cảnh báo giãn cách xuất bến nếu quá gần xe khác -->
+              <div v-if="interVehicleWarning" class="alert alert-warning py-1.5 px-2 text-xxs mt-2 flex items-start gap-1.5">
+                <AlertCircle :size="13" class="text-amber-600 flex-shrink-0 mt-0.5" />
+                <span class="leading-tight text-amber-900 font-medium">{{ interVehicleWarning }}</span>
               </div>
             </div>
           </div>
@@ -524,7 +809,7 @@ function handleSave() {
             <h4 class="col-title">3. Chọn Tài Xế Phân Công <span class="text-danger">*</span></h4>
           </div>
 
-          <div class="form-group mb-3">
+          <div class="form-group select-resource-group">
             <label class="form-label">Tài xế nhận chuyến:</label>
             <select v-model="driverId" class="form-select">
               <option value="">-- Chọn tài xế --</option>
@@ -532,47 +817,61 @@ function handleSave() {
                 v-for="d in fleetStore.drivers"
                 :key="d.id"
                 :value="d.id"
-                :disabled="d.employmentStatus !== 'Active' || d.isCurrentlyOnTrip"
+                :disabled="!getDriverSlotAvailability(d).isAvailable"
               >
-                {{ d.fullName }} ({{ d.licenseClass }} - Hạn: {{ d.licenseExpiryDate }})
+                {{ d.fullName }} ({{ d.licenseClass }}) - {{ getDriverSlotAvailability(d).label }}
               </option>
             </select>
           </div>
 
           <!-- Card thông tin tài xế được chọn -->
           <div v-if="selectedDriver" class="resource-preview-card">
-            <div class="preview-row">
-              <span class="preview-lbl">Họ và tên:</span>
-              <strong class="text-base text-slate-800">{{ selectedDriver.fullName }}</strong>
+            <div class="preview-top-bar">
+              <div class="preview-main-info">
+                <span class="preview-lbl">Họ và tên:</span>
+                <strong class="preview-driver-name">{{ selectedDriver.fullName }}</strong>
+              </div>
               <span class="status-pill-avail" :class="selectedDriver.isCurrentlyOnTrip ? 'status-ontrip' : 'status-available'">
                 {{ selectedDriver.isCurrentlyOnTrip ? 'Đang chạy' : 'Sẵn sàng' }}
               </span>
             </div>
-            <div class="preview-row mt-1">
-              <span class="preview-lbl">Số điện thoại:</span>
-              <a :href="'tel:' + selectedDriver.phone" class="text-primary font-mono font-bold flex items-center gap-1">
-                <Phone :size="12" />
-                <span>{{ selectedDriver.phone }}</span>
-              </a>
-            </div>
-            <div class="preview-row mt-1">
-              <span class="preview-lbl">Hạng bằng lái:</span>
-              <div class="flex items-center gap-2">
-                <span class="badge-license">{{ selectedDriver.licenseClass }}</span>
-                <span class="text-xs text-muted">Hạn: {{ selectedDriver.licenseExpiryDate }}</span>
-                <ShieldCheck :size="14" class="text-success" title="Bằng lái còn hiệu lực" />
+
+            <div class="preview-info-list">
+              <div class="preview-row">
+                <span class="preview-lbl">Số điện thoại:</span>
+                <a :href="'tel:' + selectedDriver.phone" class="phone-link">
+                  <Phone :size="13" />
+                  <span>{{ selectedDriver.phone }}</span>
+                </a>
+              </div>
+              <div class="preview-row">
+                <span class="preview-lbl">Hạng bằng lái:</span>
+                <div class="license-wrap">
+                  <span class="badge-license">{{ selectedDriver.licenseClass }}</span>
+                  <span class="license-expiry">Hạn: {{ selectedDriver.licenseExpiryDate }}</span>
+                  <ShieldCheck :size="14" class="text-success" title="Bằng lái còn hiệu lực" />
+                </div>
+              </div>
+              <div class="preview-row">
+                <span class="preview-lbl">Trạng thái hồ sơ:</span>
+                <span class="status-active-tag">
+                  <CheckCircle2 :size="13" />
+                  <span>Đang hoạt động (Chính thức)</span>
+                </span>
               </div>
             </div>
-            <div class="preview-row mt-1">
-              <span class="preview-lbl">Trạng thái hồ sơ:</span>
-              <span class="text-xs font-semibold text-success">Đang hoạt động (Chính thức)</span>
+
+            <!-- Thống kê chuyến hôm nay của tài xế -->
+            <div class="driver-daily-summary-line mt-2 text-xs">
+              <Clock :size="12" class="text-blue-600 inline mr-1" />
+              <span>Hôm nay tài xế có: <strong>{{ getDriverDailyTrips(selectedDriver.id, scheduledStartTime, dispatchStore.trips).length }} chuyến đã lên lịch</strong></span>
             </div>
           </div>
         </div>
       </div>
 
       <!-- 4. THỜI GIAN & GHI CHÚ ĐIỀU ĐỘNG -->
-      <div class="grid-2 mt-4">
+      <div class="grid-2 dispatch-schedule-row">
         <div class="form-group">
           <label class="form-label font-bold">Thời gian khởi hành dự kiến:</label>
           <div class="input-with-icon">
@@ -592,7 +891,7 @@ function handleSave() {
         </div>
       </div>
 
-      <div class="form-group mt-3">
+      <div class="form-group dispatch-notes-group">
         <label class="form-label font-bold">Ghi chú điều động & Dặn dò tài xế:</label>
         <input
           v-model="notes"
@@ -763,14 +1062,69 @@ function handleSave() {
 
 .summary-grid {
   display: grid;
-  grid-template-columns: 1.5fr 1fr 1fr 1fr;
-  gap: 16px;
+  grid-template-columns: 1.3fr 1fr 1fr 1fr 1fr;
+  gap: 14px;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
   .summary-grid {
     grid-template-columns: 1fr 1fr;
   }
+}
+
+.badge-unit-team {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 4px;
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+  width: fit-content;
+}
+
+.badge-unit-factory {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 4px;
+  background: #f0f9ff;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+  width: fit-content;
+}
+
+.team-match-notice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-top: 10px;
+}
+
+.team-match-notice.match-exact {
+  background: #f0fdf4;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.team-match-notice.match-cross {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.team-match-notice.match-factory {
+  background: #f0f9ff;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
 }
 
 .summary-col {
@@ -973,44 +1327,130 @@ function handleSave() {
 .grid-2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 20px;
+  gap: 24px;
 }
 
 @media (max-width: 800px) {
   .grid-2 {
     grid-template-columns: 1fr;
+    gap: 16px;
   }
 }
+
+/* Utilities & Spacing */
+.mt-1 { margin-top: 4px; }
+.mt-2 { margin-top: 8px; }
+.mt-3 { margin-top: 14px; }
+.mt-4 { margin-top: 24px; }
+.mb-2 { margin-bottom: 8px; }
+.mb-3 { margin-bottom: 16px; }
+.text-xs { font-size: 0.75rem; }
+.text-muted { color: #64748b; }
+.block { display: block; }
+.font-semibold { font-weight: 600; }
 
 .form-card-col {
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: var(--radius-md, 8px);
-  padding: 16px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  border-radius: 12px;
+  padding: 20px 22px 24px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
 }
 
 .col-header {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 12px;
-  padding-bottom: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
   border-bottom: 1px solid #f1f5f9;
 }
 
 .col-title {
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   font-weight: 800;
   color: #0f172a;
   margin: 0;
 }
 
+.select-resource-group {
+  margin-bottom: 20px !important;
+}
+
+.select-resource-group .form-label {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #334155;
+  margin-bottom: 8px;
+}
+
+.select-resource-group .form-select {
+  height: 42px;
+  padding: 8px 12px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 8px;
+  background-color: #f8fafc;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #0f172a;
+  transition: all 0.2s ease;
+}
+
+.select-resource-group .form-select:focus {
+  border-color: #16a34a;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.12);
+}
+
 .resource-preview-card {
   background: #f8fafc;
   border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.preview-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed #cbd5e1;
+}
+
+.preview-main-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.preview-plate {
+  font-family: monospace;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #0f172a;
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  padding: 3px 10px;
   border-radius: 6px;
-  padding: 12px 14px;
+  letter-spacing: 0.5px;
+}
+
+.preview-driver-name {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.preview-info-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .preview-row {
@@ -1018,6 +1458,7 @@ function handleSave() {
   align-items: center;
   justify-content: space-between;
   font-size: 0.8125rem;
+  min-height: 24px;
 }
 
 .preview-lbl {
@@ -1025,10 +1466,50 @@ function handleSave() {
   font-weight: 600;
 }
 
+.preview-val {
+  color: #1e293b;
+  font-size: 0.8125rem;
+}
+
+.phone-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #0284c7;
+  font-weight: 700;
+  font-family: monospace;
+  text-decoration: none;
+  font-size: 0.875rem;
+}
+
+.phone-link:hover {
+  text-decoration: underline;
+}
+
+.license-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.license-expiry {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.status-active-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #16a34a;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
 .status-pill-avail {
   font-size: 0.7rem;
   font-weight: 700;
-  padding: 2px 8px;
+  padding: 3px 10px;
   border-radius: 9999px;
 }
 
@@ -1048,27 +1529,42 @@ function handleSave() {
   color: #1e293b;
   font-size: 0.75rem;
   font-weight: 800;
-  padding: 1px 6px;
+  padding: 2px 8px;
   border-radius: 4px;
 }
 
 /* Capacity bar */
 .capacity-bar-wrap {
-  background: white;
-  padding: 8px 10px;
-  border-radius: 6px;
+  background: #ffffff;
+  padding: 12px 14px;
+  border-radius: 8px;
   border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
 }
 
 .capacity-header {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 4px;
+  align-items: center;
+}
+
+.cap-lbl {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.cap-val {
+  font-size: 0.75rem;
+  font-weight: 700;
 }
 
 .progress-track {
   width: 100%;
-  height: 8px;
+  height: 9px;
   background: #e2e8f0;
   border-radius: 9999px;
   overflow: hidden;
@@ -1090,19 +1586,32 @@ function handleSave() {
 .capacity-status-ok {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   font-size: 0.75rem;
   font-weight: 700;
   color: #15803d;
+  margin-top: 2px;
 }
 
 .capacity-status-fail {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   font-size: 0.75rem;
   font-weight: 700;
   color: #dc2626;
+  margin-top: 2px;
+}
+
+/* Schedule Section */
+.dispatch-schedule-row {
+  margin-top: 36px !important;
+  padding-top: 24px;
+  border-top: 1px dashed #cbd5e1;
+}
+
+.dispatch-notes-group {
+  margin-top: 20px !important;
 }
 
 /* Inputs */
@@ -1210,5 +1719,114 @@ function handleSave() {
   cursor: not-allowed;
   box-shadow: none;
   transform: none;
+}
+
+/* Daily Schedule Box Styles */
+.vehicle-daily-schedule-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.schedule-box-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #1e293b;
+}
+
+.badge-daily-count {
+  margin-left: auto;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  background: #e0f2fe;
+  color: #0369a1;
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+.schedule-trip-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.schedule-trip-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: white;
+  padding: 4px 8px;
+  border-radius: 5px;
+  border: 1px solid #e2e8f0;
+  font-size: 0.75rem;
+}
+
+.trip-item-order {
+  font-weight: 700;
+  color: #15803d;
+  white-space: nowrap;
+}
+
+.trip-item-time {
+  font-family: monospace;
+  color: #475569;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.trip-item-route {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #334155;
+}
+
+.trip-item-status {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.trip-item-status.status-completed {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.trip-item-status.status-inprogress,
+.trip-item-status.status-arrived {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.trip-item-status.status-assigned,
+.trip-item-status.status-accepted {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.projected-trip-notice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  padding-top: 6px;
+  border-top: 1px dashed #cbd5e1;
+}
+
+.badge-projected-trip {
+  font-weight: 800;
+  background: #dcfce7;
+  color: #15803d;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid #86efac;
+}
+
+.driver-daily-summary-line {
+  color: #475569;
 }
 </style>

@@ -53,7 +53,15 @@ export function deleteEcotechHub(hubId: string) {
   }
 }
 
-// Danh mục các tuyến đường quy chuẩn mặc định (BR-10) với waypoints GPS
+import { getRoadRouteBetweenHubs } from '@/services/routingService';
+
+// Danh mục các tuyến đường quy chuẩn mặc định theo đường bộ thực tế (Road Network Navigation)
+const tc1_d1 = getRoadRouteBetweenHubs('TC1', 'D1');
+const tc1_d2 = getRoadRouteBetweenHubs('TC1', 'D2');
+const nm_d3 = getRoadRouteBetweenHubs('NM', 'D3');
+const vp_nm = getRoadRouteBetweenHubs('VP', 'NM');
+const tc1_nm = getRoadRouteBetweenHubs('TC1', 'NM');
+
 const defaultEcotechRoutes: RoutePath[] = [
   {
     id: 1,
@@ -61,13 +69,8 @@ const defaultEcotechRoutes: RoutePath[] = [
     name: 'Trạm cân 1 ➔ Đội 1',
     from: findHubByCode('TC1'),
     to: findHubByCode('D1'),
-    distanceKm: 26.0,
-    waypoints: [
-      [11.5120, 106.6025],
-      [11.5280, 106.6120],
-      [11.5450, 106.6200],
-      [11.5650, 106.6340],
-    ],
+    distanceKm: tc1_d1.distanceKm || 10.7,
+    waypoints: tc1_d1.waypoints,
   },
   {
     id: 2,
@@ -75,13 +78,8 @@ const defaultEcotechRoutes: RoutePath[] = [
     name: 'Trạm cân 1 ➔ Đội 2',
     from: findHubByCode('TC1'),
     to: findHubByCode('D2'),
-    distanceKm: 34.0,
-    waypoints: [
-      [11.5120, 106.6025],
-      [11.5350, 106.5910],
-      [11.5620, 106.5790],
-      [11.5890, 106.5680],
-    ],
+    distanceKm: tc1_d2.distanceKm || 15.4,
+    waypoints: tc1_d2.waypoints,
   },
   {
     id: 3,
@@ -89,14 +87,8 @@ const defaultEcotechRoutes: RoutePath[] = [
     name: 'Nhà máy chế biến ➔ Đội 3',
     from: findHubByCode('NM'),
     to: findHubByCode('D3'),
-    distanceKm: 42.0,
-    waypoints: [
-      [11.4850, 106.6200],
-      [11.5120, 106.6025],
-      [11.5550, 106.6350],
-      [11.5850, 106.6520],
-      [11.6210, 106.6710],
-    ],
+    distanceKm: nm_d3.distanceKm || 21.5,
+    waypoints: nm_d3.waypoints,
   },
   {
     id: 4,
@@ -104,14 +96,8 @@ const defaultEcotechRoutes: RoutePath[] = [
     name: 'Văn phòng Công ty ➔ Nhà máy chế biến',
     from: findHubByCode('VP'),
     to: findHubByCode('NM'),
-    distanceKm: 18.5,
-    waypoints: [
-      [11.4720, 106.6150],
-      [11.4755, 106.6162],
-      [11.4785, 106.6178],
-      [11.4818, 106.6190],
-      [11.4850, 106.6200],
-    ],
+    distanceKm: vp_nm.distanceKm || 3.5,
+    waypoints: vp_nm.waypoints,
   },
   {
     id: 5,
@@ -119,12 +105,8 @@ const defaultEcotechRoutes: RoutePath[] = [
     name: 'Trạm cân 1 ➔ Nhà máy chế biến',
     from: findHubByCode('TC1'),
     to: findHubByCode('NM'),
-    distanceKm: 12.0,
-    waypoints: [
-      [11.5120, 106.6025],
-      [11.4980, 106.6110],
-      [11.4850, 106.6200],
-    ],
+    distanceKm: tc1_nm.distanceKm || 5.7,
+    waypoints: tc1_nm.waypoints,
   },
 ];
 
@@ -165,8 +147,8 @@ export const initialVehicleMapStates: VehicleMapState[] = [
     status: 'RUNNING',
     fromHub: findHubByCode('TC1'),
     toHub: findHubByCode('D1'),
-    currentLat: 11.5450,
-    currentLng: 106.6200,
+    currentLat: 11.54883,
+    currentLng: 106.61637,
     routeCode: 'TC1-D1-TC1',
     cargoDescription: '4.800 kg mủ nước thu hoạch ca sáng',
     estimatedArrival: '14:25',
@@ -182,8 +164,8 @@ export const initialVehicleMapStates: VehicleMapState[] = [
     status: 'AVAILABLE',
     fromHub: findHubByCode('TC1'),
     toHub: findHubByCode('TC1'),
-    currentLat: 11.5125,
-    currentLng: 106.6035,
+    currentLat: 11.51138,
+    currentLng: 106.60247,
     cargoDescription: 'Xe trống, đã sẵn sàng nhận lệnh điều động',
     estimatedArrival: '--',
     bearing: 0,
@@ -199,8 +181,8 @@ export const initialVehicleMapStates: VehicleMapState[] = [
     status: 'RUNNING',
     fromHub: findHubByCode('VP'),
     toHub: findHubByCode('NM'),
-    currentLat: 11.4785,
-    currentLng: 106.6178,
+    currentLat: 11.47720,
+    currentLng: 106.61490,
     routeCode: 'VP-NM-VP',
     cargoDescription: '3 cán bộ kỹ thuật kiểm tra ca ép mủ',
     estimatedArrival: '14:10',
@@ -216,8 +198,8 @@ export const initialVehicleMapStates: VehicleMapState[] = [
     status: 'MAINTENANCE',
     fromHub: findHubByCode('D2'),
     toHub: findHubByCode('D2'),
-    currentLat: 11.5895,
-    currentLng: 106.5685,
+    currentLat: 11.58909,
+    currentLng: 106.56799,
     cargoDescription: 'Đang bảo dưỡng định kỳ hệ thống thủy lực tại bãi Đội 2',
     estimatedArrival: '--',
     bearing: 0,

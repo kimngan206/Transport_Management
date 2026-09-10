@@ -5,7 +5,9 @@ import { useAuthStore } from '@/stores/auth';
 import { useFleetStore } from '@/stores/fleet';
 import type { TransportTrip } from '@/types';
 import StatusBadge from '@/components/common/StatusBadge.vue';
+import TablePagination from '@/components/common/TablePagination.vue';
 import TripExpensesModal from '@/components/common/TripExpensesModal.vue';
+import { getTripDaySequence } from '@/utils/tripHelpers';
 import {
   Calendar,
   Truck,
@@ -17,6 +19,7 @@ import {
   Search,
   Filter,
   CheckCircle2,
+  ChevronDown,
 } from 'lucide-vue-next';
 
 const driverStore = useDriverStore();
@@ -32,6 +35,11 @@ function getVehicleShortType(v: any): string {
   if (v.vehicleType === 'PassengerCar') return 'Bán tải';
   if (v.vehicleType === 'MillingMachine') return 'Máy đào';
   return v.model?.split(' ')[0] || 'Xe';
+}
+
+function onVehicleSelectChange(e: Event) {
+  const target = e.target as HTMLSelectElement;
+  driverStore.setSelectedVehiclePlate(target.value);
 }
 
 const searchQuery = ref('');
@@ -54,6 +62,13 @@ const filteredTrips = computed(() => {
     }
     return true;
   });
+});
+
+const currentPage = ref(1);
+const pageSize = ref(8);
+const paginatedTrips = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value;
+  return filteredTrips.value.slice(start, start + pageSize.value);
 });
 
 // Thống kê tổng quan
@@ -152,34 +167,35 @@ const totalExpenses = computed(() => {
         </div>
 
         <div class="flex items-center gap-3 flex-wrap">
-          <!-- Bộ chọn xe cho Dispatcher/Admin nếu muốn kiểm tra xe khác -->
+          <!-- Bộ chọn xe dạng Select gọn gàng cho Dispatcher/Admin -->
           <div v-if="authStore.activeRole === 'Dispatcher' || authStore.activeRole === 'Admin'" class="veh-filter-wrapper">
-            <div class="veh-filter-label">
-              <Filter :size="13" class="filter-icon" />
+            <label class="veh-filter-label" for="driver-history-veh-select">
               <span>Lọc theo xe:</span>
-            </div>
-            <div class="veh-filter-chips">
-              <button
-                v-for="v in fleetStore.vehicles"
-                :key="v.id"
-                type="button"
-                class="veh-chip-btn"
-                :class="{ 'active': myVehicle?.licensePlate === v.licensePlate }"
-                @click="driverStore.setSelectedVehiclePlate(v.licensePlate)"
-                :title="`${v.licensePlate} — ${v.model}`"
+            </label>
+            <div class="veh-select-box">
+              <select
+                id="driver-history-veh-select"
+                class="veh-select font-mono"
+                :value="driverStore.selectedVehiclePlate || myVehicle?.licensePlate || 'ALL'"
+                @change="onVehicleSelectChange($event)"
               >
-                <span class="chip-icon-box">
-                  <Truck v-if="v.vehicleType === 'LatexTruck'" :size="13" />
-                  <Car v-else-if="v.vehicleType === 'PassengerCar'" :size="13" />
-                  <Gauge v-else :size="13" />
-                </span>
-                <span class="chip-plate font-mono">{{ v.licensePlate }}</span>
-                <span class="chip-tag">{{ getVehicleShortType(v) }}</span>
-                <span v-if="myVehicle?.licensePlate === v.licensePlate" class="chip-check">
-                  <CheckCircle2 :size="12" />
-                </span>
-              </button>
+                <option value="ALL">-- Tất cả xe ({{ fleetStore.vehicles.length }} phương tiện) --</option>
+                <option
+                  v-for="v in fleetStore.vehicles"
+                  :key="v.id"
+                  :value="v.licensePlate"
+                >
+                  {{ v.licensePlate }} — {{ v.model }} ({{ getVehicleShortType(v) }})
+                </option>
+              </select>
+              <ChevronDown :size="14" class="select-chevron" />
             </div>
+            <span v-if="myVehicle" class="veh-selected-tag">
+              <span>{{ getVehicleShortType(myVehicle) }}</span>
+            </span>
+            <span v-else-if="driverStore.selectedVehiclePlate === 'ALL'" class="veh-selected-tag tag-all">
+              <span>Tất cả</span>
+            </span>
           </div>
           <div class="search-box">
             <Search :size="14" class="text-muted" />
@@ -217,9 +233,12 @@ const totalExpenses = computed(() => {
               </td>
             </tr>
 
-            <tr v-for="t in filteredTrips" :key="t.id">
+            <tr v-for="t in paginatedTrips" :key="t.id">
               <td style="white-space: nowrap">
                 <span class="code-badge font-mono">{{ t.tripCode }}</span>
+                <span class="badge-trip-seq-mini ml-1" :title="getTripDaySequence(t, driverStore.myTrips).fullLabel">
+                  {{ getTripDaySequence(t, driverStore.myTrips).label }}
+                </span>
               </td>
               <td style="white-space: nowrap">
                 <div class="vehicle-cell">
@@ -278,6 +297,12 @@ const totalExpenses = computed(() => {
           </tbody>
         </table>
       </div>
+      <TablePagination
+        v-model:currentPage="currentPage"
+        v-model:pageSize="pageSize"
+        :totalItems="filteredTrips.length"
+        :pageSizeOptions="[5, 8, 15, 30]"
+      />
     </div>
 
     <!-- Modal Xem Chi tiết & Bằng chứng Chi phí -->
@@ -500,7 +525,7 @@ const totalExpenses = computed(() => {
 }
 
 /* =======================================================
-   VEHICLE FILTER CHIPS TOOLBAR
+   VEHICLE FILTER SELECT TOOLBAR
    ======================================================= */
 .veh-filter-wrapper {
   display: inline-flex;
@@ -508,7 +533,7 @@ const totalExpenses = computed(() => {
   gap: 8px;
   background: #f8fafc;
   padding: 4px 8px;
-  border-radius: 9px;
+  border-radius: 8px;
   border: 1px solid #e2e8f0;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
@@ -517,84 +542,90 @@ const totalExpenses = computed(() => {
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: 0.75rem;
+  font-size: 0.78125rem;
   font-weight: 700;
   color: #475569;
   white-space: nowrap;
+  margin-bottom: 0;
+  cursor: pointer;
 }
 
 .veh-filter-label .filter-icon {
   color: #16a34a;
 }
 
-.veh-filter-chips {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.veh-chip-btn {
+.veh-select-box {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 7px;
-  border: 1px solid #cbd5e1;
+}
+
+.veh-select {
+  appearance: none;
+  -webkit-appearance: none;
   background: #ffffff;
-  color: #334155;
-  font-size: 0.75rem;
-  font-weight: 600;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 4px 28px 4px 10px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #1e293b;
   cursor: pointer;
-  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  min-width: 220px;
+  max-width: 320px;
+  height: 32px;
+  line-height: 1.4;
+  outline: none;
+  transition: all 0.15s ease;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.veh-select:hover {
+  border-color: #94a3b8;
+  background: #fafafa;
+}
+
+.veh-select:focus {
+  border-color: #16a34a;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15);
+}
+
+.select-chevron {
+  position: absolute;
+  right: 8px;
+  pointer-events: none;
+  color: #64748b;
+}
+
+.veh-selected-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 0.75rem;
+  font-weight: 700;
   white-space: nowrap;
 }
 
-.veh-chip-btn:hover {
-  background: #f1f5f9;
-  border-color: #94a3b8;
-  color: #0f172a;
-  transform: translateY(-1px);
+.veh-selected-tag.tag-all {
+  background: #e2e8f0;
+  color: #334155;
 }
 
-.veh-chip-btn.active {
-  background: #f0fdf4;
-  border-color: #16a34a;
-  color: #15803d;
-  font-weight: 700;
-  box-shadow: 0 2px 6px rgba(22, 163, 74, 0.18);
-}
-
-.chip-icon-box {
-  display: flex;
+.badge-trip-seq-mini {
+  display: inline-flex;
   align-items: center;
-  color: inherit;
-}
-
-.chip-plate {
-  font-weight: 800;
-  letter-spacing: 0.3px;
-}
-
-.chip-tag {
-  font-size: 0.6875rem;
   padding: 1px 6px;
   border-radius: 4px;
-  background: #f1f5f9;
-  color: #64748b;
-  font-weight: 600;
-}
-
-.veh-chip-btn.active .chip-tag {
-  background: #dcfce7;
+  background: #f0fdf4;
   color: #166534;
-}
-
-.chip-check {
-  display: flex;
-  align-items: center;
-  color: #16a34a;
+  border: 1px solid #bbf7d0;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 @media (max-width: 1024px) {

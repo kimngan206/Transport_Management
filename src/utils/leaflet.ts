@@ -36,22 +36,31 @@ export function safeInitMap(
 
 /**
  * Tạo lớp bản đồ vệ tinh / GIS chuẩn hóa
- * Mặc định sử dụng CartoDB Voyager: Tốc độ cao, đường nét sắc sảo, không bị chặn CORS/403 như OpenStreetMap raw.
+ * Mặc định sử dụng Google Maps Đường bộ: Chi tiết giao thông sắc nét, 100% tiếng Việt chuẩn, không có watermark API KEY.
  */
-export function createTileLayer(style: 'osm' | 'topo' = 'osm'): L.TileLayer {
-  if (style === 'topo') {
-    return L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-      maxZoom: 17,
-      subdomains: ['a', 'b', 'c'],
-      attribution: '&copy; OpenTopoMap & OpenStreetMap | ECOTECH 2A',
+export function createTileLayer(style: 'google_streets' | 'google_hybrid' | 'osm' | 'topo' | string = 'google_streets'): L.TileLayer {
+  if (style === 'google_hybrid' || style === 'topo') {
+    // Google Maps Vệ Tinh Lai (Satellite ảnh chụp thực địa + nhãn đường xá tiếng Việt chuẩn)
+    return L.tileLayer('https://mt{s}.google.com/vt/lyrs=y&hl=vi&gl=VN&x={x}&y={y}&z={z}', {
+      maxZoom: 20,
+      subdomains: ['0', '1', '2', '3'],
+      attribution: '&copy; Google Maps Vệ Tinh | ECOTECH 2A Fleet GIS',
     });
   }
 
-  // CartoDB Voyager - Ổn định và hiển thị địa danh tiếng Việt chuẩn xác
-  return L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-    maxZoom: 19,
-    subdomains: ['a', 'b', 'c', 'd'],
-    attribution: '&copy; CartoDB & OpenStreetMap | ECOTECH 2A Fleet GIS',
+  if (style === 'osm') {
+    // OpenStreetMap tiêu chuẩn sạch
+    return L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap | ECOTECH 2A',
+    });
+  }
+
+  // Mặc định: Google Maps Giao Thông Đường Bộ chuẩn tiếng Việt có dấu
+  return L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&hl=vi&gl=VN&x={x}&y={y}&z={z}', {
+    maxZoom: 20,
+    subdomains: ['0', '1', '2', '3'],
+    attribution: '&copy; Google Maps Giao Thông | ECOTECH 2A Fleet GIS',
   });
 }
 

@@ -19,6 +19,12 @@ import {
   MapPin,
   Route,
 } from 'lucide-vue-next';
+import {
+  getVehicleDailyTrips,
+  getDriverDailyTrips,
+  checkVehicleSlotConflict,
+  checkDriverSlotConflict,
+} from '@/utils/tripHelpers';
 
 const props = defineProps<{
   initialSelectedRequests?: TransportRequest[];
@@ -159,6 +165,56 @@ const scheduledEndTime = computed(() => {
   const times = currentSelectedRequests.value.map((r) => r.endTime);
   return times.sort().reverse()[0];
 });
+
+function getVehicleSlotAvailability(v: any) {
+  if (v.status === 'Broken') {
+    return { isAvailable: false, label: '[Hỏng hóc]' };
+  }
+  if (v.status === 'UnderMaintenance') {
+    return { isAvailable: false, label: '[Bảo dưỡng]' };
+  }
+  const conflict = checkVehicleSlotConflict(
+    v.id,
+    scheduledStartTime.value,
+    scheduledEndTime.value,
+    dispatchStore.trips
+  );
+  const dailyTrips = getVehicleDailyTrips(v.id, scheduledStartTime.value, dispatchStore.trips);
+  const count = dailyTrips.length;
+
+  if (conflict.hasConflict) {
+    return { isAvailable: false, label: `[Trùng giờ: ${conflict.reason}]` };
+  }
+  if (count > 0) {
+    return { isAvailable: true, label: `[Hôm nay: ${count} chuyến • Khung giờ rảnh]` };
+  }
+  return { isAvailable: true, label: '[Sẵn sàng]' };
+}
+
+function getDriverSlotAvailability(d: any) {
+  if (d.employmentStatus !== 'Active') {
+    return { isAvailable: false, label: '[Nghỉ việc]' };
+  }
+  if (new Date(d.licenseExpiryDate).getTime() < new Date().getTime()) {
+    return { isAvailable: false, label: '[Hết hạn bằng]' };
+  }
+  const conflict = checkDriverSlotConflict(
+    d.id,
+    scheduledStartTime.value,
+    scheduledEndTime.value,
+    dispatchStore.trips
+  );
+  const dailyTrips = getDriverDailyTrips(d.id, scheduledStartTime.value, dispatchStore.trips);
+  const count = dailyTrips.length;
+
+  if (conflict.hasConflict) {
+    return { isAvailable: false, label: `[Trùng giờ: ${conflict.reason}]` };
+  }
+  if (count > 0) {
+    return { isAvailable: true, label: `[Hôm nay: ${count} chuyến • Khung giờ rảnh]` };
+  }
+  return { isAvailable: true, label: '[Sẵn sàng]' };
+}
 
 // 4 Điều kiện Ghép Chuyến (US-06)
 const condition1_SameType = computed(() => {
@@ -436,9 +492,9 @@ function handleDispatch() {
                 v-for="v in fleetStore.vehicles"
                 :key="v.id"
                 :value="v.id"
-                :disabled="v.status !== 'Available'"
+                :disabled="!getVehicleSlotAvailability(v).isAvailable"
               >
-                {{ v.licensePlate }} ({{ getVehicleTypeLabel(v.vehicleType) }} - Tải {{ v.capacityTons }}T) [{{ getVehicleStatusLabel(v.status) }}]
+                {{ v.licensePlate }} ({{ getVehicleTypeLabel(v.vehicleType) }} - Tải {{ v.capacityTons }}T) - {{ getVehicleSlotAvailability(v).label }}
               </option>
             </select>
             <span v-if="selectedVehicle" class="form-hint">
@@ -457,9 +513,9 @@ function handleDispatch() {
                 v-for="d in fleetStore.drivers"
                 :key="d.id"
                 :value="d.id"
-                :disabled="d.employmentStatus !== 'Active' || d.isCurrentlyOnTrip"
+                :disabled="!getDriverSlotAvailability(d).isAvailable"
               >
-                {{ d.fullName }} ({{ d.licenseClass }} - Hạn: {{ d.licenseExpiryDate }})
+                {{ d.fullName }} ({{ d.licenseClass }}) - {{ getDriverSlotAvailability(d).label }}
               </option>
             </select>
             <span v-if="selectedDriver" class="form-hint">

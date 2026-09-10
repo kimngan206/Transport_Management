@@ -12,6 +12,7 @@ import CompleteTripModal from '@/components/driver/CompleteTripModal.vue';
 import ReportArrivedModal from '@/components/driver/ReportArrivedModal.vue';
 import TripExpenseAddModal from '@/components/driver/TripExpenseAddModal.vue';
 import TripExpensesModal from '@/components/common/TripExpensesModal.vue';
+import { getTripDaySequence } from '@/utils/tripHelpers';
 import {
   Car,
   Play,
@@ -29,6 +30,7 @@ import {
   ExternalLink,
   Truck,
   Filter,
+  ChevronDown,
 } from 'lucide-vue-next';
 
 const authStore = useAuthStore();
@@ -70,6 +72,11 @@ function getVehicleShortType(v: any): string {
   if (v.vehicleType === 'PassengerCar') return 'Bán tải';
   if (v.vehicleType === 'MillingMachine') return 'Máy đào';
   return v.model?.split(' ')[0] || 'Xe';
+}
+
+function onVehicleSelectChange(e: Event) {
+  const target = e.target as HTMLSelectElement;
+  driverStore.setSelectedVehiclePlate(target.value);
 }
 
 const myTrips = computed(() => driverStore.myTrips);
@@ -216,6 +223,7 @@ const finishedTrips = computed(() =>
         <div class="trip-card-header">
           <div class="trip-code-box">
             <span class="trip-code">{{ trip.tripCode }}</span>
+            <span class="badge-trip-day-seq">{{ getTripDaySequence(trip, dispatchStore.trips).fullLabel }}</span>
             <StatusBadge :status="trip.status" />
             <span v-if="trip.replacementInfo?.isRescueTrip" class="badge-rescue-mini">🚨 Xe Cứu Viện</span>
           </div>
@@ -470,38 +478,41 @@ const finishedTrips = computed(() =>
         <div class="flex items-center gap-2">
           <h3 class="card-title mb-0">Lịch Sử Chuyến Đi Đã Hoàn Thành</h3>
           <span v-if="myVehicle" class="badge badge-blue">
-            <Truck :size="12" />
             <span>Xe: {{ myVehicle.licensePlate }}</span>
           </span>
+          <span v-else-if="driverStore.selectedVehiclePlate === 'ALL'" class="badge badge-blue">
+            <span>Tất cả xe ({{ fleetStore.vehicles.length }})</span>
+          </span>
         </div>
-        <!-- Bộ lọc phương tiện thiết kế dạng Segmented Chips trực quan & hiện đại -->
+        <!-- Bộ lọc phương tiện dạng Select gọn gàng, tối ưu khi có nhiều xe -->
         <div v-if="authStore.activeRole === 'Dispatcher' || authStore.activeRole === 'Admin'" class="veh-filter-wrapper">
-          <div class="veh-filter-label">
-            <Filter :size="13" class="filter-icon" />
+          <label class="veh-filter-label" for="driver-schedule-veh-select">
             <span>Lọc theo xe:</span>
-          </div>
-          <div class="veh-filter-chips">
-            <button
-              v-for="v in fleetStore.vehicles"
-              :key="v.id"
-              type="button"
-              class="veh-chip-btn"
-              :class="{ 'active': myVehicle?.licensePlate === v.licensePlate }"
-              @click="driverStore.setSelectedVehiclePlate(v.licensePlate)"
-              :title="`${v.licensePlate} — ${v.model}`"
+          </label>
+          <div class="veh-select-box">
+            <select
+              id="driver-schedule-veh-select"
+              class="veh-select font-mono"
+              :value="driverStore.selectedVehiclePlate || myVehicle?.licensePlate || 'ALL'"
+              @change="onVehicleSelectChange($event)"
             >
-              <span class="chip-icon-box">
-                <Truck v-if="v.vehicleType === 'LatexTruck'" :size="13" />
-                <Car v-else-if="v.vehicleType === 'PassengerCar'" :size="13" />
-                <Gauge v-else :size="13" />
-              </span>
-              <span class="chip-plate font-mono">{{ v.licensePlate }}</span>
-              <span class="chip-tag">{{ getVehicleShortType(v) }}</span>
-              <span v-if="myVehicle?.licensePlate === v.licensePlate" class="chip-check">
-                <CheckCircle2 :size="12" />
-              </span>
-            </button>
+              <option value="ALL">-- Tất cả xe ({{ fleetStore.vehicles.length }} phương tiện) --</option>
+              <option
+                v-for="v in fleetStore.vehicles"
+                :key="v.id"
+                :value="v.licensePlate"
+              >
+                {{ v.licensePlate }} — {{ v.model }} ({{ getVehicleShortType(v) }})
+              </option>
+            </select>
+            <ChevronDown :size="14" class="select-chevron" />
           </div>
+          <span v-if="myVehicle" class="veh-selected-tag">
+            <span>{{ getVehicleShortType(myVehicle) }}</span>
+          </span>
+          <span v-else-if="driverStore.selectedVehiclePlate === 'ALL'" class="veh-selected-tag tag-all">
+            <span>Tất cả</span>
+          </span>
         </div>
       </div>
 
@@ -527,7 +538,12 @@ const finishedTrips = computed(() =>
             </tr>
 
             <tr v-for="t in finishedTrips" :key="t.id">
-              <td style="white-space: nowrap"><strong class="font-mono text-slate-800">{{ t.tripCode }}</strong></td>
+              <td style="white-space: nowrap">
+                <strong class="font-mono text-slate-800">{{ t.tripCode }}</strong>
+                <span class="badge-trip-seq-mini ml-1.5" :title="getTripDaySequence(t, dispatchStore.trips).fullLabel">
+                  {{ getTripDaySequence(t, dispatchStore.trips).label }}
+                </span>
+              </td>
               <td style="white-space: nowrap"><strong class="font-mono text-slate-800">{{ t.vehiclePlate }}</strong></td>
               <td>{{ t.routeName }}</td>
               <td style="white-space: nowrap">
@@ -1106,9 +1122,12 @@ const finishedTrips = computed(() =>
 }
 
 /* =======================================================
-   VEHICLE FILTER CHIPS TOOLBAR (CARD HEADER)
+   VEHICLE FILTER SELECT TOOLBAR (CARD HEADER)
    ======================================================= */
 .history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   flex-wrap: wrap;
   gap: 12px;
 }
@@ -1119,7 +1138,7 @@ const finishedTrips = computed(() =>
   gap: 8px;
   background: #f8fafc;
   padding: 4px 8px;
-  border-radius: 9px;
+  border-radius: 8px;
   border: 1px solid #e2e8f0;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
@@ -1128,91 +1147,110 @@ const finishedTrips = computed(() =>
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: 0.75rem;
+  font-size: 0.78125rem;
   font-weight: 700;
   color: #475569;
   white-space: nowrap;
+  margin-bottom: 0;
+  cursor: pointer;
 }
 
 .veh-filter-label .filter-icon {
   color: #16a34a;
 }
 
-.veh-filter-chips {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.veh-chip-btn {
+.veh-select-box {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  border-radius: 7px;
-  border: 1px solid #cbd5e1;
+}
+
+.veh-select {
+  appearance: none;
+  -webkit-appearance: none;
   background: #ffffff;
-  color: #334155;
-  font-size: 0.75rem;
-  font-weight: 600;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 4px 28px 4px 10px;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #1e293b;
   cursor: pointer;
-  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  min-width: 220px;
+  max-width: 320px;
+  height: 32px;
+  line-height: 1.4;
+  outline: none;
+  transition: all 0.15s ease;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.veh-select:hover {
+  border-color: #94a3b8;
+  background: #fafafa;
+}
+
+.veh-select:focus {
+  border-color: #16a34a;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15);
+}
+
+.select-chevron {
+  position: absolute;
+  right: 8px;
+  pointer-events: none;
+  color: #64748b;
+}
+
+.veh-selected-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 0.75rem;
+  font-weight: 700;
   white-space: nowrap;
 }
 
-.veh-chip-btn:hover {
-  background: #f1f5f9;
-  border-color: #94a3b8;
-  color: #0f172a;
-  transform: translateY(-1px);
+.veh-selected-tag.tag-all {
+  background: #e2e8f0;
+  color: #334155;
 }
 
-.veh-chip-btn.active {
-  background: #f0fdf4;
-  border-color: #16a34a;
-  color: #15803d;
-  font-weight: 700;
-  box-shadow: 0 2px 6px rgba(22, 163, 74, 0.18);
-}
-
-.chip-icon-box {
-  display: flex;
+.badge-trip-day-seq {
+  display: inline-flex;
   align-items: center;
-  color: inherit;
-}
-
-.chip-plate {
-  font-weight: 800;
-  letter-spacing: 0.3px;
-}
-
-.chip-tag {
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
   font-size: 0.6875rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.badge-trip-seq-mini {
+  display: inline-flex;
+  align-items: center;
   padding: 1px 6px;
   border-radius: 4px;
   background: #f1f5f9;
-  color: #64748b;
-  font-weight: 600;
-}
-
-.veh-chip-btn.active .chip-tag {
-  background: #dcfce7;
-  color: #166534;
-}
-
-.chip-check {
-  display: flex;
-  align-items: center;
-  color: #16a34a;
+  color: #0f172a;
+  border: 1px solid #cbd5e1;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 @media (max-width: 900px) {
   .veh-filter-wrapper {
     width: 100%;
-    flex-direction: column;
-    align-items: flex-start;
+    flex-direction: row;
+    flex-wrap: wrap;
   }
 }
 

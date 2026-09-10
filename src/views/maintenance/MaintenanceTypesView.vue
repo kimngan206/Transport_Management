@@ -9,8 +9,6 @@ import {
   Search,
   Edit2,
   Trash2,
-  Layers,
-  Clock,
   CheckCircle2,
   Truck,
   CheckSquare,
@@ -58,17 +56,6 @@ const newChecklistText = ref('');
 const formIsActive = ref(true);
 const formAssignedVehicleIds = ref<number[]>([]);
 
-// Thống kê nhanh
-const totalTypes = computed(() => fleetStore.maintenanceTypes.length);
-const periodicCount = computed(
-  () => fleetStore.maintenanceTypes.filter((m) => m.group === 'Bảo dưỡng định kỳ').length
-);
-const repairCount = computed(
-  () => fleetStore.maintenanceTypes.filter((m) => m.group === 'Sửa chữa phục hồi').length
-);
-const specializedCount = computed(
-  () => fleetStore.maintenanceTypes.filter((m) => m.group === 'Hệ thống chuyên dụng').length
-);
 
 // Danh sách sau khi lọc
 const filteredTypes = computed(() => {
@@ -334,49 +321,6 @@ function confirmDelete(item: MaintenanceType) {
       </div>
     </div>
 
-    <!-- 2. Thống kê nhanh chỉ số KPI -->
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-icon-wrap stat-green">
-          <Layers :size="20" />
-        </div>
-        <div class="stat-data">
-          <span class="stat-label">Tổng loại bảo dưỡng</span>
-          <span class="stat-value">{{ totalTypes }}</span>
-        </div>
-      </div>
-
-      <div class="stat-card">
-        <div class="stat-icon-wrap stat-blue">
-          <Clock :size="20" />
-        </div>
-        <div class="stat-data">
-          <span class="stat-label">Bảo dưỡng định kỳ</span>
-          <span class="stat-value">{{ periodicCount }}</span>
-        </div>
-      </div>
-
-      <div class="stat-card">
-        <div class="stat-icon-wrap stat-amber">
-          <Wrench :size="20" />
-        </div>
-        <div class="stat-data">
-          <span class="stat-label">Sửa chữa phục hồi</span>
-          <span class="stat-value">{{ repairCount }}</span>
-        </div>
-      </div>
-
-      <div class="stat-card">
-        <div class="stat-icon-wrap stat-purple">
-          <CheckSquare :size="20" />
-        </div>
-        <div class="stat-data">
-          <span class="stat-label">Hệ thống chuyên dụng</span>
-          <span class="stat-value">{{ specializedCount }}</span>
-        </div>
-      </div>
-    </div>
-
     <!-- 3. Thanh tìm kiếm & Bộ lọc nâng cao -->
     <div class="filter-card">
       <div class="search-box">
@@ -494,9 +438,6 @@ function confirmDelete(item: MaintenanceType) {
                 </span>
                 <span v-if="item.cycleMonths" class="cycle-months">
                   📅 Định kỳ: <strong>{{ item.cycleMonths }}</strong> tháng
-                </span>
-                <span v-if="item.group === 'Bảo dưỡng định kỳ' && item.cycleKm && item.isActive" class="auto-rule-pill">
-                  🎯 Ngưỡng cảnh báo tự động
                 </span>
               </div>
             </td>
@@ -984,56 +925,6 @@ function confirmDelete(item: MaintenanceType) {
   font-size: 0.8125rem;
   color: #64748b;
   margin: 4px 0 0 0;
-}
-
-/* KPI Stats */
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
-}
-
-.stat-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 16px;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-}
-
-.stat-icon-wrap {
-  width: 42px;
-  height: 42px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.stat-green { background: #dcfce7; color: #166534; }
-.stat-blue { background: #e0f2fe; color: #0369a1; }
-.stat-amber { background: #fef3c7; color: #b45309; }
-.stat-purple { background: #f3e8ff; color: #7e22ce; }
-
-.stat-data {
-  display: flex;
-  flex-direction: column;
-}
-
-.stat-label {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #64748b;
-}
-
-.stat-value {
-  font-size: 1.35rem;
-  font-weight: 800;
-  color: #0f172a;
-  line-height: 1.2;
 }
 
 /* Filters */

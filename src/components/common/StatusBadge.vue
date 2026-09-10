@@ -9,12 +9,12 @@ const props = defineProps<{
 
 const labelMap: Record<string, string> = {
   // Request Status
-  PENDING: 'Chờ duyệt',
-  APPROVED: 'Đã duyệt',
+  PENDING: 'Chờ ghép chuyến',
+  APPROVED: 'Chờ ghép chuyến',
   REJECTED: 'Từ chối',
   DISPATCHED: 'Đã điều phối',
-  INPROGRESS: 'Đang chạy',
-  COMPLETED: 'Hoàn thành',
+  INPROGRESS: 'Đang vận chuyển',
+  COMPLETED: 'Hoàn Thành',
   CANCELLED: 'Đã hủy',
 
   // Trip Status
@@ -26,15 +26,15 @@ const labelMap: Record<string, string> = {
   Normal: 'Bình thường',
   Due: 'Đến hạn (≥5k km)',
   Overdue: 'Quá hạn bảo dưỡng',
+  UnderMaintenance: 'Đang bảo dưỡng',
 };
 
 const badgeClass = computed(() => {
   const s = props.status.toLowerCase();
   switch (s) {
     case 'pending':
-      return 'badge-pending';
     case 'approved':
-      return 'badge-approved';
+      return 'badge-pending';
     case 'dispatched':
     case 'assigned':
       return 'badge-dispatched';
@@ -55,6 +55,8 @@ const badgeClass = computed(() => {
     case 'due':
     case 'overdue':
       return 'badge-due';
+    case 'undermaintenance':
+      return 'badge-undermaintenance';
     default:
       return 'badge-cancelled';
   }

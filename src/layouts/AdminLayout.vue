@@ -51,11 +51,17 @@ function goToVehicleMaintenance(v: Vehicle) {
 
 // Trạng thái đóng/mở Menu Sidebar
 const isSidebarCollapsed = ref(localStorage.getItem('qldv_sidebar_collapsed') === 'true');
+const isMobileSidebarOpen = ref(false);
 
 function toggleSidebar() {
-  isSidebarCollapsed.value = !isSidebarCollapsed.value;
-  localStorage.setItem('qldv_sidebar_collapsed', String(isSidebarCollapsed.value));
+  if (window.innerWidth <= 960) {
+    isMobileSidebarOpen.value = !isMobileSidebarOpen.value;
+  } else {
+    isSidebarCollapsed.value = !isSidebarCollapsed.value;
+    localStorage.setItem('qldv_sidebar_collapsed', String(isSidebarCollapsed.value));
+  }
 }
+
 
 function goToLogin() {
   router.push('/login');
@@ -101,6 +107,9 @@ watch(
     if (path.startsWith('/routes') || path.startsWith('/hubs')) {
       openGroups.value.routes = true;
     }
+    if (path.startsWith('/dispatch')) {
+      openGroups.value.dispatch = true;
+    }
     if (path.startsWith('/driver')) {
       openGroups.value.operations = true;
     }
@@ -109,7 +118,7 @@ watch(
 );
 
 function toggleGroup(key: string) {
-  if (isSidebarCollapsed.value) {
+  if (window.innerWidth > 960 && isSidebarCollapsed.value) {
     isSidebarCollapsed.value = false;
     localStorage.setItem('qldv_sidebar_collapsed', 'false');
   }
@@ -227,6 +236,13 @@ const showSection = computed(() => {
 
 <template>
   <div class="app-layout-container">
+    <!-- Overlay cho sidebar trên mobile -->
+    <div 
+      v-if="isMobileSidebarOpen" 
+      class="mobile-sidebar-overlay" 
+      @click="isMobileSidebarOpen = false"
+    ></div>
+
     <!-- Header Top Bar Thanh Lịch Chuẩn Doanh Nghiệp ECOTECH 2A -->
     <header class="app-top-header">
       <div class="header-left-brand">
@@ -359,7 +375,7 @@ const showSection = computed(() => {
 
     <div class="app-main-layout">
       <!-- Sidebar hoàn thiện theo chuẩn ngành chế biến cao su -->
-      <aside class="app-sidebar" :class="{ 'is-collapsed': isSidebarCollapsed }">
+      <aside class="app-sidebar" :class="{ 'is-collapsed': isSidebarCollapsed, 'mobile-open': isMobileSidebarOpen }">
         <!-- Header phụ của Sidebar: Định danh đơn vị sản xuất cao su -->
         <div class="sidebar-workspace-header">
           <div class="workspace-brand-badge" :title="'ECOTECH 2A'">
@@ -437,11 +453,14 @@ const showSection = computed(() => {
 
             <div v-show="openGroups.dispatch" class="sub-links-list">
               <router-link to="/dispatch?view=board" class="sub-nav-link" :class="{ active: route.path === '/dispatch' && route.query.view === 'board' }">
-                <span>Duyệt & Ghép thẻ xe</span>
+                <span>Tạo chuyến xe</span>
                 <span v-if="pendingCount > 0" class="mini-badge badge-amber">{{ pendingCount }}</span>
               </router-link>
               <router-link to="/dispatch" class="sub-nav-link" :class="{ active: route.path === '/dispatch' && (!route.query.view || route.query.view === 'map') }">
                 <span>Bản đồ & Lộ trình xe</span>
+              </router-link>
+              <router-link to="/dispatch/settings" class="sub-nav-link" :class="{ active: route.path === '/dispatch/settings' }">
+                <span>Cài đặt chuyến</span>
               </router-link>
             </div>
           </div>
@@ -451,7 +470,7 @@ const showSection = computed(() => {
             <button class="group-btn" @click="toggleGroup('fleet')">
               <span class="group-btn-title">
                 <Truck :size="17" class="nav-icon" />
-                <span>Đội Xe & Thiết Bị</span>
+                <span>Quản lý xe & tài xế</span>
               </span>
               <div class="group-btn-right">
                 <ChevronDown v-if="openGroups.fleet" :size="13" />
@@ -478,13 +497,7 @@ const showSection = computed(() => {
                 <span>Danh sách tài xế</span>
               </router-link>
 
-              <router-link to="/fleet?tab=handover" class="sub-nav-link" :class="{ active: route.path === '/fleet' && route.query.tab === 'handover' }">
-                <div class="sub-nav-label">
-                  <span>Bàn giao / mượn trả</span>
-                </div>
-                <span v-if="handoverBorrowingCount > 0" class="mini-badge badge-amber">{{ handoverBorrowingCount }}</span>
-              </router-link>
-
+             
               <router-link
                 v-if="authStore.activeRole !== 'Driver'"
                 to="/fleet?tab=vehicles"
@@ -493,6 +506,14 @@ const showSection = computed(() => {
               >
                 <span>Danh sách phương tiện</span>
               </router-link>
+
+               <router-link to="/fleet?tab=handover" class="sub-nav-link" :class="{ active: route.path === '/fleet' && route.query.tab === 'handover' }">
+                <div class="sub-nav-label">
+                  <span>Bàn giao / mượn trả</span>
+                </div>
+                <span v-if="handoverBorrowingCount > 0" class="mini-badge badge-amber">{{ handoverBorrowingCount }}</span>
+              </router-link>
+
             </div>
           </div>
 
@@ -510,13 +531,12 @@ const showSection = computed(() => {
             </button>
 
             <div v-show="openGroups.routes" class="sub-links-list">
-              <router-link to="/routes" class="sub-nav-link" :class="{ active: route.path === '/routes' }">
-                <span>Tuyến đường quy chuẩn</span>
-              </router-link>
-
-              <router-link to="/hubs" class="sub-nav-link" :class="{ active: route.path === '/hubs' }">
+               <router-link to="/hubs" class="sub-nav-link" :class="{ active: route.path === '/hubs' }">
                 <span>Điểm trạm & Đội</span>
               </router-link>
+              <router-link to="/routes" class="sub-nav-link" :class="{ active: route.path === '/routes' }">
+                <span>Tuyến đường quy chuẩn</span>
+              </router-link>             
             </div>
           </div>
 
@@ -1455,8 +1475,86 @@ const showSection = computed(() => {
 }
 
 @media (max-width: 960px) {
-  .app-sidebar { width: 68px; }
-  .group-btn-title span, .group-btn-right, .sub-links-list, .role-filter-row, .user-text-info, .sidebar-workspace-header, .menu-section-label { display: none; }
+  .app-sidebar { 
+    position: fixed;
+    top: 52px;
+    left: 0;
+    height: calc(100vh - 52px);
+    width: 256px !important;
+    z-index: 1000;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .app-sidebar.mobile-open {
+    transform: translateX(0);
+  }
+  
+  /* Reset hiển thị nội dung trên mobile */
+  .app-sidebar .workspace-info,
+  .app-sidebar .menu-section-label,
+  .app-sidebar .group-btn-title span,
+  .app-sidebar .group-btn-right,
+  .app-sidebar .sub-links-list,
+  .app-sidebar .nav-root-link span,
+  .app-sidebar .role-filter-row,
+  .app-sidebar .user-text-info,
+  .app-sidebar .sidebar-workspace-header { 
+    display: flex !important; 
+  }
+  .app-sidebar .menu-section-label {
+    display: block !important;
+  }
+  
   .app-content-viewport { padding: 16px; }
+}
+
+.mobile-sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  top: 52px;
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+  z-index: 999;
+}
+
+/* =========================================
+   MOBILE HEADER: Ẩn text, chỉ giữ icon
+   ========================================= */
+@media (max-width: 960px) {
+  /* Ẩn subtitle "HỆ THỐNG QUẢN LÝ ĐIỀU VẬN" */
+  .brand-corp { display: none; }
+
+  /* Ẩn text nút Reset - chỉ giữ icon */
+  .btn-header-reset span { display: none; }
+  .btn-header-reset {
+    padding: 6px 8px;
+    min-width: 32px;
+  }
+
+  /* Ẩn tên + role trong badge user, chỉ giữ avatar */
+  .user-meta-info { display: none; }
+  .current-user-badge {
+    padding: 3px 5px 3px 4px;
+  }
+
+  /* Ẩn text nút Đổi vai trò, chỉ giữ icon */
+  .btn-header-switch-role span { display: none; }
+  .btn-header-switch-role {
+    padding: 6px 8px;
+    min-width: 32px;
+  }
+
+  /* Thu nhỏ gap header */
+  .header-right-actions { gap: 6px; }
+  .header-left-brand { gap: 8px; }
+
+  /* Content viewport padding hẹp hơn */
+  .app-content-viewport { padding: 12px; }
+}
+
+@media (max-width: 480px) {
+  /* Ẩn luôn logo box trên màn rất nhỏ để có thêm chỗ */
+  .header-logo-box { display: none; }
+  .brand-name { font-size: 0.8125rem; }
 }
 </style>

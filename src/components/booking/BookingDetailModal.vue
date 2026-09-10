@@ -10,15 +10,8 @@ import { suggestOptimalRoute } from '@/utils/routeMatcher';
 import StatusBadge from '@/components/common/StatusBadge.vue';
 import {
   X,
-  Calendar,
-  MapPin,
-  Package,
-  User,
-  FileText,
   Ban,
-  Navigation,
-  Sparkles,
-  Truck,
+  Edit3,
 } from 'lucide-vue-next';
 
 const props = defineProps<{
@@ -28,6 +21,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'close'): void;
   (e: 'updated'): void;
+  (e: 'edit', req: TransportRequest): void;
 }>();
 
 const authStore = useAuthStore();
@@ -91,7 +85,7 @@ function handleCancel() {
         <!-- Thông tin cơ bản -->
         <div class="detail-grid">
           <div class="detail-item">
-            <span class="detail-label"><User :size="14" /> Người yêu cầu</span>
+            <span class="detail-label">Người yêu cầu</span>
             <span class="detail-val">
               {{ request.requesterName }} ({{ request.departmentName }})
               <span v-if="request.teamName" class="badge-team-tag">
@@ -101,17 +95,17 @@ function handleCancel() {
           </div>
 
           <div class="detail-item">
-            <span class="detail-label"><Calendar :size="14" /> Thời gian</span>
+            <span class="detail-label">Thời gian</span>
             <span class="detail-val">{{ request.startTime }} ➔ {{ request.endTime.slice(11) }}</span>
           </div>
 
           <div class="detail-item">
-            <span class="detail-label"><MapPin :size="14" /> Lộ trình</span>
+            <span class="detail-label">Lộ trình</span>
             <span class="detail-val">{{ request.fromLocation }} ➔ {{ request.toLocation }}</span>
           </div>
 
           <div class="detail-item">
-            <span class="detail-label"><Package :size="14" /> Phương tiện / Tải trọng</span>
+            <span class="detail-label">Phương tiện / Tải trọng</span>
             <span class="detail-val">
               {{
                 request.vehicleType === 'LatexTruck'
@@ -137,10 +131,9 @@ function handleCancel() {
           <!-- Lộ trình quy chuẩn trả kết quả cho người đặt xe -->
           <div class="detail-item full-width" v-if="standardRoute">
             <span class="detail-label">
-              <Navigation :size="14" class="text-primary" />
               <span>Lộ trình quy chuẩn {{ request.standardRouteId ? 'được phân công' : 'gợi ý từ điểm đi' }}:</span>
               <span v-if="!request.standardRouteId" class="badge-suggest-pill">
-                <Sparkles :size="10" /> Gợi ý tự động
+                Gợi ý tự động
               </span>
             </span>
             <div class="route-result-box">
@@ -158,7 +151,6 @@ function handleCancel() {
           <!-- Thông tin xe & tài xế đã điều phối (nếu có) -->
           <div class="detail-item full-width" v-if="assignedTrip">
             <span class="detail-label">
-              <Truck :size="14" class="text-success" />
               <span>Chuyến xe & Phương tiện điều phối:</span>
             </span>
             <div class="assigned-trip-box">
@@ -171,7 +163,7 @@ function handleCancel() {
         </div>
 
         <div class="purpose-box">
-          <span class="detail-label"><FileText :size="14" /> Mục đích</span>
+          <span class="detail-label">Mục đích</span>
           <p class="purpose-text">{{ request.purpose }}</p>
         </div>
 
@@ -219,6 +211,14 @@ function handleCancel() {
       </div>
 
       <div class="modal-footer">
+        <button
+          v-if="request.status === 'PENDING' && !showCancelPrompt"
+          class="btn btn-primary"
+          @click="emit('edit', request)"
+        >
+          <Edit3 :size="16" />
+          <span>Điều chỉnh yêu cầu</span>
+        </button>
         <button
           v-if="request.status !== 'INPROGRESS' && request.status !== 'COMPLETED' && request.status !== 'CANCELLED' && !showCancelPrompt"
           class="btn btn-outline-danger"

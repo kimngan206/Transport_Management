@@ -6,28 +6,21 @@ import { useDialogStore } from '@/stores/dialog';
 import { mockStorage } from '@/services/mockStorage';
 import { getFreshHubs } from '@/mocks/mapData';
 import type { HubLocation } from '@/types/map';
-import type { VehicleType } from '@/types';
+import type { VehicleType, TransportRequest } from '@/types';
 import {
   X,
   AlertCircle,
   CheckCircle2,
-  Clock,
-  MapPin,
-  Compass,
-  Truck,
-  Wrench,
-  Car,
-  Building2,
-  Trees,
-  ArrowRight,
 } from 'lucide-vue-next';
 
 const props = withDefaults(
   defineProps<{
     moduleType?: 'team' | 'factory';
+    editingRequest?: TransportRequest | null;
   }>(),
   {
     moduleType: 'team',
+    editingRequest: null,
   }
 );
 
@@ -43,7 +36,7 @@ const dialog = useDialogStore();
 // Xác định phân hệ: Đặt xe Đội vs Đặt xe Nhà máy
 const isTeamModule = computed(() => props.moduleType === 'team');
 
-const selectedTeam = ref<string>('Đội 1');
+const selectedTeam = ref<string>(props.editingRequest?.teamName || 'Đội 1');
 const teamList = ref<string[]>([
   'Đội 1',
   'Đội 2',
@@ -65,24 +58,26 @@ const selectedClusterLabel = computed(() => {
 });
 
 // Form state
-const vehicleType = ref<VehicleType>('LatexTruck');
+const vehicleType = ref<VehicleType>(props.editingRequest?.vehicleType || 'LatexTruck');
 // Danh mục điểm trạm cố định chuẩn hóa trong hệ thống
 const systemHubs = computed<HubLocation[]>(() => getFreshHubs());
 // Danh sách điểm trạm vận chuyển cho phân hệ Nhà máy (lấy từ danh mục điểm trạm hệ thống)
-const locations = ref<string[]>([
-  'Nhà Máy Chế Biến ECOTECH 2A',
-  'Trạm Cân 1 (Trung tâm)',
-]);
+const locations = ref<string[]>(
+  props.editingRequest?.fromLocation && props.editingRequest?.toLocation
+    ? [props.editingRequest.fromLocation, ...props.editingRequest.toLocation.split(' ➔ ')]
+    : [
+        'Nhà Máy Chế Biến ECOTECH 2A',
+        'Trạm Cân 1 (Trung tâm)',
+      ]
+);
 const selectedHubToAdd = ref<string>('');
 
 // Giờ máy dự kiến cho xe cơ giới (MillingMachine)
-const operatingHours = ref<number>(4);
+const operatingHours = ref<number>(props.editingRequest?.operatingHours || 4);
 
 // Thuộc tính riêng cho PassengerCar
-const pickupTime = ref<string>('');
-const dropoffTime = ref<string>('');
-const contactPerson = ref<string>('');
-const contactPhone = ref<string>('');
+const contactPerson = ref<string>(props.editingRequest?.contactPerson || '');
+const contactPhone = ref<string>(props.editingRequest?.contactPhone || '');
 
 // Danh mục loại phương tiện phân theo 2 module riêng biệt:
 // 1. Phân hệ ĐẶT XE ĐỘI: MẶC ĐỊNH & CHỈ GỒM "Xe chuyên dùng chở mủ" & "Xe cơ giới" (không có xe con/bán tải)
@@ -126,12 +121,15 @@ const availableVehicleTypes = computed(() => {
   ];
 });
 
-const purpose = ref<string>('Vận chuyển mủ cao su ca thu hoạch ngày lẻ');
+const purpose = ref<string>(
+  props.editingRequest?.purpose || 'Vận chuyển mủ cao su ca thu hoạch ngày lẻ'
+);
 
 // Tự động cập nhật mục đích mặc định theo phân hệ, loại xe và cụm được chọn
 watch(
   [vehicleType, selectedTeam, selectedClusterLabel],
   ([newType, team, cluster]) => {
+    if (props.editingRequest) return;
     if (isTeamModule.value) {
       if (newType === 'LatexTruck') {
         purpose.value = `Thu gom mủ cao su ${team} (${cluster})`;
@@ -148,7 +146,7 @@ watch(
       }
     }
   },
-  { immediate: true }
+  { immediate: !props.editingRequest }
 );
 
 function addSystemHub(hubName: string) {
@@ -175,8 +173,8 @@ function getHubTypePrefix(type: string): string {
   if (type === 'farm') return '🌳 Đội NT';
   return '📍 Điểm trạm';
 }
-const estimatedWeightKg = ref<number>(2500);
-const passengersCount = ref<number>(3);
+const estimatedWeightKg = ref<number>(props.editingRequest?.estimatedWeightKg || 2500);
+const passengersCount = ref<number>(props.editingRequest?.passengersCount || 3);
 
 // Helper default times (tự động tìm khung giờ trống hợp lệ: sau hiện tại ít nhất 30 phút và không trùng các chuyến đã duyệt)
 function getNextValidTimeSlot(): { start: string; end: string } {
@@ -204,8 +202,16 @@ function getNextValidTimeSlot(): { start: string; end: string } {
 }
 
 const initialSlot = getNextValidTimeSlot();
-const startTime = ref<string>(initialSlot.start);
-const endTime = ref<string>(initialSlot.end);
+const startTime = ref<string>(
+  props.editingRequest?.startTime
+    ? props.editingRequest.startTime.slice(0, 16).replace(' ', 'T')
+    : initialSlot.start
+);
+const endTime = ref<string>(
+  props.editingRequest?.endTime
+    ? props.editingRequest.endTime.slice(0, 16).replace(' ', 'T')
+    : initialSlot.end
+);
 const errorMsg = ref<string>('');
 
 function setQuickSlot(type: 'today_next' | 'tomorrow_morning' | 'tomorrow_afternoon') {
@@ -256,7 +262,8 @@ const conflictStatus = computed(() => {
   return bookingStore.hasScheduleConflict(
     authStore.currentUser.id,
     startTime.value.replace('T', ' '),
-    endTime.value.replace('T', ' ')
+    endTime.value.replace('T', ' '),
+    props.editingRequest?.id
   );
 });
 
@@ -294,6 +301,39 @@ function handleSubmit() {
         ? locations.value.slice(1).join(' ➔ ')
         : (locations.value[0] === 'Nhà Máy Chế Biến ECOTECH 2A' ? 'Trạm Cân 1 (Trung tâm)' : 'Nhà Máy Chế Biến ECOTECH 2A'));
 
+  if (props.editingRequest) {
+    const res = bookingStore.updateRequest(
+      props.editingRequest.id,
+      {
+        teamName: isTeamModule.value ? selectedTeam.value : undefined,
+        vehicleType: vehicleType.value,
+        startTime: startTime.value.replace('T', ' '),
+        endTime: endTime.value.replace('T', ' '),
+        fromLocation: fromLoc,
+        toLocation: toLoc,
+        purpose: purpose.value,
+        estimatedWeightKg: vehicleType.value === 'LatexTruck' ? Number(estimatedWeightKg.value) : undefined,
+        operatingHours: vehicleType.value === 'MillingMachine' ? Number(operatingHours.value) : undefined,
+        passengersCount: vehicleType.value === 'PassengerCar' ? Number(passengersCount.value) : undefined,
+        pickupTime: vehicleType.value === 'PassengerCar' ? startTime.value.replace('T', ' ') : undefined,
+        dropoffTime: vehicleType.value === 'PassengerCar' ? endTime.value.replace('T', ' ') : undefined,
+        contactPerson: vehicleType.value === 'PassengerCar' ? contactPerson.value : undefined,
+        contactPhone: vehicleType.value === 'PassengerCar' ? contactPhone.value : undefined,
+      },
+      authStore.currentUser.fullName
+    );
+
+    if (!res.success) {
+      errorMsg.value = res.message;
+      dialog.showWarning(res.message, 'Không Thể Cập Nhật', 'Kiểm tra lại');
+    } else {
+      emit('created');
+      emit('close');
+      dialog.showSuccess(`Yêu cầu đặt xe ${props.editingRequest.requestCode} đã được cập nhật thành công!`, 'Điều Chỉnh Thành Công');
+    }
+    return;
+  }
+
   const res = bookingStore.createRequest({
     requesterId: authStore.currentUser.id,
     requesterName: authStore.currentUser.fullName,
@@ -312,8 +352,8 @@ function handleSubmit() {
     estimatedWeightKg: vehicleType.value === 'LatexTruck' ? Number(estimatedWeightKg.value) : undefined,
     operatingHours: vehicleType.value === 'MillingMachine' ? Number(operatingHours.value) : undefined,
     passengersCount: vehicleType.value === 'PassengerCar' ? Number(passengersCount.value) : undefined,
-    pickupTime: vehicleType.value === 'PassengerCar' ? pickupTime.value.replace('T', ' ') : undefined,
-    dropoffTime: vehicleType.value === 'PassengerCar' ? dropoffTime.value.replace('T', ' ') : undefined,
+    pickupTime: vehicleType.value === 'PassengerCar' ? startTime.value.replace('T', ' ') : undefined,
+    dropoffTime: vehicleType.value === 'PassengerCar' ? endTime.value.replace('T', ' ') : undefined,
     contactPerson: vehicleType.value === 'PassengerCar' ? contactPerson.value : undefined,
     contactPhone: vehicleType.value === 'PassengerCar' ? contactPhone.value : undefined,
   });
@@ -334,11 +374,9 @@ function handleSubmit() {
     <div class="modal-content modal-lg">
       <div class="modal-header">
         <h3 class="modal-title">
-          <Trees v-if="isTeamModule" :size="20" class="text-primary" />
-          <Building2 v-else :size="20" class="text-primary" />
-          <span>{{ isTeamModule ? 'Tạo Yêu Cầu Đặt Xe Đội Nông Trường' : 'Tạo Yêu Cầu Đặt Xe Nhà Máy Chế Biến' }}</span>
+          <span>{{ props.editingRequest ? `Điều Chỉnh Yêu Cầu Đặt Xe: ${props.editingRequest.requestCode}` : (isTeamModule ? 'Tạo Yêu Cầu Đặt Xe Đội Nông Trường' : 'Tạo Yêu Cầu Đặt Xe Nhà Máy Chế Biến') }}</span>
           <span class="module-mode-badge" :class="isTeamModule ? 'badge-team' : 'badge-factory'">
-            {{ isTeamModule ? '🌱 Phân hệ: Đặt xe Đội' : '🏭 Phân hệ: Đặt xe Nhà máy' }}
+            {{ isTeamModule ? 'Phân hệ: Đặt xe Đội' : 'Phân hệ: Đặt xe Nhà máy' }}
           </span>
         </h3>
         <button class="btn-close" @click="emit('close')">
@@ -361,7 +399,6 @@ function handleSubmit() {
         <div v-if="isTeamModule" class="module-scope-card team-mode">
           <div class="scope-header-row">
             <div class="scope-unit-info">
-              <Trees :size="16" class="text-success" />
               <span>Đơn vị đặt xe: <strong>Đội sản xuất nông trường cao su</strong></span>
             </div>
             <div class="team-dropdown-inline">
@@ -378,7 +415,6 @@ function handleSubmit() {
         <div v-else class="module-scope-card factory-mode">
           <div class="scope-header-row">
             <div class="scope-unit-info">
-              <Building2 :size="16" class="text-primary" />
               <span>Đơn vị đặt xe: <strong>Nhà máy Chế biến Mủ Cao su ECOTECH 2A</strong></span>
             </div>
           </div>
@@ -408,8 +444,7 @@ function handleSubmit() {
         <!-- A. Phân hệ ĐẶT XE ĐỘI: Chỉ cần chọn địa điểm (Cụm tại Đội), không hiển thị lộ trình -->
         <div v-if="isTeamModule" class="form-group team-cluster-select-group">
           <label class="form-label">
-            <MapPin :size="14" class="text-success" />
-            <span>Địa điểm yêu cầu tại {{ selectedTeam }} <span class="required">*</span></span>
+            Địa điểm yêu cầu tại {{ selectedTeam }} <span class="required">*</span>
           </label>
           <div class="cluster-segmented-group">
             <button
@@ -420,7 +455,6 @@ function handleSubmit() {
               :class="{ active: selectedCluster === c.value }"
               @click="selectedCluster = c.value"
             >
-              <span class="cluster-dot"></span>
               <span class="cluster-name">{{ c.label }}</span>
               <span class="cluster-sub">{{ c.sub }}</span>
             </button>
@@ -432,8 +466,7 @@ function handleSubmit() {
           <div class="form-group mb-0">
             <div class="factory-hubs-title-row">
               <label class="form-label mb-0">
-                <MapPin :size="15" class="text-primary" />
-                <span>Các địa điểm yêu cầu <span class="required">*</span></span>
+                Các địa điểm yêu cầu <span class="required">*</span>
               </label>
               <span class="text-xs text-muted">Lấy từ danh mục điểm trạm hệ thống</span>
             </div>
@@ -445,7 +478,6 @@ function handleSubmit() {
                 :key="index"
                 class="location-chip"
               >
-                <MapPin :size="13" class="text-primary flex-shrink-0" />
                 <span class="location-name">{{ loc }}</span>
                 <button
                   type="button"
@@ -487,13 +519,13 @@ function handleSubmit() {
           <span class="quick-slots-label">Chọn nhanh khung giờ hợp lệ:</span>
           <div class="quick-slots-btns">
             <button type="button" class="btn-quick-slot" @click="setQuickSlot('today_next')">
-              ⚡ Gợi ý hôm nay (Tránh trùng lịch)
+              Gợi ý hôm nay (Tránh trùng lịch)
             </button>
             <button type="button" class="btn-quick-slot" @click="setQuickSlot('tomorrow_morning')">
-              🌅 Ca sáng mai (08:00 - 10:30)
+              Ca sáng mai (08:00 - 10:30)
             </button>
             <button type="button" class="btn-quick-slot" @click="setQuickSlot('tomorrow_afternoon')">
-              ☀️ Ca chiều mai (13:30 - 16:00)
+              Ca chiều mai (13:30 - 16:00)
             </button>
           </div>
         </div>
@@ -561,17 +593,6 @@ function handleSubmit() {
         <div v-else-if="vehicleType === 'PassengerCar'" class="passenger-car-fields">
           <div class="grid-2">
             <div class="form-group">
-              <label class="form-label">Giờ đón (Pick-up) <span class="required">*</span></label>
-              <input v-model="pickupTime" type="datetime-local" class="form-input" />
-            </div>
-            <div class="form-group">
-              <label class="form-label">Giờ trả (Drop-off) <span class="required">*</span></label>
-              <input v-model="dropoffTime" type="datetime-local" class="form-input" />
-            </div>
-          </div>
-          
-          <div class="grid-2">
-            <div class="form-group">
               <label class="form-label">Người liên hệ <span class="required">*</span></label>
               <input v-model="contactPerson" type="text" class="form-input" placeholder="Tên người điều phối đoàn / liên hệ" />
             </div>
@@ -600,7 +621,7 @@ function handleSubmit() {
           :disabled="!rule30Status.valid || conflictStatus.hasConflict"
           @click="handleSubmit"
         >
-          Gửi Yêu Cầu Đặt Xe
+          {{ props.editingRequest ? 'Lưu Điều Chỉnh Yêu Cầu' : 'Gửi Yêu Cầu Đặt Xe' }}
         </button>
       </div>
     </div>

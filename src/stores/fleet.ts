@@ -65,9 +65,15 @@ export const useFleetStore = defineStore('fleet', () => {
 
   // Getters
   const availableVehicles = computed(() => {
-    return vehicles.value.filter(
-      (v) => v.status === 'Available' && v.maintenanceStatus !== 'Overdue'
-    );
+    return vehicles.value.filter((v) => {
+      if (v.status !== 'Available') return false;
+      const threshold = getVehicleMaintenanceThreshold(v);
+      const distanceSinceLast = v.currentOdoKm - v.lastMaintenanceOdo;
+      const isDue = (v.vehicleType !== 'MillingMachine' && distanceSinceLast >= threshold)
+        || v.maintenanceStatus === 'Due'
+        || v.maintenanceStatus === 'Overdue';
+      return !isDue;
+    });
   });
 
   const dueMaintenanceVehicles = computed(() => {

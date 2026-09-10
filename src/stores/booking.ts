@@ -220,6 +220,31 @@ export const useBookingStore = defineStore('booking', () => {
     return { success: true, message: `Đã hủy yêu cầu ${req.requestCode}.` };
   }
 
+  function updateRequest(
+    requestId: number,
+    data: Partial<TransportRequest>,
+    actorName: string
+  ): { success: boolean; message: string } {
+    const req = requests.value.find((r) => r.id === requestId);
+    if (!req) return { success: false, message: 'Không tìm thấy yêu cầu' };
+
+    if (req.status !== 'PENDING' && req.status !== 'APPROVED') {
+      return { success: false, message: 'Chỉ có thể điều chỉnh yêu cầu khi đang ở trạng thái Chờ ghép chuyến!' };
+    }
+
+    Object.assign(req, data);
+    const nowStr = new Date().toISOString().slice(0, 16).replace('T', ' ');
+    req.timeline.push({
+      status: 'PENDING',
+      timestamp: nowStr,
+      actor: actorName,
+      note: 'Người đặt xe cập nhật / điều chỉnh thông tin yêu cầu',
+    });
+
+    saveState();
+    return { success: true, message: `Đã cập nhật yêu cầu ${req.requestCode} thành công!` };
+  }
+
   function updateRequestStatus(
     requestId: number,
     status: RequestStatus,
@@ -254,6 +279,7 @@ export const useBookingStore = defineStore('booking', () => {
     getDepartmentRequests,
     hasScheduleConflict,
     createRequest,
+    updateRequest,
     approveRequest,
     rejectRequest,
     cancelRequest,
