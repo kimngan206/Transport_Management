@@ -406,25 +406,6 @@ function applyBatchTemplate(type: VehicleType) {
               </select>
             </div>
           </div>
-
-          <div class="filter-stats-panel">
-            <div class="stat-box">
-              <span class="stat-title">Chuyến xe</span>
-              <span class="stat-number text-primary">{{ dayTrips.length }}</span>
-            </div>
-            <div class="stat-sep"></div>
-            <div class="stat-box">
-              <span class="stat-title">Xe hoạt động</span>
-              <span class="stat-number text-slate-700">{{ activeVehiclesInDay.length }}/{{ fleetStore.vehicles.length }}</span>
-            </div>
-            <div class="stat-sep"></div>
-            <div class="stat-box" :class="{ 'stat-box-warn': interVehicleGaps.some(g => !g.isSafe) }">
-              <span class="stat-title">Cảnh báo giãn cách</span>
-              <span class="stat-number" :class="interVehicleGaps.some(g => !g.isSafe) ? 'text-amber-600' : 'text-emerald-600'">
-                {{ interVehicleGaps.filter(g => !g.isSafe).length }}
-              </span>
-            </div>
-          </div>
         </div>
       </div>
 
