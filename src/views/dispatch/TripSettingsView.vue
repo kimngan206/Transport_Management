@@ -366,49 +366,64 @@ function applyBatchTemplate(type: VehicleType) {
     <!-- TAB 1: SƠ ĐỒ GIÃN CÁCH & TRỤC THỜI GIAN -->
     <!-- ======================================================= -->
     <div v-if="activeTab === 'timeline'" class="tab-content mt-3">
-      <!-- THANH ĐIỀU KHIỂN & LỌC GỌN GÀNG -->
-      <div class="filter-toolbar card p-3">
-        <div class="filter-row">
-          <div class="filter-item">
-            <span class="filter-label">Ngày:</span>
-            <input v-model="selectedDate" type="date" class="form-input form-input-sm" />
+      <!-- THANH ĐIỀU KHIỂN & LỌC RÕ RÀNG, DỄ NHÌN -->
+      <div class="filter-toolbar card">
+        <div class="filter-toolbar-inner">
+          <div class="filter-fields-group">
+            <div class="filter-field-item">
+              <label class="filter-field-label">
+                <Calendar :size="13" class="text-primary" />
+                <span>Ngày kiểm tra:</span>
+              </label>
+              <input v-model="selectedDate" type="date" class="filter-input-control filter-input-date" />
+            </div>
+
+            <div class="filter-field-item">
+              <label class="filter-field-label">
+                <Truck :size="13" class="text-primary" />
+                <span>Loại phương tiện:</span>
+              </label>
+              <select v-model="filterType" class="filter-input-control filter-select-type">
+                <option value="ALL">-- Tất cả loại xe --</option>
+                <option value="LatexTruck">Xe bồn mủ (Latex)</option>
+                <option value="PassengerCar">Xe khách / công vụ</option>
+                <option value="MillingMachine">Xe cơ giới / xúc</option>
+              </select>
+            </div>
+
+            <div class="filter-field-item">
+              <label class="filter-field-label">
+                <Building :size="13" class="text-primary" />
+                <span>Đơn vị trực thuộc:</span>
+              </label>
+              <select v-model="filterUnit" class="filter-input-control filter-select-unit">
+                <option value="ALL">-- Tất cả đơn vị --</option>
+                <option value="Factory">Nhà máy chế biến</option>
+                <option value="Team:Đội 1">Đội sản xuất 1</option>
+                <option value="Team:Đội 2">Đội sản xuất 2</option>
+                <option value="Team:Đội 3">Đội sản xuất 3</option>
+                <option value="Team:Đội 4">Đội sản xuất 4</option>
+              </select>
+            </div>
           </div>
 
-          <div class="filter-item">
-            <span class="filter-label">Loại xe:</span>
-            <select v-model="filterType" class="form-select form-select-sm">
-              <option value="ALL">Tất cả loại xe</option>
-              <option value="LatexTruck">Xe bồn mủ</option>
-              <option value="PassengerCar">Xe khách / công vụ</option>
-              <option value="MillingMachine">Xe cơ giới / xúc</option>
-            </select>
-          </div>
-
-          <div class="filter-item">
-            <span class="filter-label">Đơn vị:</span>
-            <select v-model="filterUnit" class="form-select form-select-sm">
-              <option value="ALL">Tất cả đơn vị</option>
-              <option value="Factory">Nhà máy</option>
-              <option value="Team:Đội 1">Đội 1</option>
-              <option value="Team:Đội 2">Đội 2</option>
-              <option value="Team:Đội 3">Đội 3</option>
-              <option value="Team:Đội 4">Đội 4</option>
-            </select>
-          </div>
-
-          <div class="filter-stats ml-auto">
-            <span class="stat-pill">
-              <strong>{{ dayTrips.length }}</strong> chuyến
-            </span>
-            <span class="stat-pill">
-              <strong>{{ activeVehiclesInDay.length }}</strong>/{{ fleetStore.vehicles.length }} xe chạy
-            </span>
-            <span
-              class="stat-pill"
-              :class="interVehicleGaps.some(g => !g.isSafe) ? 'stat-pill-warn' : 'stat-pill-ok'"
-            >
-              <strong>{{ interVehicleGaps.filter(g => !g.isSafe).length }}</strong> cảnh báo giãn cách
-            </span>
+          <div class="filter-stats-panel">
+            <div class="stat-box">
+              <span class="stat-title">Chuyến xe</span>
+              <span class="stat-number text-primary">{{ dayTrips.length }}</span>
+            </div>
+            <div class="stat-sep"></div>
+            <div class="stat-box">
+              <span class="stat-title">Xe hoạt động</span>
+              <span class="stat-number text-slate-700">{{ activeVehiclesInDay.length }}/{{ fleetStore.vehicles.length }}</span>
+            </div>
+            <div class="stat-sep"></div>
+            <div class="stat-box" :class="{ 'stat-box-warn': interVehicleGaps.some(g => !g.isSafe) }">
+              <span class="stat-title">Cảnh báo giãn cách</span>
+              <span class="stat-number" :class="interVehicleGaps.some(g => !g.isSafe) ? 'text-amber-600' : 'text-emerald-600'">
+                {{ interVehicleGaps.filter(g => !g.isSafe).length }}
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -1057,57 +1072,121 @@ function applyBatchTemplate(type: VehicleType) {
 
 /* FILTER CONTROLS TOOLBAR */
 .filter-toolbar {
-  margin-bottom: 4px;
+  background: #ffffff;
+  border: 1px solid var(--border-card, #e2e8f0);
+  border-radius: 12px;
+  padding: 12px 18px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  margin-bottom: 12px;
 }
 
-.filter-row {
+.filter-toolbar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.filter-fields-group {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 16px;
 }
 
-.filter-item {
+.filter-field-item {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.filter-label {
+.filter-field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: 0.75rem;
   font-weight: 700;
   color: #475569;
-  white-space: nowrap;
+  margin-bottom: 0;
+  user-select: none;
 }
 
-.filter-stats {
+.filter-input-control {
+  height: 38px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #1e293b;
+  transition: all 0.15s ease;
+  outline: none;
+}
+
+.filter-input-control:hover {
+  border-color: #94a3b8;
+  background: #ffffff;
+}
+
+.filter-input-control:focus {
+  border-color: #10b981;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+}
+
+.filter-input-date {
+  width: 155px;
+}
+
+.filter-select-type {
+  min-width: 195px;
+}
+
+.filter-select-unit {
+  min-width: 175px;
+}
+
+/* FILTER STATS PANEL */
+.filter-stats-panel {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.stat-pill {
-  font-size: 0.6875rem;
-  padding: 3px 8px;
-  border-radius: 6px;
-  background: #f1f5f9;
-  color: #475569;
+  gap: 14px;
+  background: #f8fafc;
   border: 1px solid #e2e8f0;
-  white-space: nowrap;
+  border-radius: 8px;
+  padding: 6px 16px;
 }
 
-.stat-pill-ok {
-  background: #ecfdf5;
-  color: #065f46;
-  border-color: #a7f3d0;
+.stat-box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
 }
 
-.stat-pill-warn {
-  background: #fef3c7;
-  color: #92400e;
-  border-color: #fde68a;
-  font-weight: 700;
+.stat-title {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #64748b;
+  line-height: 1.2;
+}
+
+.stat-number {
+  font-size: 1.0625rem;
+  font-weight: 800;
+  line-height: 1.2;
+  margin-top: 1px;
+}
+
+.stat-sep {
+  width: 1px;
+  height: 28px;
+  background: #e2e8f0;
+}
+
+.stat-box-warn .stat-title {
+  color: #b45309;
 }
 
 /* TIMELINE STYLES */
