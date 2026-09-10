@@ -6,7 +6,7 @@ import { useDialogStore } from '@/stores/dialog';
 import { mockStorage } from '@/services/mockStorage';
 import { getFreshHubs } from '@/mocks/mapData';
 import type { HubLocation } from '@/types/map';
-import type { VehicleType } from '@/types';
+import type { VehicleType, TransportRequest } from '@/types';
 import {
   X,
   AlertCircle,
@@ -25,15 +25,18 @@ import {
 const props = withDefaults(
   defineProps<{
     moduleType?: 'team' | 'factory';
+    editingRequest?: TransportRequest;
   }>(),
   {
     moduleType: 'team',
+    editingRequest: undefined,
   }
 );
 
 const emit = defineEmits<{
   (e: 'close'): void;
   (e: 'created'): void;
+  (e: 'updated'): void;
 }>();
 
 const authStore = useAuthStore();
@@ -42,6 +45,7 @@ const dialog = useDialogStore();
 
 // Xác định phân hệ: Đặt xe Đội vs Đặt xe Nhà máy
 const isTeamModule = computed(() => props.moduleType === 'team');
+const isEditMode = computed(() => !!props.editingRequest);
 
 const selectedTeam = ref<string>('Đội 1');
 const teamList = ref<string[]>([
@@ -208,6 +212,42 @@ const startTime = ref<string>(initialSlot.start);
 const endTime = ref<string>(initialSlot.end);
 const errorMsg = ref<string>('');
 
+function populateFormFromRequest(request: TransportRequest) {
+  selectedTeam.value = request.teamName || 'Đội 1';
+  vehicleType.value = request.vehicleType;
+  purpose.value = request.purpose || '';
+  estimatedWeightKg.value = request.estimatedWeightKg || 2500;
+  passengersCount.value = request.passengersCount || 3;
+  operatingHours.value = request.operatingHours || 4;
+  pickupTime.value = request.pickupTime ? request.pickupTime.replace(' ', 'T') : '';
+  dropoffTime.value = request.dropoffTime ? request.dropoffTime.replace(' ', 'T') : '';
+  contactPerson.value = request.contactPerson || '';
+  contactPhone.value = request.contactPhone || '';
+
+  startTime.value = request.startTime.replace(' ', 'T');
+  endTime.value = request.endTime.replace(' ', 'T');
+
+  if (props.moduleType === 'factory') {
+    locations.value = [request.fromLocation, request.toLocation].filter(Boolean);
+  } else {
+    const fromText = request.fromLocation || '';
+    const clusterMatch = clusterOptions.find((c) => fromText.includes(c.label));
+    if (clusterMatch) {
+      selectedCluster.value = clusterMatch.value;
+    }
+  }
+}
+
+watch(
+  () => props.editingRequest,
+  (request) => {
+    if (request) {
+      populateFormFromRequest(request);
+    }
+  },
+  { immediate: true }
+);
+
 function setQuickSlot(type: 'today_next' | 'tomorrow_morning' | 'tomorrow_afternoon') {
   const pad = (n: number) => String(n).padStart(2, '0');
   const format = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -294,7 +334,7 @@ function handleSubmit() {
         ? locations.value.slice(1).join(' ➔ ')
         : (locations.value[0] === 'Nhà Máy Chế Biến ECOTECH 2A' ? 'Trạm Cân 1 (Trung tâm)' : 'Nhà Máy Chế Biến ECOTECH 2A'));
 
-  const res = bookingStore.createRequest({
+  const requestPayload = {
     requesterId: authStore.currentUser.id,
     requesterName: authStore.currentUser.fullName,
     requesterPhone: authStore.currentUser.phone,
@@ -316,7 +356,24 @@ function handleSubmit() {
     dropoffTime: vehicleType.value === 'PassengerCar' ? dropoffTime.value.replace('T', ' ') : undefined,
     contactPerson: vehicleType.value === 'PassengerCar' ? contactPerson.value : undefined,
     contactPhone: vehicleType.value === 'PassengerCar' ? contactPhone.value : undefined,
-  });
+  };
+
+  if (isEditMode.value && props.editingRequest) {
+    const res = bookingStore.updateRequest(props.editingRequest.id, requestPayload, authStore.currentUser.fullName);
+
+    if (!res.success) {
+      errorMsg.value = res.message;
+      dialog.showWarning(res.message || 'Không thể cập nhật yêu cầu đặt xe!', 'Cập Nhật Yêu Cầu Không Thành Công', 'Thực hiện lại');
+      return;
+    }
+
+    emit('updated');
+    emit('close');
+    dialog.showSuccess('Yêu cầu đặt xe đã được cập nhật thành công.', 'Cập Nhật Yêu Cầu Thành Công');
+    return;
+  }
+
+  const res = bookingStore.createRequest(requestPayload);
 
   if (!res.success) {
     errorMsg.value = res.message;
@@ -336,7 +393,7 @@ function handleSubmit() {
         <h3 class="modal-title">
           <Trees v-if="isTeamModule" :size="20" class="text-primary" />
           <Building2 v-else :size="20" class="text-primary" />
-          <span>{{ isTeamModule ? 'Tạo Yêu Cầu Đặt Xe Đội Nông Trường' : 'Tạo Yêu Cầu Đặt Xe Nhà Máy Chế Biến' }}</span>
+          <span>{{ isEditMode ? 'Chỉnh Sửa Yêu Cầu Đặt Xe' : (isTeamModule ? 'Tạo Yêu Cầu Đặt Xe Đội Nông Trường' : 'Tạo Yêu Cầu Đặt Xe Nhà Máy Chế Biến') }}</span>
           <span class="module-mode-badge" :class="isTeamModule ? 'badge-team' : 'badge-factory'">
             {{ isTeamModule ? '🌱 Phân hệ: Đặt xe Đội' : '🏭 Phân hệ: Đặt xe Nhà máy' }}
           </span>
@@ -600,7 +657,7 @@ function handleSubmit() {
           :disabled="!rule30Status.valid || conflictStatus.hasConflict"
           @click="handleSubmit"
         >
-          Gửi Yêu Cầu Đặt Xe
+          {{ isEditMode ? 'Lưu Thay Đổi' : 'Gửi Yêu Cầu Đặt Xe' }}
         </button>
       </div>
     </div>

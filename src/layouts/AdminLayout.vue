@@ -49,6 +49,12 @@ function goToVehicleMaintenance(v: Vehicle) {
   showNotificationDropdown.value = false;
 }
 
+function removeNotification(event: Event, notifId: number) {
+  event.stopPropagation();
+  mockStorage.removeDriverNotification(notifId);
+  dispatchNotifications.value = mockStorage.getDriverNotifications();
+}
+
 // Trạng thái đóng/mở Menu Sidebar
 const isSidebarCollapsed = ref(localStorage.getItem('qldv_sidebar_collapsed') === 'true');
 
@@ -121,7 +127,7 @@ const pendingCount = computed(() => bookingStore.pendingRequests.length);
 const approvedCount = computed(() => bookingStore.approvedRequests.length);
 const dueMaintCount = computed(() => fleetStore.dueMaintenanceVehicles.length);
 const myTripsCount = computed(() => driverStore.myTrips.filter((t) => t.status !== 'COMPLETED').length);
-const dispatchNotifications = computed(() => mockStorage.getDriverNotifications());
+const dispatchNotifications = ref(mockStorage.getDriverNotifications());
 const unreadDispatchNotifs = computed(() => dispatchNotifications.value.filter((n: any) => !n.isRead));
 const totalNotifCount = computed(() => dueMaintCount.value + unreadDispatchNotifs.value.length);
 const handoverBorrowingCount = computed(() => {
@@ -301,6 +307,14 @@ const showSection = computed(() => {
                     {{ notif.createdAt }} • Bấm mở chuyến xe
                   </div>
                 </div>
+                <button
+                  class="btn btn-icon btn-sm btn-remove-notif"
+                  type="button"
+                  title="Xóa thông báo"
+                  @click.stop="removeNotification($event, notif.id)"
+                >
+                  ×
+                </button>
               </div>
 
               <div
@@ -480,7 +494,7 @@ const showSection = computed(() => {
 
               <router-link to="/fleet?tab=handover" class="sub-nav-link" :class="{ active: route.path === '/fleet' && route.query.tab === 'handover' }">
                 <div class="sub-nav-label">
-                  <span>Bàn giao / mượn trả</span>
+                  <span>Bàn giao / Điều chuyển</span>
                 </div>
                 <span v-if="handoverBorrowingCount > 0" class="mini-badge badge-amber">{{ handoverBorrowingCount }}</span>
               </router-link>

@@ -27,6 +27,7 @@ export type VehicleType = 'LatexTruck' | 'PassengerCar' | 'MillingMachine';
 export type VehicleOperationalStatus = 'Available' | 'OnTrip' | 'UnderMaintenance' | 'Broken';
 export type MaintenanceStatus = 'Normal' | 'Due' | 'Overdue';
 export type HandoverStatus = 'BORROWING' | 'RETURNED' | 'OVERDUE' | 'CANCELLED';
+export type HandoverWorkflowType = 'HANDOVER' | 'TRANSFER';
 
 export interface VehicleCategory {
   id: number;
@@ -263,8 +264,14 @@ export interface HandoverRecord {
   id: number;
   vehicleId: number;
   vehiclePlate: string;
+  workflowType?: HandoverWorkflowType;
   fromTeam: string;
   toTeam: string;
+  fromStation?: string;
+  toStation?: string;
+  transferReason?: string;
+  replacingVehiclePlate?: string;
+  replacingVehicleId?: number;
   driverName: string;
   fromDriverId?: number;
   toDriverId?: number;
@@ -275,6 +282,7 @@ export interface HandoverRecord {
   returnOdo?: number;
   fuelLevel: string;
   conditionNotes: string;
+  handoverImageUrl?: string;
   status: HandoverStatus;
   note?: string;
   createdAt: string;

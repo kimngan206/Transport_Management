@@ -13,6 +13,7 @@ import SingleTripDispatchForm from '@/components/dispatch/SingleTripDispatchForm
 import FleetDispatchMap from '@/components/dispatch/FleetDispatchMap.vue';
 import TripExpensesModal from '@/components/common/TripExpensesModal.vue';
 import EditTripModal from '@/components/dispatch/EditTripModal.vue';
+import BookingCreateModal from '@/components/booking/BookingCreateModal.vue';
 import {
   Truck,
   AlertCircle,
@@ -36,6 +37,7 @@ const fleetStore = useFleetStore();
 const dialog = useDialogStore();
 const viewExpensesTrip = ref<any>(null);
 const editingTrip = ref<TransportTrip | null>(null);
+const editingRequest = ref<TransportRequest | null>(null);
 const fleetMapRef = ref<InstanceType<typeof FleetDispatchMap> | null>(null);
 
 // Chế độ xem: 'map' (Bản đồ & Lộ trình GPS) hoặc 'board' (Bảng thẻ Kanban 3 cột)
@@ -163,6 +165,10 @@ function openBatchWithRequest(req: TransportRequest) {
   if (viewMode.value === 'map') {
     viewMode.value = 'board';
   }
+}
+
+function openEditRequest(req: TransportRequest) {
+  editingRequest.value = req;
 }
 
 function onInlineTripDispatched() {
@@ -457,14 +463,24 @@ function getVehicleTypeLabel(type: string): string {
 
               <!-- Thao tác -->
               <td class="text-center whitespace-nowrap">
-                <button
-                  class="btn-row-batch"
-                  @click="openBatchWithDirectApprove(req)"
-                  title="Ghép chuyến cho yêu cầu này"
-                >
-                  <Plus :size="13" />
-                  <span>Ghép Xe</span>
-                </button>
+                <div class="flex items-center justify-center gap-2">
+                  <button
+                    v-if="authStore.activeRole === 'Dispatcher' || authStore.activeRole === 'Admin'"
+                    class="btn btn-icon btn-sm text-primary hover-btn-edit"
+                    @click="openEditRequest(req)"
+                    title="Sửa yêu cầu đặt xe"
+                  >
+                    <Edit2 :size="15" />
+                  </button>
+                  <button
+                    class="btn-row-batch"
+                    @click="openBatchWithDirectApprove(req)"
+                    title="Ghép chuyến cho yêu cầu này"
+                  >
+                    <Plus :size="13" />
+                    <span>Ghép Xe</span>
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -655,6 +671,14 @@ function getVehicleTypeLabel(type: string): string {
       :trip="editingTrip"
       @close="editingTrip = null"
       @updated="editingTrip = null"
+    />
+
+    <BookingCreateModal
+      v-if="editingRequest"
+      :module-type="route.query.type === 'factory' ? 'factory' : 'team'"
+      :editing-request="editingRequest"
+      @close="editingRequest = null"
+      @updated="editingRequest = null"
     />
 
     <!-- Modal Xem Chi tiết & Thẩm định Bằng chứng Chi phí -->
