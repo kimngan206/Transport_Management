@@ -616,43 +616,65 @@ function applyBatchTemplate(type: VehicleType) {
     </div>
 
     <!-- ======================================================= -->
-    <!-- TAB 2: CÀI ĐẶT THEO TỪNG XE CỤ THỂ -->
+    <!-- TAB 2: CÀI ĐẶT TỪNG XE CỤ THỂ -->
     <!-- ======================================================= -->
     <div v-if="activeTab === 'vehicles'" class="tab-content mt-3">
-      <!-- THANH TÌM KIẾM & BỘ LỌC XE GỌN -->
-      <div class="card p-3 mb-3">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <div class="flex items-center gap-2 flex-1 min-w-xs">
-            <div class="search-input-box flex-1">
-              <Search :size="14" class="search-icon" />
+      <!-- THANH TÌM KIẾM & BỘ LỌC XE GỌN GÀNG, ĐỒNG BỘ -->
+      <div class="filter-toolbar card">
+        <div class="veh-filter-toolbar-inner">
+          <div class="veh-filter-left-group">
+            <!-- Ô TÌM KIẾM BIỂN SỐ XE -->
+            <div class="veh-search-box">
+              <Search :size="15" class="veh-search-icon" />
               <input
                 v-model="searchPlate"
                 type="text"
-                class="form-control form-control-sm pl-8"
+                class="veh-search-input"
                 placeholder="Tìm theo biển số xe..."
               />
             </div>
 
-            <div class="unit-filter-box">
-              <select v-model="filterVehicleTeam" class="form-select form-select-sm">
-                <option value="ALL">Tất cả đơn vị</option>
-                <option value="Factory">Xe Nhà máy</option>
+            <!-- CHỌN ĐƠN VỊ TRỰC THUỘC -->
+            <div class="veh-select-box">
+              <Building :size="14" class="veh-select-icon" />
+              <select v-model="filterVehicleTeam" class="veh-select-control">
+                <option value="ALL">-- Tất cả đơn vị --</option>
+                <option value="Factory">Xe Nhà máy chế biến</option>
                 <option value="Team:Đội 1">Xe Đội 1</option>
                 <option value="Team:Đội 2">Xe Đội 2</option>
                 <option value="Team:Đội 3">Xe Đội 3</option>
                 <option value="Team:Đội 4">Xe Đội 4</option>
               </select>
             </div>
+
+            <!-- CHIP ĐẾM SỐ XE -->
+            <div class="veh-counter-tag">
+              <span>Hiển thị:</span>
+              <strong>{{ filteredVehicleSettings.length }}</strong>
+              <span class="text-muted">/ {{ config.specificVehicleSettings.length }} xe</span>
+            </div>
           </div>
 
-          <!-- Nút áp dụng nhanh theo loại -->
-          <div class="flex items-center gap-2">
-            <span class="text-xs text-muted">Áp dụng mẫu:</span>
-            <button class="btn btn-outline btn-xs" @click="applyBatchTemplate('LatexTruck')">
-              Xe Bồn Mủ (45p)
+          <!-- NÚT ÁP DỤNG NHANH THEO MẪU -->
+          <div class="veh-batch-actions">
+            <span class="veh-batch-label">Áp dụng mẫu:</span>
+            <button
+              type="button"
+              class="btn-batch-template btn-batch-latex"
+              @click="applyBatchTemplate('LatexTruck')"
+              title="Áp dụng chuẩn 45p đệm & 20p giãn cách cho toàn bộ xe bồn mủ"
+            >
+              <Truck :size="14" />
+              <span>Xe Bồn Mủ (45p)</span>
             </button>
-            <button class="btn btn-outline btn-xs" @click="applyBatchTemplate('PassengerCar')">
-              Xe Khách (20p)
+            <button
+              type="button"
+              class="btn-batch-template btn-batch-passenger"
+              @click="applyBatchTemplate('PassengerCar')"
+              title="Áp dụng chuẩn 20p đệm & 10p giãn cách cho toàn bộ xe khách"
+            >
+              <Car :size="14" />
+              <span>Xe Khách (20p)</span>
             </button>
           </div>
         </div>
@@ -734,7 +756,7 @@ function applyBatchTemplate(type: VehicleType) {
                   <input
                     v-model="s.notes"
                     type="text"
-                    class="form-control form-control-sm text-xs"
+                    class="veh-note-input"
                     :disabled="!s.useCustom"
                     placeholder="Ghi chú đặc thù..."
                   />
@@ -985,11 +1007,13 @@ function applyBatchTemplate(type: VehicleType) {
 /* TABS BAR */
 .settings-tabs-bar {
   display: flex;
-  gap: 8px;
-  background: #e2e8f0;
+  gap: 6px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
   padding: 4px;
   border-radius: var(--radius-md);
   flex-wrap: wrap;
+  margin-bottom: 14px;
 }
 
 .tab-item-btn {
@@ -1477,16 +1501,153 @@ function applyBatchTemplate(type: VehicleType) {
 }
 
 /* TAB 2 SPECIFIC VEHICLE STYLES */
-.search-input-box {
-  position: relative;
+.veh-filter-toolbar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
 }
 
-.search-icon {
+.veh-filter-left-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.veh-search-box {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.veh-search-icon {
   position: absolute;
-  left: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: #94a3b8;
+  left: 12px;
+  color: #64748b;
+  pointer-events: none;
+}
+
+.veh-search-input {
+  height: 38px;
+  width: 210px;
+  padding: 0 12px 0 34px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  background: #f8fafc;
+  color: #1e293b;
+  transition: all 0.15s ease;
+}
+
+.veh-search-input:focus {
+  background: #ffffff;
+  border-color: #10b981;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+}
+
+.veh-select-box {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.veh-select-icon {
+  position: absolute;
+  left: 12px;
+  color: #64748b;
+  pointer-events: none;
+}
+
+.veh-select-control {
+  height: 38px;
+  padding: 0 28px 0 32px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  background: #f8fafc;
+  color: #334155;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.veh-select-control:focus {
+  background: #ffffff;
+  border-color: #10b981;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+}
+
+.veh-counter-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 38px;
+  padding: 0 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  color: #475569;
+}
+
+.veh-counter-tag strong {
+  color: #0f172a;
+  font-weight: 800;
+}
+
+.veh-batch-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.veh-batch-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.btn-batch-template {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 7px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+}
+
+.btn-batch-latex {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+
+.btn-batch-latex:hover {
+  background: #d1fae5;
+  border-color: #6ee7b7;
+  transform: translateY(-1px);
+}
+
+.btn-batch-passenger {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+
+.btn-batch-passenger:hover {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  transform: translateY(-1px);
 }
 
 .specific-vehicles-table th {
@@ -1494,41 +1655,29 @@ function applyBatchTemplate(type: VehicleType) {
   color: #475569;
   font-size: 0.75rem;
   font-weight: 800;
-  padding: 10px 12px;
-}
-
-.th-sub {
-  font-size: 0.625rem;
-  font-weight: normal;
-  color: #64748b;
+  padding: 11px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  letter-spacing: 0.02em;
 }
 
 .specific-vehicles-table td {
   padding: 10px 12px;
   font-size: 0.8125rem;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
 }
 
 .row-custom-active {
   background: #f0fdf4 !important;
 }
 
-.veh-info-cell {
-  display: flex;
-  flex-direction: column;
-}
-
-.veh-type-sub {
-  font-size: 0.6875rem;
-  color: #64748b;
-}
-
 .btn-toggle-custom {
   position: relative;
   display: inline-flex;
   align-items: center;
-  width: 120px;
-  height: 26px;
-  border-radius: 13px;
+  width: 110px;
+  height: 28px;
+  border-radius: 14px;
   background: #e2e8f0;
   border: 1px solid #cbd5e1;
   padding: 2px;
@@ -1544,8 +1693,8 @@ function applyBatchTemplate(type: VehicleType) {
 .toggle-slider {
   position: absolute;
   left: 2px;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   background: #ffffff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
@@ -1553,7 +1702,7 @@ function applyBatchTemplate(type: VehicleType) {
 }
 
 .btn-toggle-custom.active .toggle-slider {
-  transform: translateX(94px);
+  transform: translateX(82px);
 }
 
 .toggle-text {
@@ -1574,18 +1723,32 @@ function applyBatchTemplate(type: VehicleType) {
 .input-spin-group {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
 }
 
 .input-spin-group input {
-  width: 65px;
-  padding: 4px;
-  font-size: 0.8125rem;
-  border-radius: 5px;
+  width: 68px;
+  height: 32px;
+  padding: 4px 6px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  text-align: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #1e293b;
+  transition: all 0.15s ease;
+}
+
+.input-spin-group input:focus {
+  border-color: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.15);
+  outline: none;
 }
 
 .input-spin-group.disabled input {
-  background: #f1f5f9;
+  background: #f8fafc;
+  border-color: #e2e8f0;
   color: #94a3b8;
   cursor: not-allowed;
 }
@@ -1594,6 +1757,31 @@ function applyBatchTemplate(type: VehicleType) {
   font-size: 0.75rem;
   font-weight: 600;
   color: #64748b;
+}
+
+.veh-note-input {
+  width: 100%;
+  height: 32px;
+  padding: 4px 10px;
+  font-size: 0.8125rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #334155;
+  transition: all 0.15s ease;
+}
+
+.veh-note-input:focus {
+  border-color: #10b981;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.15);
+}
+
+.veh-note-input:disabled {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: #94a3b8;
+  cursor: not-allowed;
 }
 
 /* TAB 3 CATEGORY CONFIG CARDS */
