@@ -686,10 +686,11 @@ function applyBatchTemplate(type: VehicleType) {
           <table class="table align-middle specific-vehicles-table mb-0">
             <thead>
               <tr>
-                <th style="width: 150px;">Phương Tiện</th>
+                <th style="width: 130px;">Phương Tiện</th>
+                <th style="width: 170px;">Loại Xe</th>
                 <th style="width: 120px;">Đơn Vị</th>
-                <th style="width: 150px;" class="text-center">Chế Độ Áp Dụng</th>
-                <th style="width: 140px;" class="text-center">Đệm 2 Chuyến</th>
+                <th style="width: 140px;" class="text-center">Chế Độ Áp Dụng</th>
+                <th style="width: 130px;" class="text-center">Đệm 2 Chuyến</th>
                 <th style="width: 150px;" class="text-center">Giãn Cách Xuất Bến</th>
                 <th>Ghi Chú Vận Hành</th>
               </tr>
@@ -702,7 +703,12 @@ function applyBatchTemplate(type: VehicleType) {
               >
                 <td>
                   <strong class="font-mono text-slate-800 text-sm">{{ s.licensePlate }}</strong>
-                  <div class="text-xxs text-muted">{{ getVehicleTypeLabel(s.vehicleType) }}</div>
+                </td>
+
+                <td>
+                  <span class="veh-type-cell">
+                    {{ getVehicleTypeLabel(s.vehicleType) }}
+                  </span>
                 </td>
 
                 <td>
@@ -1785,6 +1791,17 @@ function applyBatchTemplate(type: VehicleType) {
   font-size: 0.8125rem;
   border-bottom: 1px solid #f1f5f9;
   vertical-align: middle;
+}
+
+.veh-type-cell {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #334155;
+  background: #f1f5f9;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
 }
 
 .row-custom-active {
