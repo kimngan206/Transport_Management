@@ -26,6 +26,7 @@ export interface Department {
 export type VehicleType = 'LatexTruck' | 'PassengerCar' | 'MillingMachine';
 export type VehicleOperationalStatus = 'Available' | 'OnTrip' | 'UnderMaintenance' | 'Broken';
 export type MaintenanceStatus = 'Normal' | 'Due' | 'Overdue';
+export type HandoverStatus = 'BORROWING' | 'RETURNED' | 'OVERDUE' | 'CANCELLED';
 
 export interface VehicleCategory {
   id: number;
@@ -35,9 +36,10 @@ export interface VehicleCategory {
   vehicleTypeCode: VehicleType;
   standardCapacityTons?: number;
   standardSeats?: number;
-  fuelQuotaType: 'L_PER_KM' | 'L_PER_TON_KM' | 'L_PER_HOUR';
+  fuelQuotaType: 'L_PER_KM' | 'L_PER_TON_KM' | 'L_PER_HOUR' | 'KWH_PER_KM';
   defaultQuotaEmpty: number;
   defaultQuotaLoaded?: number;
+  fuelFormulaText?: string;
   description: string;
   isActive: boolean;
 }
@@ -52,6 +54,7 @@ export interface Vehicle {
   fuelQuotaEmpty: number; // NLP: Lít/km không tải (ví dụ 0.25 L/km)
   fuelQuotaLoaded: number; // NLC: Lít/tấn.km có tải (ví dụ 0.02 L/tấn.km)
   hourMeterQuota?: number; // Lít/giờ đối với xe xúc
+  fuelFormulaText?: string; // Công thức hao phí nhiên liệu / điện theo mong muốn của người quản lý
   currentOdoKm: number;
   currentOperatingHours?: number; // Giờ máy hiện tại (xe xúc)
   status: VehicleOperationalStatus;
@@ -61,7 +64,7 @@ export interface Vehicle {
   assignedDriverId?: number;
   assignedDriverName?: string;
   assignedDriverPhone?: string;
-  
+
   // Các thuộc tính mở rộng
   teamName?: string; // Phân loại theo đội (dành cho LatexTruck)
   isExternal?: boolean; // Xe ngoài không cần quản lý bảo trì (dành cho PassengerCar)
@@ -118,7 +121,6 @@ export interface TransportRequest {
   passengersCount?: number;
   estimatedWeightKg?: number; // Khối lượng mủ / hàng dự kiến (kg)
   operatingHours?: number; // Số giờ máy dự kiến (đối với xe cơ giới / xúc đào)
-  
   // Thuộc tính riêng cho xe chở người / xe ngoài
   pickupTime?: string;
   dropoffTime?: string;
@@ -182,7 +184,7 @@ export interface TransportTrip {
   startOdo?: number;
   endOdo?: number;
   actualDistanceKm?: number;
-  
+
   // Thuộc tính cho xe chở người / xe ngoài
   pickupTime?: string;
   dropoffTime?: string;
@@ -190,7 +192,7 @@ export interface TransportTrip {
   contactPhone?: string;
   teamName?: string;
   isExternal?: boolean;
-  
+
   // Sản lượng mủ (đặc thù xe tải chở mủ cao su)
   weightLatex1Kg?: number; // Mủ nước 1
   weightLatex2Kg?: number; // Mủ nước 2
@@ -255,6 +257,27 @@ export interface IncidentReport {
   latitude?: number;
   longitude?: number;
   gpsAccuracy?: number;
+}
+
+export interface HandoverRecord {
+  id: number;
+  vehicleId: number;
+  vehiclePlate: string;
+  fromTeam: string;
+  toTeam: string;
+  driverName: string;
+  fromDriverId?: number;
+  toDriverId?: number;
+  borrowStartAt: string;
+  expectedReturnAt?: string;
+  actualReturnAt?: string;
+  handoverOdo: number;
+  returnOdo?: number;
+  fuelLevel: string;
+  conditionNotes: string;
+  status: HandoverStatus;
+  note?: string;
+  createdAt: string;
 }
 
 export interface MaintenanceRecord {

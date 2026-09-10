@@ -67,17 +67,10 @@ const driverAssignmentHistory = computed(() => {
 
 // Dịch loại xe sang tiếng Việt
 function getVehicleTypeLabel(type: string): string {
-  const t = (type || '').toLowerCase();
-  if (props.vehicle?.model?.toLowerCase().includes('bồn')) {
-    return 'Xe bồn chở mủ';
-  }
-  switch (t) {
-    case 'latextruck':
-    case 'truck': return 'Xe tải chở mủ';
-    case 'passengercar':
-    case 'pickup': return 'Bán tải công tác';
-    case 'millingmachine':
-    case 'excavator': return 'Máy đào mương / san ủi';
+  switch (type) {
+    case 'LatexTruck': return 'Xe tải chở mủ';
+    case 'PassengerCar': return 'Bán tải công tác';
+    case 'MillingMachine': return 'Máy đào mương / san ủi';
     default: return type;
   }
 }
@@ -293,7 +286,11 @@ function handleGoToMaintenanceTypes() {
                   <span v-if="vehicle.passengerCapacity">({{ vehicle.passengerCapacity }} chỗ ngồi)</span>
                 </span>
               </div>
-              <div v-if="vehicle.vehicleType !== 'MillingMachine'" class="spec-row">
+              <div v-if="vehicle.vehicleType === 'PassengerCar'" class="spec-row">
+                <span class="spec-label">Định mức không tải (NLP)</span>
+                <span class="spec-val"><strong>{{ vehicle.fuelQuotaEmpty }}</strong> L/km</span>
+              </div>
+              <div v-else-if="vehicle.vehicleType !== 'MillingMachine'" class="spec-row">
                 <span class="spec-label">Định mức không tải (NLP)</span>
                 <span class="spec-val"><strong>{{ vehicle.fuelQuotaEmpty }}</strong> L/km</span>
               </div>
@@ -304,6 +301,10 @@ function handleGoToMaintenanceTypes() {
               <div v-if="vehicle.vehicleType === 'MillingMachine'" class="spec-row">
                 <span class="spec-label">Định mức giờ máy</span>
                 <span class="spec-val"><strong>{{ vehicle.hourMeterQuota }}</strong> L/giờ</span>
+              </div>
+              <div v-if="vehicle.fuelFormulaText" class="spec-row">
+                <span class="spec-label">Công thức hao phí</span>
+                <span class="spec-val text-xs">{{ vehicle.fuelFormulaText }}</span>
               </div>
             </div>
           </div>
