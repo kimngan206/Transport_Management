@@ -781,153 +781,273 @@ function applyBatchTemplate(type: VehicleType) {
     <div v-if="activeTab === 'categories'" class="tab-content mt-3">
       <div class="grid-2 gap-3">
         <!-- Cột 1: Cấu hình mặc định toàn hệ thống -->
-        <div class="card p-3">
-          <div class="card-header border-b pb-2 mb-3">
-            <h3 class="card-title text-sm font-bold mb-0">
-              <Settings :size="15" class="text-primary inline mr-1" />
-              <span>Quy Chuẩn Mặc Định Toàn Hệ Thống</span>
-            </h3>
-            <span class="text-xs text-muted">Áp dụng cho các phương tiện chưa có cấu hình riêng</span>
-          </div>
-
-          <div class="form-group mb-3">
-            <label class="form-label font-bold text-xs">Đệm tối thiểu giữa 2 chuyến cùng xe:</label>
-            <div class="input-group-with-unit">
-              <input
-                v-model.number="config.defaultTurnaroundMinutes"
-                type="number"
-                class="form-control font-bold"
-                min="10"
-                max="120"
-                step="5"
-              />
-              <span class="unit-box">phút</span>
+        <div class="card p-4 category-panel-card">
+          <div class="panel-card-header">
+            <div class="panel-header-title-wrap">
+              <div class="panel-icon-wrap primary">
+                <Settings :size="18" />
+              </div>
+              <div>
+                <h3 class="panel-title">Quy Chuẩn Mặc Định Toàn Hệ Thống</h3>
+                <p class="panel-subtitle">Áp dụng cho các phương tiện chưa có cấu hình tùy biến riêng</p>
+              </div>
             </div>
-            <span class="text-xxs text-muted mt-0.5 block">
-              Thời gian bàn giao chứng từ, kiểm tra lốp phanh và nghỉ ngơi (khuyến nghị 30 - 45 phút).
-            </span>
           </div>
 
-          <div class="form-group mb-3">
-            <label class="form-label font-bold text-xs">Giãn cách tối thiểu giữa 2 xe cùng xuất bến:</label>
-            <div class="input-group-with-unit">
-              <input
-                v-model.number="config.defaultInterVehicleIntervalMinutes"
-                type="number"
-                class="form-control font-bold"
-                min="5"
-                max="60"
-                step="5"
-              />
-              <span class="unit-box">phút</span>
+          <div class="default-rules-list mt-3">
+            <!-- Rule 1: Đệm 2 chuyến -->
+            <div class="rule-setting-card">
+              <div class="rule-info">
+                <div class="rule-title-row">
+                  <Clock :size="15" class="text-primary" />
+                  <strong class="rule-title">Thời gian đệm nghỉ giữa 2 chuyến:</strong>
+                </div>
+                <p class="rule-desc">
+                  Thời gian bàn giao chứng từ, kiểm tra lốp, phanh và nghỉ ngơi trước chuyến mới (khuyến nghị 30 - 45 phút).
+                </p>
+              </div>
+              <div class="rule-input-wrap">
+                <div class="input-unit-composite">
+                  <input
+                    v-model.number="config.defaultTurnaroundMinutes"
+                    type="number"
+                    class="composite-input"
+                    min="10"
+                    max="180"
+                    step="5"
+                  />
+                  <span class="composite-unit">phút</span>
+                </div>
+              </div>
             </div>
-            <span class="text-xxs text-muted mt-0.5 block">
-              Tránh tập trung đồng thời tại trạm cân hoặc hầm xả mủ gây ùn ứ.
-            </span>
-          </div>
 
-          <div class="emergency-override-box">
-            <label class="flex items-center gap-2 cursor-pointer mb-0">
-              <input
-                id="emergency-override-checkbox"
-                v-model="config.allowEmergencyOverride"
-                type="checkbox"
-                class="form-checkbox"
-              />
-              <span class="text-xs font-semibold text-slate-800">Bỏ qua đệm khi Điều Xe Cứu Viện Khẩn Cấp</span>
-            </label>
-            <p class="text-xxs text-slate-500 mb-0 mt-1 pl-5">
-              Cho phép điều phối viên bỏ qua đệm nghỉ để cử xe rỗng ứng cứu sự cố ngay lập tức.
-            </p>
+            <!-- Rule 2: Giãn cách xuất bến -->
+            <div class="rule-setting-card mt-3">
+              <div class="rule-info">
+                <div class="rule-title-row">
+                  <ArrowRight :size="15" class="text-emerald-600" />
+                  <strong class="rule-title">Giãn cách xuất bến tối thiểu giữa 2 xe:</strong>
+                </div>
+                <p class="rule-desc">
+                  Khoảng cách thời gian tối thiểu giữa giờ xuất bến của 2 xe khác nhau, tránh dồn ứ trạm cân hoặc trạm tiếp nhận nhà máy.
+                </p>
+              </div>
+              <div class="rule-input-wrap">
+                <div class="input-unit-composite">
+                  <input
+                    v-model.number="config.defaultInterVehicleIntervalMinutes"
+                    type="number"
+                    class="composite-input"
+                    min="5"
+                    max="60"
+                    step="5"
+                  />
+                  <span class="composite-unit">phút</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Rule 3: Chế độ điều xe cứu viện khẩn cấp -->
+            <div class="emergency-override-card mt-3" :class="{ active: config.allowEmergencyOverride }">
+              <div class="emergency-card-body">
+                <div class="emergency-icon-wrap">
+                  <ShieldCheck v-if="config.allowEmergencyOverride" :size="20" class="text-amber-600" />
+                  <AlertTriangle v-else :size="20" class="text-slate-400" />
+                </div>
+                <div class="emergency-info">
+                  <strong class="emergency-title">Bỏ qua đệm khi Điều Xe Cứu Viện Khẩn Cấp</strong>
+                  <p class="emergency-desc">
+                    Cho phép điều phối viên xuất chuyến ngay lập tức cho xe rỗng ứng cứu sự cố, không áp dụng thời gian đệm thông thường.
+                  </p>
+                </div>
+                <div class="emergency-toggle">
+                  <label class="toggle-switch-label">
+                    <input
+                      v-model="config.allowEmergencyOverride"
+                      type="checkbox"
+                      class="toggle-switch-input"
+                    />
+                    <span class="toggle-switch-slider"></span>
+                  </label>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
         <!-- Cột 2: Cấu hình quy chuẩn theo từng loại phương tiện -->
-        <div class="card p-3">
-          <div class="card-header border-b pb-2 mb-3">
-            <h3 class="card-title text-sm font-bold mb-0">
-              <Layers :size="15" class="text-primary inline mr-1" />
-              <span>Định Mức Theo Chủng Loại Xe</span>
-            </h3>
-            <span class="text-xs text-muted">Thời gian đệm nghỉ và giãn cách xuất bến theo từng loại xe</span>
-          </div>
-
-          <!-- Xe bồn téc chở mủ -->
-          <div class="category-config-card mb-2">
-            <div class="cat-header">
-              <div class="cat-title-wrap">
-                <Truck :size="14" class="text-primary" />
-                <strong class="text-slate-800 text-xs">Xe Bồn Chở Mủ (Latex Truck)</strong>
+        <div class="card p-4 category-panel-card">
+          <div class="panel-card-header">
+            <div class="panel-header-title-wrap">
+              <div class="panel-icon-wrap info">
+                <Layers :size="18" />
               </div>
-              <span class="badge-cat latex">Mủ Cao Su</span>
-            </div>
-            <div class="cat-inputs-row mt-2">
-              <div class="cat-input-item">
-                <span class="cat-input-lbl">Đệm 2 chuyến:</span>
-                <div class="input-with-unit-mini">
-                  <input v-model.number="config.vehicleTypeSettings.LatexTruck.turnaroundBufferMinutes" type="number" class="form-control" />
-                  <span>phút</span>
-                </div>
-              </div>
-              <div class="cat-input-item">
-                <span class="cat-input-lbl">Giãn cách xuất bến:</span>
-                <div class="input-with-unit-mini">
-                  <input v-model.number="config.vehicleTypeSettings.LatexTruck.interVehicleIntervalMinutes" type="number" class="form-control" />
-                  <span>phút</span>
-                </div>
+              <div>
+                <h3 class="panel-title">Định Mức Theo Chủng Loại Xe</h3>
+                <p class="panel-subtitle">Thời gian đệm nghỉ và khoảng cách xuất phát an toàn theo từng phương tiện</p>
               </div>
             </div>
           </div>
 
-          <!-- Xe chở người / cán bộ -->
-          <div class="category-config-card mb-2">
-            <div class="cat-header">
-              <div class="cat-title-wrap">
-                <Car :size="14" class="text-info" />
-                <strong class="text-slate-800 text-xs">Xe Chở Người / Cán Bộ (Passenger Car)</strong>
-              </div>
-              <span class="badge-cat passenger">Công Vụ</span>
-            </div>
-            <div class="cat-inputs-row mt-2">
-              <div class="cat-input-item">
-                <span class="cat-input-lbl">Đệm 2 chuyến:</span>
-                <div class="input-with-unit-mini">
-                  <input v-model.number="config.vehicleTypeSettings.PassengerCar.turnaroundBufferMinutes" type="number" class="form-control" />
-                  <span>phút</span>
+          <div class="type-cards-list mt-3">
+            <!-- Xe bồn téc chở mủ -->
+            <div class="type-setting-card mb-3">
+              <div class="type-card-header">
+                <div class="type-title-box">
+                  <div class="type-icon-circle latex">
+                    <Truck :size="16" />
+                  </div>
+                  <div>
+                    <strong class="type-name">Xe Bồn Chở Mủ</strong>
+                    <span class="type-name-sub">Latex Truck</span>
+                  </div>
                 </div>
+                <span class="badge-cat latex">Mủ Cao Su</span>
               </div>
-              <div class="cat-input-item">
-                <span class="cat-input-lbl">Giãn cách xuất bến:</span>
-                <div class="input-with-unit-mini">
-                  <input v-model.number="config.vehicleTypeSettings.PassengerCar.interVehicleIntervalMinutes" type="number" class="form-control" />
-                  <span>phút</span>
-                </div>
-              </div>
-            </div>
-          </div>
 
-          <!-- Xe cơ giới / Máy xúc -->
-          <div class="category-config-card">
-            <div class="cat-header">
-              <div class="cat-title-wrap">
-                <Sliders :size="14" class="text-amber" />
-                <strong class="text-slate-800 text-xs">Xe Cơ Giới / Máy Xúc (Milling Machine)</strong>
-              </div>
-              <span class="badge-cat milling">Cơ Giới</span>
-            </div>
-            <div class="cat-inputs-row mt-2">
-              <div class="cat-input-item">
-                <span class="cat-input-lbl">Đệm 2 ca máy:</span>
-                <div class="input-with-unit-mini">
-                  <input v-model.number="config.vehicleTypeSettings.MillingMachine.turnaroundBufferMinutes" type="number" class="form-control" />
-                  <span>phút</span>
+              <div class="type-params-grid mt-3">
+                <div class="type-param-item">
+                  <span class="type-param-label">
+                    <Clock :size="13" class="text-slate-400" />
+                    Đệm 2 chuyến:
+                  </span>
+                  <div class="input-unit-composite">
+                    <input
+                      v-model.number="config.vehicleTypeSettings.LatexTruck.turnaroundBufferMinutes"
+                      type="number"
+                      class="composite-input"
+                      min="10"
+                      max="180"
+                      step="5"
+                    />
+                    <span class="composite-unit">phút</span>
+                  </div>
+                </div>
+
+                <div class="type-param-item">
+                  <span class="type-param-label">
+                    <ArrowRight :size="13" class="text-slate-400" />
+                    Giãn cách xuất bến:
+                  </span>
+                  <div class="input-unit-composite">
+                    <input
+                      v-model.number="config.vehicleTypeSettings.LatexTruck.interVehicleIntervalMinutes"
+                      type="number"
+                      class="composite-input"
+                      min="5"
+                      max="60"
+                      step="5"
+                    />
+                    <span class="composite-unit">phút</span>
+                  </div>
                 </div>
               </div>
-              <div class="cat-input-item">
-                <span class="cat-input-lbl">Giãn cách xuất bến:</span>
-                <div class="input-with-unit-mini">
-                  <input v-model.number="config.vehicleTypeSettings.MillingMachine.interVehicleIntervalMinutes" type="number" class="form-control" />
-                  <span>phút</span>
+            </div>
+
+            <!-- Xe chở người / cán bộ -->
+            <div class="type-setting-card mb-3">
+              <div class="type-card-header">
+                <div class="type-title-box">
+                  <div class="type-icon-circle passenger">
+                    <Car :size="16" />
+                  </div>
+                  <div>
+                    <strong class="type-name">Xe Chở Người / Cán Bộ</strong>
+                    <span class="type-name-sub">Passenger Car</span>
+                  </div>
+                </div>
+                <span class="badge-cat passenger">Công Vụ</span>
+              </div>
+
+              <div class="type-params-grid mt-3">
+                <div class="type-param-item">
+                  <span class="type-param-label">
+                    <Clock :size="13" class="text-slate-400" />
+                    Đệm 2 chuyến:
+                  </span>
+                  <div class="input-unit-composite">
+                    <input
+                      v-model.number="config.vehicleTypeSettings.PassengerCar.turnaroundBufferMinutes"
+                      type="number"
+                      class="composite-input"
+                      min="10"
+                      max="180"
+                      step="5"
+                    />
+                    <span class="composite-unit">phút</span>
+                  </div>
+                </div>
+
+                <div class="type-param-item">
+                  <span class="type-param-label">
+                    <ArrowRight :size="13" class="text-slate-400" />
+                    Giãn cách xuất bến:
+                  </span>
+                  <div class="input-unit-composite">
+                    <input
+                      v-model.number="config.vehicleTypeSettings.PassengerCar.interVehicleIntervalMinutes"
+                      type="number"
+                      class="composite-input"
+                      min="5"
+                      max="60"
+                      step="5"
+                    />
+                    <span class="composite-unit">phút</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Xe cơ giới / Máy xúc -->
+            <div class="type-setting-card">
+              <div class="type-card-header">
+                <div class="type-title-box">
+                  <div class="type-icon-circle milling">
+                    <Sliders :size="16" />
+                  </div>
+                  <div>
+                    <strong class="type-name">Xe Cơ Giới / Máy Xúc</strong>
+                    <span class="type-name-sub">Milling Machine</span>
+                  </div>
+                </div>
+                <span class="badge-cat milling">Cơ Giới</span>
+              </div>
+
+              <div class="type-params-grid mt-3">
+                <div class="type-param-item">
+                  <span class="type-param-label">
+                    <Clock :size="13" class="text-slate-400" />
+                    Đệm 2 ca máy:
+                  </span>
+                  <div class="input-unit-composite">
+                    <input
+                      v-model.number="config.vehicleTypeSettings.MillingMachine.turnaroundBufferMinutes"
+                      type="number"
+                      class="composite-input"
+                      min="10"
+                      max="180"
+                      step="5"
+                    />
+                    <span class="composite-unit">phút</span>
+                  </div>
+                </div>
+
+                <div class="type-param-item">
+                  <span class="type-param-label">
+                    <ArrowRight :size="13" class="text-slate-400" />
+                    Giãn cách xuất bến:
+                  </span>
+                  <div class="input-unit-composite">
+                    <input
+                      v-model.number="config.vehicleTypeSettings.MillingMachine.interVehicleIntervalMinutes"
+                      type="number"
+                      class="composite-input"
+                      min="5"
+                      max="60"
+                      step="5"
+                    />
+                    <span class="composite-unit">phút</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1784,122 +1904,330 @@ function applyBatchTemplate(type: VehicleType) {
   cursor: not-allowed;
 }
 
-/* TAB 3 CATEGORY CONFIG CARDS */
-.category-config-card {
+/* TAB 3 REDESIGNED STYLES */
+.category-panel-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.panel-card-header {
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.panel-header-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.panel-icon-wrap {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.panel-icon-wrap.primary {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.panel-icon-wrap.info {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.panel-title {
+  font-size: 0.9375rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+}
+
+.panel-subtitle {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin: 2px 0 0 0;
+}
+
+.rule-setting-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 12px 14px;
+  border-radius: 10px;
+  transition: all 0.15s ease;
 }
 
-.cat-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 6px;
+.rule-setting-card:hover {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
 }
 
-.cat-title-wrap {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.rule-info {
+  flex: 1;
 }
 
-.badge-cat {
-  font-size: 0.6875rem;
-  font-weight: 800;
-  padding: 2px 8px;
-  border-radius: 4px;
-}
-
-.badge-cat.latex {
-  background: #ecfdf5;
-  color: #065f46;
-  border: 1px solid #a7f3d0;
-}
-
-.badge-cat.passenger {
-  background: #eff6ff;
-  color: #1e40af;
-  border: 1px solid #bfdbfe;
-}
-
-.badge-cat.milling {
-  background: #fffbeb;
-  color: #92400e;
-  border: 1px solid #fde68a;
-}
-
-.cat-inputs-row {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  margin-top: 10px;
-}
-
-.cat-input-item {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.cat-input-lbl {
-  font-size: 0.6875rem;
-  font-weight: 700;
-  color: #475569;
-}
-
-.input-with-unit-mini {
+.rule-title-row {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+  margin-bottom: 4px;
 }
 
-.input-with-unit-mini input {
-  width: 70px;
-  padding: 3px 6px;
+.rule-title {
   font-size: 0.8125rem;
   font-weight: 700;
-  text-align: center;
+  color: #1e293b;
 }
 
-.input-with-unit-mini span {
-  font-size: 0.6875rem;
+.rule-desc {
+  font-size: 0.75rem;
   color: #64748b;
-  font-weight: 600;
+  margin: 0;
+  line-height: 1.4;
 }
 
-.input-group-with-unit {
-  display: flex;
-  max-width: 160px;
+.input-unit-composite {
+  display: inline-flex;
+  align-items: stretch;
+  height: 38px;
 }
 
-.input-group-with-unit input {
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
+.composite-input {
+  width: 75px;
+  height: 38px;
+  padding: 0 8px;
+  font-size: 0.9375rem;
+  font-weight: 800;
   text-align: center;
+  color: #0f172a;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-top-left-radius: 8px;
+  border-bottom-left-radius: 8px;
+  outline: none;
+  transition: all 0.15s ease;
 }
 
-.unit-box {
+.composite-input:focus {
+  border-color: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+  z-index: 1;
+}
+
+.composite-unit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
   background: #f1f5f9;
   border: 1px solid #cbd5e1;
   border-left: none;
-  border-top-right-radius: 6px;
-  border-bottom-right-radius: 6px;
-  padding: 0 10px;
-  display: flex;
-  align-items: center;
-  font-size: 0.8125rem;
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+  font-size: 0.75rem;
   font-weight: 700;
-  color: #475569;
+  color: #64748b;
 }
 
-.emergency-override-box {
+/* EMERGENCY OVERRIDE CARD */
+.emergency-override-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px 16px;
+  transition: all 0.2s ease;
+}
+
+.emergency-override-card.active {
   background: #fffbeb;
-  border: 1px solid #fde68a;
+  border-color: #fcd34d;
+}
+
+.emergency-card-body {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.emergency-icon-wrap {
+  width: 36px;
+  height: 36px;
   border-radius: 8px;
-  padding: 12px;
-  margin-top: 16px;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid #e2e8f0;
+}
+
+.emergency-override-card.active .emergency-icon-wrap {
+  background: #fef3c7;
+  border-color: #fde68a;
+}
+
+.emergency-info {
+  flex: 1;
+}
+
+.emergency-title {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 2px;
+}
+
+.emergency-desc {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.35;
+}
+
+/* TOGGLE SWITCH */
+.toggle-switch-label {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  cursor: pointer;
+  margin: 0;
+}
+
+.toggle-switch-input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-switch-slider {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #cbd5e1;
+  border-radius: 24px;
+  transition: 0.2s;
+}
+
+.toggle-switch-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  border-radius: 50%;
+  transition: 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.toggle-switch-input:checked + .toggle-switch-slider {
+  background-color: #f59e0b;
+}
+
+.toggle-switch-input:checked + .toggle-switch-slider:before {
+  transform: translateX(20px);
+}
+
+/* TYPE SETTING CARDS (RIGHT COLUMN) */
+.type-setting-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 14px 16px;
+  transition: all 0.15s ease;
+}
+
+.type-setting-card:hover {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+}
+
+.type-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.type-title-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.type-icon-circle {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.type-icon-circle.latex {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.type-icon-circle.passenger {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.type-icon-circle.milling {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.type-name {
+  font-size: 0.8125rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.type-name-sub {
+  display: block;
+  font-size: 0.6875rem;
+  color: #64748b;
+}
+
+.type-params-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.type-param-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.type-param-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #475569;
 }
 
 .badge-unit-team {
