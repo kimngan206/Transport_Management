@@ -12,6 +12,8 @@ import TablePagination from '@/components/common/TablePagination.vue';
 import SingleTripDispatchForm from '@/components/dispatch/SingleTripDispatchForm.vue';
 import TripExpensesModal from '@/components/common/TripExpensesModal.vue';
 import EditTripModal from '@/components/dispatch/EditTripModal.vue';
+import { useRoute } from 'vue-router';
+import BookingCreateModal from '@/components/booking/BookingCreateModal.vue';
 import { getTripDaySequence } from '@/utils/tripHelpers';
 import {
   Truck,
@@ -32,6 +34,9 @@ const fleetStore = useFleetStore();
 const dialog = useDialogStore();
 const viewExpensesTrip = ref<any>(null);
 const editingTrip = ref<TransportTrip | null>(null);
+const route = useRoute();
+const editingRequest = ref<TransportRequest | null>(null);
+
 
 const dispatchingRequest = ref<TransportRequest | null>(null);
 
@@ -141,6 +146,10 @@ const trips = computed(() => dispatchStore.trips);
 
 function openBatchWithRequest(req: TransportRequest) {
   dispatchingRequest.value = req;
+}
+
+function openEditRequest(req: TransportRequest) {
+  editingRequest.value = req;
 }
 
 function onInlineTripDispatched() {
@@ -431,14 +440,24 @@ function getServingTeam(req: TransportRequest): { label: string; isFactory: bool
 
               <!-- Thao tác -->
               <td class="text-center whitespace-nowrap">
-                <button
-                  class="btn-row-batch"
-                  @click="openBatchWithDirectApprove(req)"
-                  title="Ghép chuyến cho yêu cầu này"
-                >
-                  <Plus :size="13" />
-                  <span>Ghép Xe</span>
-                </button>
+                <div class="flex items-center justify-center gap-2">
+                  <button
+                    v-if="authStore.activeRole === 'Dispatcher' || authStore.activeRole === 'Admin'"
+                    class="btn btn-icon btn-sm text-primary hover-btn-edit"
+                    @click="openEditRequest(req)"
+                    title="Sửa yêu cầu đặt xe"
+                  >
+                    <Edit2 :size="15" />
+                  </button>
+                  <button
+                    class="btn-row-batch"
+                    @click="openBatchWithDirectApprove(req)"
+                    title="Ghép chuyến cho yêu cầu này"
+                  >
+                    <Plus :size="13" />
+                    <span>Ghép Xe</span>
+                  </button>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -635,6 +654,14 @@ function getServingTeam(req: TransportRequest): { label: string; isFactory: bool
       :trip="editingTrip"
       @close="editingTrip = null"
       @updated="editingTrip = null"
+    />
+
+    <BookingCreateModal
+      v-if="editingRequest"
+      :module-type="route.query.type === 'factory' ? 'factory' : 'team'"
+      :editing-request="editingRequest"
+      @close="editingRequest = null"
+      @updated="editingRequest = null"
     />
 
     <!-- Modal Xem Chi tiết & Thẩm định Bằng chứng Chi phí -->

@@ -96,7 +96,7 @@ export function deleteCookie(name: string): void {
   try {
     if (typeof document === 'undefined') return;
     document.cookie = `${encodeURIComponent(name)}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; SameSite=Lax`;
-  } catch (err) {}
+  } catch (err) { }
 }
 
 /**
@@ -142,7 +142,7 @@ function getFromStorage<T>(key: string, defaultValue: T): T {
     if (typeof localStorage !== 'undefined') {
       valStr = localStorage.getItem(key);
     }
-  } catch (e) {}
+  } catch (e) { }
 
   // 2. Nếu trống, đọc từ SessionStorage
   if (!valStr) {
@@ -150,7 +150,7 @@ function getFromStorage<T>(key: string, defaultValue: T): T {
       if (typeof sessionStorage !== 'undefined') {
         valStr = sessionStorage.getItem(key);
       }
-    } catch (e) {}
+    } catch (e) { }
   }
 
   // 3. Nếu vẫn trống và là key ngắn, thử đọc từ Cookie
@@ -178,7 +178,7 @@ function getFromStorage<T>(key: string, defaultValue: T): T {
       if (typeof sessionStorage !== 'undefined' && !sessionStorage.getItem(key)) {
         sessionStorage.setItem(key, valStr);
       }
-    } catch (e) {}
+    } catch (e) { }
 
     return parsed;
   } catch {
@@ -227,10 +227,10 @@ function saveToStorage<T>(key: string, value: T, saveToCookie = false): void {
 function removeFromAllTiers(key: string): void {
   try {
     if (typeof localStorage !== 'undefined') localStorage.removeItem(key);
-  } catch (e) {}
+  } catch (e) { }
   try {
     if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(key);
-  } catch (e) {}
+  } catch (e) { }
   deleteCookie(key);
 }
 
@@ -439,7 +439,7 @@ export const mockStorage = {
       saveToStorage(STORAGE_KEYS.DRIVERS, initialDrivers);
       return [...initialDrivers];
     }
-    
+
     // Auto-migrate: Loại bỏ tài xế thuê ngoài khỏi danh sách tài xế nội bộ của công ty
     let internalDrivers = res.filter((d) => !d.employeeCode || (!d.employeeCode.startsWith('TX-EXT') && d.id <= 104));
     let modified = internalDrivers.length !== res.length;
@@ -465,7 +465,7 @@ export const mockStorage = {
     if (modified) {
       saveToStorage(STORAGE_KEYS.DRIVERS, internalDrivers);
     }
-    
+
     return internalDrivers;
   },
   saveDrivers(data: Driver[]) {
@@ -900,6 +900,11 @@ export const mockStorage = {
       this.saveDriverNotifications(list);
     }
   },
+  removeDriverNotification(id: number) {
+    const list = this.getDriverNotifications();
+    const filtered = list.filter((n: any) => n.id !== id);
+    this.saveDriverNotifications(filtered);
+  },
 
   // ==========================================
   // CÀI ĐẶT CHUYẾN & GIÃN CÁCH ĐIỀU ĐỘNG XE
@@ -1009,19 +1014,19 @@ export const mockStorage = {
       localStorage.setItem('__test__', '1');
       localOk = localStorage.getItem('__test__') === '1';
       localStorage.removeItem('__test__');
-    } catch (e) {}
+    } catch (e) { }
 
     try {
       sessionStorage.setItem('__test__', '1');
       sessionOk = sessionStorage.getItem('__test__') === '1';
       sessionStorage.removeItem('__test__');
-    } catch (e) {}
+    } catch (e) { }
 
     try {
       setCookie('__test__', '1', 1);
       cookieOk = getCookie('__test__') === '1';
       deleteCookie('__test__');
-    } catch (e) {}
+    } catch (e) { }
 
     return {
       localStorage: localOk,

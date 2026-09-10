@@ -129,6 +129,60 @@ export const useBookingStore = defineStore('booking', () => {
     };
   }
 
+  // Cập nhật yêu cầu (được dùng bởi Dispatcher/Admin)
+  function updateRequest(
+    requestId: number,
+    payload: Omit<TransportRequest, 'id' | 'requestCode' | 'status' | 'createdAt' | 'timeline'>,
+    actorName: string = 'Hệ thống'
+  ): { success: boolean; message: string; data?: TransportRequest } {
+    const req = requests.value.find((r) => r.id === requestId);
+    if (!req) {
+      return { success: false, message: 'Không tìm thấy yêu cầu cần cập nhật' };
+    }
+
+    if (req.status === 'DISPATCHED' || req.status === 'INPROGRESS' || req.status === 'COMPLETED' || req.status === 'CANCELLED') {
+      return { success: false, message: 'Không thể chỉnh sửa yêu cầu đã được điều phối, đang vận chuyển, đã hoàn thành hoặc đã hủy.' };
+    }
+
+    const now = new Date();
+    const startTimeDate = new Date(payload.startTime);
+
+    if (new Date(payload.endTime).getTime() <= startTimeDate.getTime()) {
+      return {
+        success: false,
+        message: 'Giờ kết thúc chuyến đi phải sau giờ bắt đầu!',
+      };
+    }
+
+    const conflictCheck = hasScheduleConflict(
+      payload.requesterId,
+      payload.startTime,
+      payload.endTime,
+      req.id
+    );
+    if (conflictCheck.hasConflict) {
+      return {
+        success: false,
+        message: `Quy tắc chống trùng lịch: ${conflictCheck.message}`,
+      };
+    }
+
+    Object.assign(req, {
+      ...payload,
+      updatedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
+    });
+
+    req.timeline.push({
+      status: req.status,
+      timestamp: new Date().toISOString().slice(0, 16).replace('T', ' '),
+      actor: actorName,
+      note: 'Điều phối viên chỉnh sửa thông tin yêu cầu đặt xe',
+    });
+
+    saveState();
+    return { success: true, message: 'Đã cập nhật thông tin yêu cầu thành công!', data: req };
+  }
+
   // Duyệt yêu cầu
   function approveRequest(
     requestId: number,
@@ -218,31 +272,6 @@ export const useBookingStore = defineStore('booking', () => {
 
     saveState();
     return { success: true, message: `Đã hủy yêu cầu ${req.requestCode}.` };
-  }
-
-  function updateRequest(
-    requestId: number,
-    data: Partial<TransportRequest>,
-    actorName: string
-  ): { success: boolean; message: string } {
-    const req = requests.value.find((r) => r.id === requestId);
-    if (!req) return { success: false, message: 'Không tìm thấy yêu cầu' };
-
-    if (req.status !== 'PENDING' && req.status !== 'APPROVED') {
-      return { success: false, message: 'Chỉ có thể điều chỉnh yêu cầu khi đang ở trạng thái Chờ ghép chuyến!' };
-    }
-
-    Object.assign(req, data);
-    const nowStr = new Date().toISOString().slice(0, 16).replace('T', ' ');
-    req.timeline.push({
-      status: 'PENDING',
-      timestamp: nowStr,
-      actor: actorName,
-      note: 'Người đặt xe cập nhật / điều chỉnh thông tin yêu cầu',
-    });
-
-    saveState();
-    return { success: true, message: `Đã cập nhật yêu cầu ${req.requestCode} thành công!` };
   }
 
   function updateRequestStatus(

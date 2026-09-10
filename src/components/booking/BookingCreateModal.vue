@@ -11,6 +11,8 @@ import {
   X,
   AlertCircle,
   CheckCircle2,
+  Trees,
+  Building2,
 } from 'lucide-vue-next';
 
 const props = withDefaults(
@@ -27,6 +29,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   (e: 'close'): void;
   (e: 'created'): void;
+  (e: 'updated'): void;
 }>();
 
 const authStore = useAuthStore();
@@ -35,6 +38,7 @@ const dialog = useDialogStore();
 
 // Xác định phân hệ: Đặt xe Đội vs Đặt xe Nhà máy
 const isTeamModule = computed(() => props.moduleType === 'team');
+const isEditMode = computed(() => !!props.editingRequest);
 
 const selectedTeam = ref<string>(props.editingRequest?.teamName || 'Đội 1');
 const teamList = ref<string[]>([
@@ -76,6 +80,8 @@ const selectedHubToAdd = ref<string>('');
 const operatingHours = ref<number>(props.editingRequest?.operatingHours || 4);
 
 // Thuộc tính riêng cho PassengerCar
+const pickupTime = ref<string>(props.editingRequest?.pickupTime ? props.editingRequest.pickupTime.replace(' ', 'T') : '');
+const dropoffTime = ref<string>(props.editingRequest?.dropoffTime ? props.editingRequest.dropoffTime.replace(' ', 'T') : '');
 const contactPerson = ref<string>(props.editingRequest?.contactPerson || '');
 const contactPhone = ref<string>(props.editingRequest?.contactPhone || '');
 
@@ -214,6 +220,42 @@ const endTime = ref<string>(
 );
 const errorMsg = ref<string>('');
 
+function populateFormFromRequest(request: TransportRequest) {
+  selectedTeam.value = request.teamName || 'Đội 1';
+  vehicleType.value = request.vehicleType;
+  purpose.value = request.purpose || '';
+  estimatedWeightKg.value = request.estimatedWeightKg || 2500;
+  passengersCount.value = request.passengersCount || 3;
+  operatingHours.value = request.operatingHours || 4;
+  pickupTime.value = request.pickupTime ? request.pickupTime.replace(' ', 'T') : '';
+  dropoffTime.value = request.dropoffTime ? request.dropoffTime.replace(' ', 'T') : '';
+  contactPerson.value = request.contactPerson || '';
+  contactPhone.value = request.contactPhone || '';
+
+  startTime.value = request.startTime.replace(' ', 'T');
+  endTime.value = request.endTime.replace(' ', 'T');
+
+  if (props.moduleType === 'factory') {
+    locations.value = [request.fromLocation, request.toLocation].filter(Boolean);
+  } else {
+    const fromText = request.fromLocation || '';
+    const clusterMatch = clusterOptions.find((c) => fromText.includes(c.label));
+    if (clusterMatch) {
+      selectedCluster.value = clusterMatch.value;
+    }
+  }
+}
+
+watch(
+  () => props.editingRequest,
+  (request) => {
+    if (request) {
+      populateFormFromRequest(request);
+    }
+  },
+  { immediate: true }
+);
+
 function setQuickSlot(type: 'today_next' | 'tomorrow_morning' | 'tomorrow_afternoon') {
   const pad = (n: number) => String(n).padStart(2, '0');
   const format = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -301,40 +343,7 @@ function handleSubmit() {
         ? locations.value.slice(1).join(' ➔ ')
         : (locations.value[0] === 'Nhà Máy Chế Biến ECOTECH 2A' ? 'Trạm Cân 1 (Trung tâm)' : 'Nhà Máy Chế Biến ECOTECH 2A'));
 
-  if (props.editingRequest) {
-    const res = bookingStore.updateRequest(
-      props.editingRequest.id,
-      {
-        teamName: isTeamModule.value ? selectedTeam.value : undefined,
-        vehicleType: vehicleType.value,
-        startTime: startTime.value.replace('T', ' '),
-        endTime: endTime.value.replace('T', ' '),
-        fromLocation: fromLoc,
-        toLocation: toLoc,
-        purpose: purpose.value,
-        estimatedWeightKg: vehicleType.value === 'LatexTruck' ? Number(estimatedWeightKg.value) : undefined,
-        operatingHours: vehicleType.value === 'MillingMachine' ? Number(operatingHours.value) : undefined,
-        passengersCount: vehicleType.value === 'PassengerCar' ? Number(passengersCount.value) : undefined,
-        pickupTime: vehicleType.value === 'PassengerCar' ? startTime.value.replace('T', ' ') : undefined,
-        dropoffTime: vehicleType.value === 'PassengerCar' ? endTime.value.replace('T', ' ') : undefined,
-        contactPerson: vehicleType.value === 'PassengerCar' ? contactPerson.value : undefined,
-        contactPhone: vehicleType.value === 'PassengerCar' ? contactPhone.value : undefined,
-      },
-      authStore.currentUser.fullName
-    );
-
-    if (!res.success) {
-      errorMsg.value = res.message;
-      dialog.showWarning(res.message, 'Không Thể Cập Nhật', 'Kiểm tra lại');
-    } else {
-      emit('created');
-      emit('close');
-      dialog.showSuccess(`Yêu cầu đặt xe ${props.editingRequest.requestCode} đã được cập nhật thành công!`, 'Điều Chỉnh Thành Công');
-    }
-    return;
-  }
-
-  const res = bookingStore.createRequest({
+  const requestPayload = {
     requesterId: authStore.currentUser.id,
     requesterName: authStore.currentUser.fullName,
     requesterPhone: authStore.currentUser.phone,
@@ -352,11 +361,28 @@ function handleSubmit() {
     estimatedWeightKg: vehicleType.value === 'LatexTruck' ? Number(estimatedWeightKg.value) : undefined,
     operatingHours: vehicleType.value === 'MillingMachine' ? Number(operatingHours.value) : undefined,
     passengersCount: vehicleType.value === 'PassengerCar' ? Number(passengersCount.value) : undefined,
-    pickupTime: vehicleType.value === 'PassengerCar' ? startTime.value.replace('T', ' ') : undefined,
-    dropoffTime: vehicleType.value === 'PassengerCar' ? endTime.value.replace('T', ' ') : undefined,
+    pickupTime: vehicleType.value === 'PassengerCar' ? (pickupTime.value ? pickupTime.value.replace('T', ' ') : startTime.value.replace('T', ' ')) : undefined,
+    dropoffTime: vehicleType.value === 'PassengerCar' ? (dropoffTime.value ? dropoffTime.value.replace('T', ' ') : endTime.value.replace('T', ' ')) : undefined,
     contactPerson: vehicleType.value === 'PassengerCar' ? contactPerson.value : undefined,
     contactPhone: vehicleType.value === 'PassengerCar' ? contactPhone.value : undefined,
-  });
+  };
+
+  if (isEditMode.value && props.editingRequest) {
+    const res = bookingStore.updateRequest(props.editingRequest.id, requestPayload, authStore.currentUser.fullName);
+
+    if (!res.success) {
+      errorMsg.value = res.message;
+      dialog.showWarning(res.message || 'Không thể cập nhật yêu cầu đặt xe!', 'Cập Nhật Yêu Cầu Không Thành Công', 'Thực hiện lại');
+      return;
+    }
+
+    emit('updated');
+    emit('close');
+    dialog.showSuccess('Yêu cầu đặt xe đã được cập nhật thành công.', 'Cập Nhật Yêu Cầu Thành Công');
+    return;
+  }
+
+  const res = bookingStore.createRequest(requestPayload);
 
   if (!res.success) {
     errorMsg.value = res.message;
@@ -374,7 +400,9 @@ function handleSubmit() {
     <div class="modal-content modal-lg">
       <div class="modal-header">
         <h3 class="modal-title">
-          <span>{{ props.editingRequest ? `Điều Chỉnh Yêu Cầu Đặt Xe: ${props.editingRequest.requestCode}` : (isTeamModule ? 'Tạo Yêu Cầu Đặt Xe Đội Nông Trường' : 'Tạo Yêu Cầu Đặt Xe Nhà Máy Chế Biến') }}</span>
+          <Trees v-if="isTeamModule" :size="20" class="text-primary" />
+          <Building2 v-else :size="20" class="text-primary" />
+          <span>{{ isEditMode ? 'Chỉnh Sửa Yêu Cầu Đặt Xe' : (isTeamModule ? 'Tạo Yêu Cầu Đặt Xe Đội Nông Trường' : 'Tạo Yêu Cầu Đặt Xe Nhà Máy Chế Biến') }}</span>
           <span class="module-mode-badge" :class="isTeamModule ? 'badge-team' : 'badge-factory'">
             {{ isTeamModule ? 'Phân hệ: Đặt xe Đội' : 'Phân hệ: Đặt xe Nhà máy' }}
           </span>
@@ -621,7 +649,7 @@ function handleSubmit() {
           :disabled="!rule30Status.valid || conflictStatus.hasConflict"
           @click="handleSubmit"
         >
-          {{ props.editingRequest ? 'Lưu Điều Chỉnh Yêu Cầu' : 'Gửi Yêu Cầu Đặt Xe' }}
+          {{ isEditMode ? 'Lưu Thay Đổi' : 'Gửi Yêu Cầu Đặt Xe' }}
         </button>
       </div>
     </div>
