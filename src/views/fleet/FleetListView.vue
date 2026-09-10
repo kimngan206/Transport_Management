@@ -1778,7 +1778,7 @@ function handleDeleteHandover(record: HandoverRecord) {
                 <th>{{ handoverSectionTab === 'TRANSFER' ? 'Tài Xế Sở Hữu' : 'Tài Xế Cũ' }}</th>
                 <th>{{ handoverSectionTab === 'TRANSFER' ? 'Tài Xế Tạm Thời' : 'Tài Xế Hiện Tại' }}</th>
               </template>
-              <th>Thời Gian Mượn</th>
+              <th>{{ handoverSectionTab === 'TRANSFER' ? 'Thời Gian Mượn' : 'Thời Gian Bàn Giao' }}</th>
               <th>Thời Gian Trả</th>
               <th>ODO Bàn Giao</th>
               <th>Mức Nhiên Liệu</th>
@@ -2331,26 +2331,44 @@ function handleDeleteHandover(record: HandoverRecord) {
             </div>
           </div>
 
-          <div class="form-group">
-            <label class="form-label">
-              {{ newHandoverWorkflowType === 'TRANSFER' ? 'Phương tiện mượn / xe chi viện' : 'Phương tiện bàn giao' }}
-              <span class="required">*</span>
-            </label>
-            <select v-model="newHandoverPlate" class="form-select" @change="onHandoverVehicleChange">
-              <option v-for="v in fleetStore.vehicles" :key="v.id" :value="v.licensePlate">
-                {{ v.licensePlate }} - {{ v.model }} ({{ v.vehicleType }}) {{ v.assignedDriverName ? `— TX: ${v.assignedDriverName}` : '' }}
-              </option>
-            </select>
-          </div>
+          <div class="grid-3">
+            <div class="form-group">
+              <label class="form-label">
+                {{ newHandoverWorkflowType === 'TRANSFER' ? 'Biển số xe chi viện' : 'Phương tiện bàn giao' }}
+                <span class="required">*</span>
+              </label>
+              <select v-model="newHandoverPlate" class="form-select" @change="onHandoverVehicleChange">
+                <option v-for="v in fleetStore.vehicles" :key="v.id" :value="v.licensePlate">
+                  {{ v.licensePlate }}
+                </option>
+              </select>
+            </div>
 
-          <div v-if="newHandoverWorkflowType === 'HANDOVER'" class="form-group">
-            <label class="form-label">Đội của xe</label>
-            <input
-              v-model="newHandoverVehicleTeam"
-              type="text"
-              class="form-input"
-              placeholder="Ví dụ: Đội 3"
-            />
+            <div class="form-group">
+              <label class="form-label">Dòng xe / Tên phương tiện</label>
+              <input
+                :value="selectedHandoverVehicle?.model || '—'"
+                type="text"
+                class="form-input"
+                readonly
+                style="background-color: #f8fafc; font-weight: 600; color: #1e293b;"
+              />
+            </div>
+
+            <div v-if="newHandoverWorkflowType === 'HANDOVER'" class="form-group">
+              <label class="form-label">Đội của xe</label>
+              <input
+                v-model="newHandoverVehicleTeam"
+                type="text"
+                class="form-input"
+                placeholder="Ví dụ: Đội 3"
+              />
+            </div>
+
+            <div v-else class="form-group">
+              <label class="form-label">Đơn vị / đội gửi</label>
+              <input v-model="newHandoverFromTeam" type="text" class="form-input" placeholder="Ví dụ: Nhà máy" />
+            </div>
           </div>
 
           <div v-if="newHandoverWorkflowType === 'HANDOVER'" class="grid-2">
@@ -2392,15 +2410,9 @@ function handleDeleteHandover(record: HandoverRecord) {
             </div>
           </div>
 
-          <div v-else class="grid-2">
-            <div class="form-group">
-              <label class="form-label">Đơn vị / đội gửi</label>
-              <input v-model="newHandoverFromTeam" type="text" class="form-input" placeholder="Ví dụ: Nhà máy" />
-            </div>
-            <div class="form-group">
-              <label class="form-label">Đơn vị / đội nhận</label>
-              <input v-model="newHandoverToTeam" type="text" class="form-input" placeholder="Ví dụ: Trạm Cán 2" />
-            </div>
+          <div v-else class="form-group">
+            <label class="form-label">Đơn vị / đội nhận</label>
+            <input v-model="newHandoverToTeam" type="text" class="form-input" placeholder="Ví dụ: Trạm Cán 2" />
           </div>
 
           <div v-if="newHandoverWorkflowType === 'TRANSFER'" class="form-group">
@@ -2415,7 +2427,7 @@ function handleDeleteHandover(record: HandoverRecord) {
 
           <div class="grid-2">
             <div class="form-group">
-              <label class="form-label">Thời điểm bàn giao / mượn</label>
+              <label class="form-label">{{ newHandoverWorkflowType === 'TRANSFER' ? 'Thời điểm mượn' : 'Thời điểm bàn giao' }}</label>
               <input v-model="newHandoverBorrowTime" type="datetime-local" class="form-input" />
             </div>
             <div class="form-group">
@@ -2478,7 +2490,7 @@ function handleDeleteHandover(record: HandoverRecord) {
 
           <div class="grid-2">
             <div class="form-group">
-              <label class="form-label">Thời điểm bàn giao / mượn</label>
+              <label class="form-label">{{ viewingHandover.workflowType === 'TRANSFER' ? 'Thời điểm mượn' : 'Thời điểm bàn giao' }}</label>
               <div class="p-3 bg-light rounded">{{ viewingHandover.borrowStartAt || '—' }}</div>
             </div>
             <div class="form-group">
