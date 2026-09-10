@@ -302,51 +302,43 @@ function applyBatchTemplate(type: VehicleType) {
 
 <template>
   <div class="trip-settings-view">
-    <!-- HEADER TRANG -->
+    <!-- HEADER TRANG GỌN GÀNG -->
     <div class="page-header">
-      <div class="header-left">
-        <div class="header-icon-box">
-          <Clock :size="24" class="text-primary" />
-        </div>
-        <div>
-          <div class="flex items-center gap-2">
-            <h1 class="page-title">Cài Đặt Chuyến & Giãn Cách Điều Động</h1>
-            <span class="badge-system-version">Quy Chuẩn Cao Su</span>
-          </div>
-          <p class="page-subtitle">
-            Cấu hình thời gian đệm giữa các chuyến xe (Turnaround Buffer) và thời gian giãn cách khởi hành giữa các xe cụ thể (Inter-Vehicle Interval)
-          </p>
-        </div>
+      <div>
+        <h1 class="page-title">Cài Đặt Chuyến & Giãn Cách</h1>
+        <p class="page-subtitle">
+          Cấu hình thời gian đệm giữa các chuyến và khoảng cách xuất phát an toàn giữa các xe
+        </p>
       </div>
 
       <div class="header-actions">
-        <button class="btn btn-outline" @click="handleResetConfig" title="Khôi phục mặc định">
-          <RotateCcw :size="15" />
-          <span>Khôi phục mặc định</span>
+        <button class="btn btn-outline btn-sm" @click="handleResetConfig" title="Khôi phục mặc định">
+          <RotateCcw :size="14" />
+          <span>Mặc định</span>
         </button>
 
-        <button class="btn btn-success" @click="handleSaveConfig">
-          <Save :size="16" />
+        <button class="btn btn-primary btn-sm" @click="handleSaveConfig">
+          <Save :size="14" />
           <span>Lưu Cấu Hình</span>
         </button>
       </div>
     </div>
 
-    <!-- Alert thông báo lưu thành công -->
-    <div v-if="isSaved" class="alert alert-success mt-3 animate-fade-in">
-      <CheckCircle2 :size="18" />
+    <!-- Alert thông báo lưu -->
+    <div v-if="isSaved" class="alert alert-success mt-2 animate-fade-in">
+      <CheckCircle2 :size="16" />
       <span>{{ saveMessage }}</span>
     </div>
 
-    <!-- THANH CHUYỂN TABS CHỨC NĂNG -->
-    <div class="settings-tabs-bar mt-4">
+    <!-- THANH CHUYỂN TABS GỌN GÀNG -->
+    <div class="settings-tabs-bar mt-3">
       <button
         class="tab-item-btn"
         :class="{ active: activeTab === 'timeline' }"
         @click="activeTab = 'timeline'"
       >
-        <Calendar :size="17" />
-        <span>1. Sơ Đồ Giãn Cách & Trục Thời Gian</span>
+        <Calendar :size="15" />
+        <span>Sơ Đồ Giãn Cách & Trục Thời Gian</span>
         <span class="tab-badge">{{ dayTrips.length }} chuyến</span>
       </button>
 
@@ -355,8 +347,8 @@ function applyBatchTemplate(type: VehicleType) {
         :class="{ active: activeTab === 'vehicles' }"
         @click="activeTab = 'vehicles'"
       >
-        <Truck :size="17" />
-        <span>2. Cài Đặt Theo Từng Xe Cụ Thể</span>
+        <Truck :size="15" />
+        <span>Cài Đặt Từng Xe Cụ Thể</span>
         <span class="tab-badge">{{ config.specificVehicleSettings.length }} xe</span>
       </button>
 
@@ -365,88 +357,71 @@ function applyBatchTemplate(type: VehicleType) {
         :class="{ active: activeTab === 'categories' }"
         @click="activeTab = 'categories'"
       >
-        <Sliders :size="17" />
-        <span>3. Quy Chuẩn Chung & Loại Xe</span>
+        <Sliders :size="15" />
+        <span>Quy Chuẩn Chung & Loại Xe</span>
       </button>
     </div>
 
     <!-- ======================================================= -->
-    <!-- TAB 1: SƠ ĐỒ GIÃN CÁCH & TRỤC THỜI GIAN (VISUAL TIMELINE) -->
+    <!-- TAB 1: SƠ ĐỒ GIÃN CÁCH & TRỤC THỜI GIAN -->
     <!-- ======================================================= -->
-    <div v-if="activeTab === 'timeline'" class="tab-content mt-4">
-      <!-- THANH ĐIỀU KHIỂN & LỌC NGÀY -->
-      <div class="card p-4 filter-control-card">
-        <div class="filter-controls-grid">
-          <div class="form-group mb-0">
-            <label class="form-label font-bold text-xs">
-              <Calendar :size="13" class="inline text-primary mr-1" />
-              <span>Ngày kiểm tra sơ đồ:</span>
-            </label>
-            <input v-model="selectedDate" type="date" class="form-control" />
+    <div v-if="activeTab === 'timeline'" class="tab-content mt-3">
+      <!-- THANH ĐIỀU KHIỂN & LỌC GỌN GÀNG -->
+      <div class="filter-toolbar card p-3">
+        <div class="filter-row">
+          <div class="filter-item">
+            <span class="filter-label">Ngày:</span>
+            <input v-model="selectedDate" type="date" class="form-input form-input-sm" />
           </div>
 
-          <div class="form-group mb-0">
-            <label class="form-label font-bold text-xs">
-              <Truck :size="13" class="inline text-primary mr-1" />
-              <span>Lọc loại phương tiện:</span>
-            </label>
-            <select v-model="filterType" class="form-select">
-              <option value="ALL">-- Tất cả loại xe --</option>
-              <option value="LatexTruck">Xe bồn chở mủ cao su</option>
-              <option value="PassengerCar">Xe chở người / cán bộ</option>
-              <option value="MillingMachine">Xe cơ giới / máy xúc</option>
+          <div class="filter-item">
+            <span class="filter-label">Loại xe:</span>
+            <select v-model="filterType" class="form-select form-select-sm">
+              <option value="ALL">Tất cả loại xe</option>
+              <option value="LatexTruck">Xe bồn mủ</option>
+              <option value="PassengerCar">Xe khách / công vụ</option>
+              <option value="MillingMachine">Xe cơ giới / xúc</option>
             </select>
           </div>
 
-          <div class="form-group mb-0">
-            <label class="form-label font-bold text-xs">
-              <Building :size="13" class="inline text-primary mr-1" />
-              <span>Đơn vị trực thuộc:</span>
-            </label>
-            <select v-model="filterUnit" class="form-select">
-              <option value="ALL">-- Tất cả đơn vị --</option>
-              <option value="Factory">Nhà máy chế biến</option>
-              <option value="Team:Đội 1">Đội sản xuất 1</option>
-              <option value="Team:Đội 2">Đội sản xuất 2</option>
-              <option value="Team:Đội 3">Đội sản xuất 3</option>
-              <option value="Team:Đội 4">Đội sản xuất 4</option>
+          <div class="filter-item">
+            <span class="filter-label">Đơn vị:</span>
+            <select v-model="filterUnit" class="form-select form-select-sm">
+              <option value="ALL">Tất cả đơn vị</option>
+              <option value="Factory">Nhà máy</option>
+              <option value="Team:Đội 1">Đội 1</option>
+              <option value="Team:Đội 2">Đội 2</option>
+              <option value="Team:Đội 3">Đội 3</option>
+              <option value="Team:Đội 4">Đội 4</option>
             </select>
           </div>
 
-          <div class="kpi-mini-box">
-            <div class="kpi-mini-item">
-              <span class="kpi-lbl">Chuyến trong ngày:</span>
-              <strong class="kpi-val text-primary">{{ dayTrips.length }}</strong>
-            </div>
-            <div class="kpi-mini-item">
-              <span class="kpi-lbl">Xe lăn bánh:</span>
-              <strong class="kpi-val text-emerald-700">{{ activeVehiclesInDay.length }} / {{ fleetStore.vehicles.length }}</strong>
-            </div>
-            <div class="kpi-mini-item">
-              <span class="kpi-lbl">Cảnh báo giãn cách:</span>
-              <strong class="kpi-val" :class="interVehicleGaps.some(g => !g.isSafe) ? 'text-amber-600' : 'text-slate-500'">
-                {{ interVehicleGaps.filter(g => !g.isSafe).length }}
-              </strong>
-            </div>
+          <div class="filter-stats ml-auto">
+            <span class="stat-pill">
+              <strong>{{ dayTrips.length }}</strong> chuyến
+            </span>
+            <span class="stat-pill">
+              <strong>{{ activeVehiclesInDay.length }}</strong>/{{ fleetStore.vehicles.length }} xe chạy
+            </span>
+            <span
+              class="stat-pill"
+              :class="interVehicleGaps.some(g => !g.isSafe) ? 'stat-pill-warn' : 'stat-pill-ok'"
+            >
+              <strong>{{ interVehicleGaps.filter(g => !g.isSafe).length }}</strong> cảnh báo giãn cách
+            </span>
           </div>
         </div>
       </div>
 
       <!-- KHỐI BIỂU ĐỒ TRỤC THỜI GIAN (GANTT TIMELINE) -->
-      <div class="card mt-4 timeline-card">
-        <div class="card-header flex justify-between items-center">
-          <div>
-            <h3 class="card-title text-base mb-0">
-              <Clock :size="18" class="text-primary inline mr-1" />
-              <span>Trục Phân Bổ Thời Gian Chuyến Xe & Khoảng Đệm Giữa Các Chuyến (Ngày {{ selectedDate }})</span>
-            </h3>
-            <p class="text-xs text-muted mt-1 mb-0">
-              Thể hiện các chuyến xe chạy trong ngày của từng xe, thời gian nghỉ/quay đầu (Buffer Gap) và độ so le giữa các xe với nhau
-            </p>
+      <div class="card mt-3 timeline-card">
+        <div class="card-header flex-between py-2 px-3">
+          <div class="flex items-center gap-2">
+            <h3 class="card-title text-sm font-bold mb-0">Trục Phân Bổ Chuyến Xe & Thời Gian Đệm (Ngày {{ selectedDate }})</h3>
           </div>
 
           <div class="legend-box">
-            <span class="legend-item"><span class="legend-color bg-completed"></span> Đã hoàn thành</span>
+            <span class="legend-item"><span class="legend-color bg-completed"></span> Hoàn thành</span>
             <span class="legend-item"><span class="legend-color bg-inprogress"></span> Đang chạy</span>
             <span class="legend-item"><span class="legend-color bg-dispatched"></span> Đã xếp lịch</span>
             <span class="legend-item"><span class="legend-color bg-gap"></span> Đệm nghỉ / Vệ sinh</span>
@@ -485,7 +460,7 @@ function applyBatchTemplate(type: VehicleType) {
                 <div class="veh-meta-sub">
                   <span v-if="v.operatingUnitType === 'Factory'" class="unit-tag factory">Nhà máy</span>
                   <span v-else class="unit-tag team">{{ v.teamName || 'Đội' }}</span>
-                  <span class="text-xxs text-muted ml-1">• Đệm: {{ getVehicleBufferMinutes(v.id).turnaroundMinutes }}p</span>
+                  <span class="text-xxs text-muted ml-1">• Đệm {{ getVehicleBufferMinutes(v.id).turnaroundMinutes }}p</span>
                 </div>
               </div>
 
@@ -510,7 +485,6 @@ function applyBatchTemplate(type: VehicleType) {
                     <div class="trip-block-inner">
                       <span class="trip-block-code font-mono">#{{ idx + 1 }} {{ t.tripCode }}</span>
                       <span class="trip-block-time">{{ t.scheduledStartTime.slice(11, 16) }} - {{ t.scheduledEndTime.slice(11, 16) }}</span>
-                      <span class="trip-block-route truncate">{{ t.routeName }}</span>
                     </div>
                   </div>
 
@@ -520,13 +494,13 @@ function applyBatchTemplate(type: VehicleType) {
                       class="turnaround-gap-block"
                       :class="gap.isAdequate ? 'gap-adequate' : 'gap-violation'"
                       :style="getTimelineGapStyle(gap.trip1.scheduledEndTime, gap.trip2.scheduledStartTime)"
-                      :title="`Khoảng đệm giữa Chuyến #${gIdx + 1} và #${gIdx + 2}: ${gap.gapMinutes} phút (Quy chuẩn tối thiểu: ${gap.requiredBufferMinutes} phút)`"
+                      :title="`Khoảng đệm giữa Chuyến #${gIdx + 1} và #${gIdx + 2}: ${gap.gapMinutes} phút (Quy chuẩn: ${gap.requiredBufferMinutes} phút)`"
                     >
                       <div class="gap-inner-label">
                         <Clock :size="10" />
-                        <span>Nghỉ/Đệm: {{ gap.gapMinutes }}p</span>
-                        <span v-if="gap.isAdequate" class="gap-check">✓ Đạt</span>
-                        <span v-else class="gap-warn">⚠️ Thiếu</span>
+                        <span>Đệm: {{ gap.gapMinutes }}p</span>
+                        <span v-if="gap.isAdequate" class="gap-check">✓</span>
+                        <span v-else class="gap-warn">⚠️</span>
                       </div>
                     </div>
                   </template>
@@ -534,7 +508,7 @@ function applyBatchTemplate(type: VehicleType) {
 
                 <!-- Xe không có chuyến -->
                 <div v-else class="empty-track-placeholder">
-                  <span>Trống lịch cả ngày</span>
+                  <span>Trống lịch</span>
                 </div>
               </div>
             </div>
@@ -542,35 +516,30 @@ function applyBatchTemplate(type: VehicleType) {
         </div>
       </div>
 
-      <!-- BẢNG SO SÁNH GIÃN CÁCH KHỞI HÀNH GIỮA CÁC XE (INTER-VEHICLE INTERVALS) -->
-      <div class="card mt-4 p-4">
-        <div class="card-header border-b pb-3 mb-3 flex justify-between items-center">
+      <!-- BẢNG SO SÁNH GIÃN CÁCH KHỞI HÀNH GIỮA CÁC XE -->
+      <div class="card mt-3">
+        <div class="card-header flex-between py-2 px-3">
           <div>
-            <h3 class="card-title text-base mb-0">
-              <Sliders :size="17" class="text-primary inline mr-1" />
-              <span>Ma Trận So Sánh Thời Gian Giãn Cách Giữa Các Xe Khác Nhau</span>
-            </h3>
-            <p class="text-xs text-muted mt-0.5">
-              Theo dõi khoảng cách giờ xuất phát giữa các xe lăn bánh trong ngày để tránh dồn ứ tại trạm cân nông trường và trạm dỡ mủ nhà máy
-            </p>
+            <h3 class="card-title text-sm font-bold mb-0">Ma Trận So Sánh Thời Gian Giãn Cách Giữa Các Xe</h3>
+            <span class="text-xs text-muted">Khoảng cách giờ xuất phát giữa các xe trong ngày để tránh dồn ứ trạm cân và nhà máy</span>
           </div>
 
           <span class="badge badge-blue">
-            {{ interVehicleGaps.length }} cặp xe xuất phát trong khung 60 phút
+            {{ interVehicleGaps.length }} cặp xe trong khung 60p
           </span>
         </div>
 
         <div v-if="interVehicleGaps.length > 0" class="table-responsive">
-          <table class="table align-middle">
+          <table class="table align-middle table-sm">
             <thead>
               <tr>
                 <th style="width: 140px;">Xe Xuất Phát Trước</th>
                 <th style="width: 140px;">Xe Xuất Phát Sau</th>
                 <th>Giờ Xuất Phát Xe 1</th>
                 <th>Giờ Xuất Phát Xe 2</th>
-                <th class="text-center">Khoảng Cách Giờ (Interval)</th>
-                <th class="text-center">Quy Chuẩn Yêu Cầu</th>
-                <th>Đánh Giá Vận Hành</th>
+                <th class="text-center">Khoảng Cách</th>
+                <th class="text-center">Quy Chuẩn</th>
+                <th>Đánh Giá</th>
               </tr>
             </thead>
             <tbody>
@@ -601,7 +570,7 @@ function applyBatchTemplate(type: VehicleType) {
                   </span>
                 </td>
                 <td class="text-center">
-                  <span class="text-xs font-semibold text-slate-700">&gt;= {{ p.recommendedMinutes }} phút</span>
+                  <span class="text-xs font-semibold text-slate-700">&ge; {{ p.recommendedMinutes }} phút</span>
                 </td>
                 <td>
                   <div class="status-eval-cell" :class="p.isSafe ? 'text-emerald-700' : 'text-amber-700'">
@@ -622,36 +591,36 @@ function applyBatchTemplate(type: VehicleType) {
           />
         </div>
 
-        <div v-else class="text-center py-6 text-muted">
-          <CheckCircle2 :size="24" class="text-success mb-2" />
-          <p class="mb-0 text-sm font-medium text-slate-600">
-            Không có cặp xe nào xuất bến quá gần nhau trong ngày {{ selectedDate }}. Lịch trình được phân bổ giãn cách thông thoáng!
+        <div v-else class="text-center py-4 text-muted">
+          <CheckCircle2 :size="20" class="text-success mb-1" />
+          <p class="mb-0 text-xs font-medium text-slate-600">
+            Không có cặp xe nào xuất bến quá gần nhau trong ngày {{ selectedDate }}. Lịch trình phân bổ giãn cách an toàn.
           </p>
         </div>
       </div>
     </div>
 
     <!-- ======================================================= -->
-    <!-- TAB 2: CÀI ĐẶT THEO TỪNG XE CỤ THỂ (PER-VEHICLE CONFIG) -->
+    <!-- TAB 2: CÀI ĐẶT THEO TỪNG XE CỤ THỂ -->
     <!-- ======================================================= -->
-    <div v-if="activeTab === 'vehicles'" class="tab-content mt-4">
-      <!-- THANH TÌM KIẾM & BỘ LỌC XE -->
-      <div class="card p-3 mb-4">
+    <div v-if="activeTab === 'vehicles'" class="tab-content mt-3">
+      <!-- THANH TÌM KIẾM & BỘ LỌC XE GỌN -->
+      <div class="card p-3 mb-3">
         <div class="flex flex-wrap items-center justify-between gap-3">
-          <div class="flex items-center gap-3 flex-1 min-w-xs">
+          <div class="flex items-center gap-2 flex-1 min-w-xs">
             <div class="search-input-box flex-1">
-              <Search :size="15" class="search-icon" />
+              <Search :size="14" class="search-icon" />
               <input
                 v-model="searchPlate"
                 type="text"
-                class="form-control pl-8"
-                placeholder="Tìm theo biển số xe (51C-889.26...)"
+                class="form-control form-control-sm pl-8"
+                placeholder="Tìm theo biển số xe..."
               />
             </div>
 
             <div class="unit-filter-box">
-              <select v-model="filterVehicleTeam" class="form-select text-xs font-bold">
-                <option value="ALL">-- Tất cả đơn vị --</option>
+              <select v-model="filterVehicleTeam" class="form-select form-select-sm">
+                <option value="ALL">Tất cả đơn vị</option>
                 <option value="Factory">Xe Nhà máy</option>
                 <option value="Team:Đội 1">Xe Đội 1</option>
                 <option value="Team:Đội 2">Xe Đội 2</option>
@@ -663,7 +632,7 @@ function applyBatchTemplate(type: VehicleType) {
 
           <!-- Nút áp dụng nhanh theo loại -->
           <div class="flex items-center gap-2">
-            <span class="text-xs text-muted font-bold">Áp dụng mẫu chuẩn:</span>
+            <span class="text-xs text-muted">Áp dụng mẫu:</span>
             <button class="btn btn-outline btn-xs" @click="applyBatchTemplate('LatexTruck')">
               Xe Bồn Mủ (45p)
             </button>
@@ -680,22 +649,13 @@ function applyBatchTemplate(type: VehicleType) {
           <table class="table align-middle specific-vehicles-table mb-0">
             <thead>
               <tr>
-                <th style="width: 170px;">Phương Tiện</th>
-                <th style="width: 140px;">Đơn Vị Quản Lý</th>
-                <th style="width: 160px;" class="text-center">Chế Độ Áp Dụng</th>
-                <th style="width: 160px;" class="text-center">
-                  Đệm Giữa 2 Chuyến
-                  <div class="th-sub">(Turnaround Gap)</div>
-                </th>
-                <th style="width: 160px;" class="text-center">
-                  Giãn Cách Với Xe Khác
-                  <div class="th-sub">(Departure Interval)</div>
-                </th>
-                <th style="width: 150px;" class="text-center">
-                  Vệ Sinh Bồn Téc
-                  <div class="th-sub">(Cleaning Time)</div>
-                </th>
-                <th>Ghi Chú Vận Hành & Đặc Thù Xe</th>
+                <th style="width: 150px;">Phương Tiện</th>
+                <th style="width: 120px;">Đơn Vị</th>
+                <th style="width: 150px;" class="text-center">Chế Độ Áp Dụng</th>
+                <th style="width: 140px;" class="text-center">Đệm 2 Chuyến</th>
+                <th style="width: 140px;" class="text-center">Giãn Cách Xe Khác</th>
+                <th style="width: 140px;" class="text-center">Vệ Sinh Bồn</th>
+                <th>Ghi Chú Vận Hành</th>
               </tr>
             </thead>
             <tbody>
@@ -704,38 +664,28 @@ function applyBatchTemplate(type: VehicleType) {
                 :key="s.vehicleId"
                 :class="{ 'row-custom-active': s.useCustom }"
               >
-                <!-- Cột Xe -->
                 <td>
-                  <div class="veh-info-cell">
-                    <strong class="font-mono text-slate-800 text-sm">{{ s.licensePlate }}</strong>
-                    <span class="veh-type-sub">{{ getVehicleTypeLabel(s.vehicleType) }}</span>
-                  </div>
+                  <strong class="font-mono text-slate-800 text-sm">{{ s.licensePlate }}</strong>
+                  <div class="text-xxs text-muted">{{ getVehicleTypeLabel(s.vehicleType) }}</div>
                 </td>
 
-                <!-- Cột Đơn vị -->
                 <td>
                   <span v-if="s.operatingUnitType === 'Factory'" class="badge-unit-factory">Nhà máy</span>
-                  <span v-else class="badge-unit-team">{{ s.teamName || 'Đội sản xuất' }}</span>
+                  <span v-else class="badge-unit-team">{{ s.teamName || 'Đội' }}</span>
                 </td>
 
-                <!-- Chế độ áp dụng: Toggle switch -->
                 <td class="text-center">
-                  <div class="flex flex-col items-center gap-1">
-                    <button
-                      type="button"
-                      class="btn-toggle-custom"
-                      :class="{ active: s.useCustom }"
-                      @click="toggleVehicleCustom(s)"
-                    >
-                      <span class="toggle-slider"></span>
-                      <span class="toggle-text">{{ s.useCustom ? 'Cấu hình riêng' : 'Theo loại xe' }}</span>
-                    </button>
-                    <span v-if="s.useCustom" class="text-xxs font-bold text-emerald-700">Tùy biến riêng</span>
-                    <span v-else class="text-xxs text-muted">Mặc định chuẩn</span>
-                  </div>
+                  <button
+                    type="button"
+                    class="btn-toggle-custom"
+                    :class="{ active: s.useCustom }"
+                    @click="toggleVehicleCustom(s)"
+                  >
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-text">{{ s.useCustom ? 'Tùy biến' : 'Chuẩn loại' }}</span>
+                  </button>
                 </td>
 
-                <!-- Thời gian đệm giữa 2 chuyến -->
                 <td class="text-center">
                   <div class="input-spin-group" :class="{ disabled: !s.useCustom }">
                     <input
@@ -751,7 +701,6 @@ function applyBatchTemplate(type: VehicleType) {
                   </div>
                 </td>
 
-                <!-- Giãn cách so với xe khác -->
                 <td class="text-center">
                   <div class="input-spin-group" :class="{ disabled: !s.useCustom }">
                     <input
@@ -767,7 +716,6 @@ function applyBatchTemplate(type: VehicleType) {
                   </div>
                 </td>
 
-                <!-- Vệ sinh bồn téc / súc rửa -->
                 <td class="text-center">
                   <div class="input-spin-group" :class="{ disabled: !s.useCustom }">
                     <input
@@ -783,14 +731,13 @@ function applyBatchTemplate(type: VehicleType) {
                   </div>
                 </td>
 
-                <!-- Ghi chú vận hành -->
                 <td>
                   <input
                     v-model="s.notes"
                     type="text"
                     class="form-control form-control-sm text-xs"
                     :disabled="!s.useCustom"
-                    placeholder="Nhập ghi chú đặc thù (van xả chậm, xe chuyên chạy dài...)"
+                    placeholder="Ghi chú đặc thù..."
                   />
                 </td>
               </tr>
@@ -808,24 +755,22 @@ function applyBatchTemplate(type: VehicleType) {
     </div>
 
     <!-- ======================================================= -->
-    <!-- TAB 3: QUY CHUẨN CHUNG & THEO LOẠI XE (CATEGORY DEFAULTS)-->
+    <!-- TAB 3: QUY CHUẨN CHUNG & THEO LOẠI XE -->
     <!-- ======================================================= -->
-    <div v-if="activeTab === 'categories'" class="tab-content mt-4">
-      <div class="grid-2 gap-4">
+    <div v-if="activeTab === 'categories'" class="tab-content mt-3">
+      <div class="grid-2 gap-3">
         <!-- Cột 1: Cấu hình mặc định toàn hệ thống -->
-        <div class="card p-4">
-          <div class="card-header border-b pb-3 mb-4">
-            <h3 class="card-title text-base mb-0">
-              <Settings :size="17" class="text-primary inline mr-1" />
+        <div class="card p-3">
+          <div class="card-header border-b pb-2 mb-3">
+            <h3 class="card-title text-sm font-bold mb-0">
+              <Settings :size="15" class="text-primary inline mr-1" />
               <span>Quy Chuẩn Mặc Định Toàn Hệ Thống</span>
             </h3>
-            <p class="text-xs text-muted mt-1 mb-0">
-              Áp dụng cho các phương tiện chưa thiết lập cấu hình riêng
-            </p>
+            <span class="text-xs text-muted">Áp dụng cho các phương tiện chưa có cấu hình riêng</span>
           </div>
 
-          <div class="form-group mb-4">
-            <label class="form-label font-bold">Thời gian đệm tối thiểu giữa 2 chuyến của cùng 1 xe:</label>
+          <div class="form-group mb-3">
+            <label class="form-label font-bold text-xs">Đệm tối thiểu giữa 2 chuyến cùng xe:</label>
             <div class="input-group-with-unit">
               <input
                 v-model.number="config.defaultTurnaroundMinutes"
@@ -837,13 +782,13 @@ function applyBatchTemplate(type: VehicleType) {
               />
               <span class="unit-box">phút</span>
             </div>
-            <span class="text-xs text-muted mt-1 block">
-              Khuyến nghị từ 30 – 45 phút để tài xế bàn giao chứng từ mủ, kiểm tra lốp, thắng và nghỉ ngơi trước khi nhận chuyến kế tiếp.
+            <span class="text-xxs text-muted mt-0.5 block">
+              Thời gian bàn giao chứng từ, kiểm tra lốp phanh và nghỉ ngơi (khuyến nghị 30 - 45 phút).
             </span>
           </div>
 
-          <div class="form-group mb-4">
-            <label class="form-label font-bold">Thời gian giãn cách tối thiểu giữa 2 xe cùng xuất bến:</label>
+          <div class="form-group mb-3">
+            <label class="form-label font-bold text-xs">Giãn cách tối thiểu giữa 2 xe cùng xuất bến:</label>
             <div class="input-group-with-unit">
               <input
                 v-model.number="config.defaultInterVehicleIntervalMinutes"
@@ -855,70 +800,63 @@ function applyBatchTemplate(type: VehicleType) {
               />
               <span class="unit-box">phút</span>
             </div>
-            <span class="text-xs text-muted mt-1 block">
-              Tránh xe tập trung đồng thời tại các điểm trạm cân Nông trường hoặc hầm tiếp nhận mủ Nhà máy gây ùn ứ.
+            <span class="text-xxs text-muted mt-0.5 block">
+              Tránh tập trung đồng thời tại trạm cân hoặc hầm xả mủ gây ùn ứ.
             </span>
           </div>
 
           <div class="emergency-override-box">
-            <div class="flex items-start gap-3">
+            <label class="flex items-center gap-2 cursor-pointer mb-0">
               <input
                 id="emergency-override-checkbox"
                 v-model="config.allowEmergencyOverride"
                 type="checkbox"
-                class="mt-1 form-checkbox"
+                class="form-checkbox"
               />
-              <label for="emergency-override-checkbox" class="cursor-pointer">
-                <strong class="text-sm text-slate-800">Cho phép rút ngắn đệm khi Điều Xe Cứu Viện Khẩn Cấp</strong>
-                <p class="text-xs text-slate-600 mb-0 mt-0.5">
-                  Khi xảy ra sự cố hỏng xe téc giữa đường hoặc tràn mủ, điều phối viên có quyền bỏ qua đệm 30p để cử xe rỗng gần nhất đến ứng cứu ngay lập tức.
-                </p>
-              </label>
-            </div>
+              <span class="text-xs font-semibold text-slate-800">Bỏ qua đệm khi Điều Xe Cứu Viện Khẩn Cấp</span>
+            </label>
+            <p class="text-xxs text-slate-500 mb-0 mt-1 pl-5">
+              Cho phép điều phối viên bỏ qua đệm nghỉ để cử xe rỗng ứng cứu sự cố ngay lập tức.
+            </p>
           </div>
         </div>
 
         <!-- Cột 2: Cấu hình quy chuẩn theo từng loại phương tiện -->
-        <div class="card p-4">
-          <div class="card-header border-b pb-3 mb-4">
-            <h3 class="card-title text-base mb-0">
-              <Layers :size="17" class="text-primary inline mr-1" />
-              <span>Quy Chuẩn Theo Chủng Loại Phương Tiện</span>
+        <div class="card p-3">
+          <div class="card-header border-b pb-2 mb-3">
+            <h3 class="card-title text-sm font-bold mb-0">
+              <Layers :size="15" class="text-primary inline mr-1" />
+              <span>Định Mức Theo Chủng Loại Xe</span>
             </h3>
-            <p class="text-xs text-muted mt-1 mb-0">
-              Định mức thời gian đệm và vệ sinh đặc thù theo tính chất hàng hóa cao su
-            </p>
+            <span class="text-xs text-muted">Thời gian đệm và vệ sinh theo đặc thù phương tiện</span>
           </div>
 
-          <!-- Xe bồn téc chở mủ cao su -->
-          <div class="category-config-card mb-3">
+          <!-- Xe bồn téc chở mủ -->
+          <div class="category-config-card mb-2">
             <div class="cat-header">
               <div class="cat-title-wrap">
-                <Truck :size="16" class="text-primary" />
-                <strong class="text-slate-800 text-sm">1. Xe Bồn Téc Chở Mủ Cao Su (Latex Truck)</strong>
+                <Truck :size="14" class="text-primary" />
+                <strong class="text-slate-800 text-xs">Xe Bồn Chở Mủ (Latex Truck)</strong>
               </div>
-              <span class="badge-cat latex">Trọng Điểm Mủ</span>
+              <span class="badge-cat latex">Mủ Cao Su</span>
             </div>
-            <p class="cat-desc text-xs text-slate-600">
-              Cần thời gian xả cặn mủ tươi, súc rửa bồn téc bằng nước áp lực cao và kiểm tra gioăng nắp van xả trước khi nhận đợt mủ kế tiếp.
-            </p>
-            <div class="cat-inputs-row">
+            <div class="cat-inputs-row mt-2">
               <div class="cat-input-item">
-                <span class="cat-input-lbl">Đệm giữa 2 chuyến:</span>
+                <span class="cat-input-lbl">Đệm 2 chuyến:</span>
                 <div class="input-with-unit-mini">
                   <input v-model.number="config.vehicleTypeSettings.LatexTruck.turnaroundBufferMinutes" type="number" class="form-control" />
                   <span>phút</span>
                 </div>
               </div>
               <div class="cat-input-item">
-                <span class="cat-input-lbl">Giãn cách với xe khác:</span>
+                <span class="cat-input-lbl">Giãn cách:</span>
                 <div class="input-with-unit-mini">
                   <input v-model.number="config.vehicleTypeSettings.LatexTruck.interVehicleIntervalMinutes" type="number" class="form-control" />
                   <span>phút</span>
                 </div>
               </div>
               <div class="cat-input-item">
-                <span class="cat-input-lbl">Thời gian súc rửa bồn:</span>
+                <span class="cat-input-lbl">Súc rửa bồn:</span>
                 <div class="input-with-unit-mini">
                   <input v-model.number="config.vehicleTypeSettings.LatexTruck.cleaningDurationMinutes" type="number" class="form-control" />
                   <span>phút</span>
@@ -927,35 +865,32 @@ function applyBatchTemplate(type: VehicleType) {
             </div>
           </div>
 
-          <!-- Xe chở người / cán bộ kỹ thuật -->
-          <div class="category-config-card mb-3">
+          <!-- Xe chở người / cán bộ -->
+          <div class="category-config-card mb-2">
             <div class="cat-header">
               <div class="cat-title-wrap">
-                <Car :size="16" class="text-info" />
-                <strong class="text-slate-800 text-sm">2. Xe Chở Người / Chuyên Gia (Passenger Car)</strong>
+                <Car :size="14" class="text-info" />
+                <strong class="text-slate-800 text-xs">Xe Chở Người / Cán Bộ (Passenger Car)</strong>
               </div>
               <span class="badge-cat passenger">Công Vụ</span>
             </div>
-            <p class="cat-desc text-xs text-slate-600">
-              Phục vụ đưa đón công nhân cạo mủ, cán bộ nông trường và đoàn chuyên gia. Quy trình quay đầu nhanh gọn.
-            </p>
-            <div class="cat-inputs-row">
+            <div class="cat-inputs-row mt-2">
               <div class="cat-input-item">
-                <span class="cat-input-lbl">Đệm giữa 2 chuyến:</span>
+                <span class="cat-input-lbl">Đệm 2 chuyến:</span>
                 <div class="input-with-unit-mini">
                   <input v-model.number="config.vehicleTypeSettings.PassengerCar.turnaroundBufferMinutes" type="number" class="form-control" />
                   <span>phút</span>
                 </div>
               </div>
               <div class="cat-input-item">
-                <span class="cat-input-lbl">Giãn cách với xe khác:</span>
+                <span class="cat-input-lbl">Giãn cách:</span>
                 <div class="input-with-unit-mini">
                   <input v-model.number="config.vehicleTypeSettings.PassengerCar.interVehicleIntervalMinutes" type="number" class="form-control" />
                   <span>phút</span>
                 </div>
               </div>
               <div class="cat-input-item">
-                <span class="cat-input-lbl">Vệ sinh khoang xe:</span>
+                <span class="cat-input-lbl">Vệ sinh:</span>
                 <div class="input-with-unit-mini">
                   <input v-model.number="config.vehicleTypeSettings.PassengerCar.cleaningDurationMinutes" type="number" class="form-control" />
                   <span>phút</span>
@@ -968,31 +903,28 @@ function applyBatchTemplate(type: VehicleType) {
           <div class="category-config-card">
             <div class="cat-header">
               <div class="cat-title-wrap">
-                <Sliders :size="16" class="text-amber" />
-                <strong class="text-slate-800 text-sm">3. Cơ Giới Nông Trường / Máy Xúc (Milling Machine)</strong>
+                <Sliders :size="14" class="text-amber" />
+                <strong class="text-slate-800 text-xs">Xe Cơ Giới / Máy Xúc (Milling Machine)</strong>
               </div>
               <span class="badge-cat milling">Cơ Giới</span>
             </div>
-            <p class="cat-desc text-xs text-slate-600">
-              Kiểm tra mức dầu bôi trơn, áp suất dầu thủy lực và hệ thống xích truyền động trước khi sang lô cạo mới.
-            </p>
-            <div class="cat-inputs-row">
+            <div class="cat-inputs-row mt-2">
               <div class="cat-input-item">
-                <span class="cat-input-lbl">Đệm giữa 2 ca/chuyến:</span>
+                <span class="cat-input-lbl">Đệm 2 ca máy:</span>
                 <div class="input-with-unit-mini">
                   <input v-model.number="config.vehicleTypeSettings.MillingMachine.turnaroundBufferMinutes" type="number" class="form-control" />
                   <span>phút</span>
                 </div>
               </div>
               <div class="cat-input-item">
-                <span class="cat-input-lbl">Giãn cách với xe khác:</span>
+                <span class="cat-input-lbl">Giãn cách:</span>
                 <div class="input-with-unit-mini">
                   <input v-model.number="config.vehicleTypeSettings.MillingMachine.interVehicleIntervalMinutes" type="number" class="form-control" />
                   <span>phút</span>
                 </div>
               </div>
               <div class="cat-input-item">
-                <span class="cat-input-lbl">Kiểm tra kỹ thuật:</span>
+                <span class="cat-input-lbl">Kiểm tra máy:</span>
                 <div class="input-with-unit-mini">
                   <input v-model.number="config.vehicleTypeSettings.MillingMachine.cleaningDurationMinutes" type="number" class="form-control" />
                   <span>phút</span>
@@ -1123,41 +1055,59 @@ function applyBatchTemplate(type: VehicleType) {
   color: #166534;
 }
 
-/* FILTER CONTROLS GRID */
-.filter-controls-grid {
-  display: grid;
-  grid-template-columns: 180px 220px 200px 1fr;
-  gap: 16px;
-  align-items: center;
+/* FILTER CONTROLS TOOLBAR */
+.filter-toolbar {
+  margin-bottom: 4px;
 }
 
-.kpi-mini-box {
+.filter-row {
   display: flex;
   align-items: center;
-  gap: 16px;
-  justify-content: flex-end;
-  background: #f8fafc;
-  padding: 8px 14px;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
-.kpi-mini-item {
+.filter-item {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
+  align-items: center;
+  gap: 6px;
 }
 
-.kpi-lbl {
+.filter-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #475569;
+  white-space: nowrap;
+}
+
+.filter-stats {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.stat-pill {
   font-size: 0.6875rem;
-  color: #64748b;
-  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+  white-space: nowrap;
 }
 
-.kpi-val {
-  font-size: 1rem;
-  font-weight: 800;
-  line-height: 1.2;
+.stat-pill-ok {
+  background: #ecfdf5;
+  color: #065f46;
+  border-color: #a7f3d0;
+}
+
+.stat-pill-warn {
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #fde68a;
+  font-weight: 700;
 }
 
 /* TIMELINE STYLES */
