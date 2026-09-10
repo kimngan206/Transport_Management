@@ -12,6 +12,7 @@ import {
   initialMaintenanceTypes,
   initialEcotechHubs,
   initialVehicleAssignments,
+  initialHandovers,
 } from '@/mocks';
 import type {
   User,
@@ -261,6 +262,7 @@ function checkAndMigrateStorage() {
     initIfMissing(STORAGE_KEYS.MAINTENANCE_TYPES, initialMaintenanceTypes);
     initIfMissing(STORAGE_KEYS.HUBS, initialEcotechHubs);
     initIfMissing(STORAGE_KEYS.DRIVER_ASSIGNMENTS, initialVehicleAssignments);
+    initIfMissing(STORAGE_KEYS.HANDOVERS, initialHandovers);
 
     // Cập nhật phiên bản mà không xóa đè dữ liệu của người dùng
     if (typeof localStorage !== 'undefined') localStorage.setItem(STORAGE_KEYS.DATA_VERSION, CURRENT_DATA_VERSION);
@@ -303,6 +305,7 @@ export const mockStorage = {
     saveToStorage(STORAGE_KEYS.MAINTENANCE_TYPES, initialMaintenanceTypes);
     saveToStorage(STORAGE_KEYS.HUBS, initialEcotechHubs);
     saveToStorage(STORAGE_KEYS.DRIVER_ASSIGNMENTS, initialVehicleAssignments);
+    saveToStorage(STORAGE_KEYS.HANDOVERS, initialHandovers);
     saveToStorage(STORAGE_KEYS.CURRENT_USER_ID, 3, true);
     saveToStorage(STORAGE_KEYS.ACTIVE_ROLE, 'Dispatcher', true);
 
@@ -614,12 +617,49 @@ export const mockStorage = {
 
   // BÀN GIAO MƯỢN TRẢ XE (HANDOVERS)
   getHandovers<T = any>(defaultHandovers: T[] = []): T[] {
-    const res = getFromStorage<T[]>(STORAGE_KEYS.HANDOVERS, defaultHandovers);
-    if (!Array.isArray(res)) {
-      saveToStorage(STORAGE_KEYS.HANDOVERS, defaultHandovers);
-      return [...defaultHandovers];
+    const fallback = (defaultHandovers && defaultHandovers.length > 0) ? defaultHandovers : (initialHandovers as any[]);
+    const res = getFromStorage<T[]>(STORAGE_KEYS.HANDOVERS, fallback as T[]);
+    if (!Array.isArray(res) || res.length === 0) {
+      saveToStorage(STORAGE_KEYS.HANDOVERS, fallback);
+      return [...fallback] as T[];
     }
-    return res;
+    // Tự động chuẩn hóa dữ liệu cũ (backward compatibility & self-healing)
+    let modified = false;
+    const normalized = res.map((h: any) => {
+      let status = h.status;
+      if (status === 'Đang mượn') { status = 'BORROWING'; modified = true; }
+      else if (status === 'Đã trả') { status = 'RETURNED'; modified = true; }
+      else if (status === 'Quá hạn') { status = 'OVERDUE'; modified = true; }
+      else if (status === 'Đã hủy') { status = 'CANCELLED'; modified = true; }
+      else if (!status) { status = 'BORROWING'; modified = true; }
+
+      const borrowStartAt = h.borrowStartAt || h.borrowTime || '2026-09-07 07:30';
+      const expectedReturnAt = h.expectedReturnAt || h.returnTime || '2026-09-07 11:30';
+      const actualReturnAt = h.actualReturnAt || (status === 'RETURNED' ? (h.returnTime || expectedReturnAt) : undefined);
+      const fromTeam = h.fromTeam || (h.id === 1 ? 'Đội 1' : 'Đội công ty');
+      const toTeam = h.toTeam || (h.id === 1 ? 'Đội 2' : 'Đội kỹ thuật');
+
+      if (!h.fromTeam || !h.toTeam || !h.borrowStartAt) modified = true;
+
+      return {
+        ...h,
+        status,
+        fromTeam,
+        toTeam,
+        borrowStartAt,
+        expectedReturnAt,
+        actualReturnAt,
+        driverName: h.driverName || h.driver || 'Phạm Văn Tài',
+        handoverOdo: Number(h.handoverOdo) || 0,
+        fuelLevel: h.fuelLevel || '85%',
+        conditionNotes: h.conditionNotes || h.notes || '',
+      };
+    });
+
+    if (modified) {
+      saveToStorage(STORAGE_KEYS.HANDOVERS, normalized);
+    }
+    return normalized as T[];
   },
   saveHandovers<T = any>(data: T[]) {
     saveToStorage(STORAGE_KEYS.HANDOVERS, data);

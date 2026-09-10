@@ -20,6 +20,10 @@ import {
   Building2,
   Info,
   CheckCircle2,
+  Search,
+  Filter,
+  X,
+  RotateCcw,
 } from 'lucide-vue-next';
 
 const route = useRoute();
@@ -105,6 +109,7 @@ const defaultHandovers: HandoverRecord[] = [
 ];
 const handoverList = ref<HandoverRecord[]>(mockStorage.getHandovers(defaultHandovers));
 const handoverStatusFilter = ref<'ALL' | HandoverStatus>('ALL');
+const searchHandoverKeyword = ref('');
 const isDriverRole = computed(() => authStore.activeRole === 'Driver');
 const isDispatcherRole = computed(() => authStore.activeRole === 'Dispatcher' || authStore.activeRole === 'Admin');
 const currentDriverId = computed(() => authStore.currentUser.driverId ?? null);
@@ -123,11 +128,24 @@ const visibleHandovers = computed(() => {
 });
 
 const filteredHandovers = computed(() => {
-  const list = visibleHandovers.value;
-  if (handoverStatusFilter.value === 'ALL') {
-    return list;
+  let list = visibleHandovers.value;
+  if (handoverStatusFilter.value !== 'ALL') {
+    list = list.filter((h) => h.status === handoverStatusFilter.value);
   }
-  return list.filter((h) => h.status === handoverStatusFilter.value);
+  if (searchHandoverKeyword.value.trim()) {
+    const q = searchHandoverKeyword.value.trim().toLowerCase();
+    list = list.filter((h) => {
+      return (
+        h.vehiclePlate?.toLowerCase().includes(q) ||
+        h.driverName?.toLowerCase().includes(q) ||
+        h.fromTeam?.toLowerCase().includes(q) ||
+        h.toTeam?.toLowerCase().includes(q) ||
+        h.conditionNotes?.toLowerCase().includes(q) ||
+        h.note?.toLowerCase().includes(q)
+      );
+    });
+  }
+  return list;
 });
 
 const handoverSummary = computed(() => {
@@ -137,8 +155,14 @@ const handoverSummary = computed(() => {
     borrowing: list.filter((h) => h.status === 'BORROWING').length,
     returned: list.filter((h) => h.status === 'RETURNED').length,
     overdue: list.filter((h) => h.status === 'OVERDUE').length,
+    cancelled: list.filter((h) => h.status === 'CANCELLED').length,
   };
 });
+
+function resetHandoverFilters() {
+  handoverStatusFilter.value = 'ALL';
+  searchHandoverKeyword.value = '';
+}
 
 function syncVehicleStatusFromHandover(record: HandoverRecord) {
   const vehicle = fleetStore.vehicles.find((v) => v.licensePlate === record.vehiclePlate);
@@ -1279,37 +1303,51 @@ function handleDeleteHandover(record: HandoverRecord) {
         </button>
       </div>
 
-      <div class="card-header flex-between" style="margin-bottom: 12px;">
-        <div class="filter-actions">
-          <div class="filter-item">
-            <span class="filter-label">Trạng thái:</span>
-            <select v-model="handoverStatusFilter" class="filter-select">
-              <option value="ALL">Tất cả</option>
-              <option value="BORROWING">Đang mượn</option>
-              <option value="RETURNED">Đã trả</option>
-              <option value="OVERDUE">Quá hạn</option>
-              <option value="CANCELLED">Đã hủy</option>
+      <!-- Thanh Công Cụ Tìm Kiếm & Lọc Trạng Thái Chuẩn Doanh Nghiệp -->
+      <div class="handover-toolbar">
+        <div class="handover-search-wrap">
+          <Search :size="15" class="handover-search-ico" />
+          <input
+            v-model="searchHandoverKeyword"
+            type="text"
+            class="handover-search-input"
+            placeholder="Tìm theo biển số xe, tên tài xế, đội gửi / nhận..."
+          />
+          <button
+            v-if="searchHandoverKeyword"
+            class="btn-clear-search"
+            @click="searchHandoverKeyword = ''"
+            title="Xóa tìm kiếm"
+          >
+            <X :size="13" />
+          </button>
+        </div>
+
+        <div class="handover-filter-right">
+          <div class="filter-select-box">
+            <Filter :size="13" class="filter-select-ico" />
+            <select v-model="handoverStatusFilter" class="custom-select-input">
+              <option value="ALL">Tất cả trạng thái ({{ handoverSummary.total }})</option>
+              <option value="BORROWING">Đang mượn ({{ handoverSummary.borrowing }})</option>
+              <option value="RETURNED">Đã trả ({{ handoverSummary.returned }})</option>
+              <option value="OVERDUE">Quá hạn ({{ handoverSummary.overdue }})</option>
+              <option value="CANCELLED">Đã hủy ({{ handoverSummary.cancelled }})</option>
             </select>
           </div>
-        </div>
-      </div>
 
-      <div style="display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px;">
-        <div style="padding: 12px 14px; border-radius: 12px; border: 1px solid #dfe7ef; background: linear-gradient(135deg, #fef3c7, #fff7ed);">
-          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #8a5b00; font-weight: 700;">Đang mượn</div>
-          <div style="margin-top: 8px; font-size: 22px; font-weight: 800; color: #7c3f00;">{{ handoverSummary.borrowing }}</div>
-        </div>
-        <div style="padding: 12px 14px; border-radius: 12px; border: 1px solid #dfe7ef; background: linear-gradient(135deg, #dcfce7, #f0fdf4);">
-          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #166534; font-weight: 700;">Đã trả</div>
-          <div style="margin-top: 8px; font-size: 22px; font-weight: 800; color: #166534;">{{ handoverSummary.returned }}</div>
-        </div>
-        <div style="padding: 12px 14px; border-radius: 12px; border: 1px solid #dfe7ef; background: linear-gradient(135deg, #fce7f3, #fff1f2);">
-          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #9d174d; font-weight: 700;">Quá hạn</div>
-          <div style="margin-top: 8px; font-size: 22px; font-weight: 800; color: #9d174d;">{{ handoverSummary.overdue }}</div>
-        </div>
-        <div style="padding: 12px 14px; border-radius: 12px; border: 1px solid #dfe7ef; background: linear-gradient(135deg, #dbeafe, #eff6ff);">
-          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #1d4ed8; font-weight: 700;">Tổng phiếu</div>
-          <div style="margin-top: 8px; font-size: 22px; font-weight: 800; color: #1e3a8a;">{{ handoverSummary.total }}</div>
+          <button
+            v-if="handoverStatusFilter !== 'ALL' || searchHandoverKeyword"
+            class="btn btn-outline btn-sm"
+            @click="resetHandoverFilters"
+            title="Đặt lại bộ lọc"
+          >
+            <RotateCcw :size="13" />
+            <span>Đặt lại</span>
+          </button>
+
+          <span class="text-xs text-muted font-medium ml-1">
+            Hiển thị <strong>{{ filteredHandovers.length }}</strong> / {{ handoverSummary.total }} biên bản
+          </span>
         </div>
       </div>
 
@@ -1331,6 +1369,18 @@ function handleDeleteHandover(record: HandoverRecord) {
             </tr>
           </thead>
           <tbody>
+            <tr v-if="filteredHandovers.length === 0">
+              <td :colspan="isDriverRole ? 8 : 11" class="text-center py-5">
+                <div class="empty-state-subtab">
+                  <Truck :size="36" class="text-muted opacity-40 mb-2" />
+                  <p class="text-sm text-muted font-medium">Không tìm thấy biên bản bàn giao nào phù hợp với bộ lọc hiện tại.</p>
+                  <button v-if="handoverStatusFilter !== 'ALL' || searchHandoverKeyword" class="btn btn-outline btn-sm mt-2" @click="resetHandoverFilters">
+                    <RotateCcw :size="13" />
+                    <span>Xem tất cả biên bản</span>
+                  </button>
+                </div>
+              </td>
+            </tr>
             <tr v-for="h in filteredHandovers" :key="h.id">
               <td>
                 <strong>{{ h.vehiclePlate }}</strong>
@@ -2451,4 +2501,108 @@ function handleDeleteHandover(record: HandoverRecord) {
 .text-amber-600 {
   color: #d97706;
 }
+
+/* Handover Toolbar */
+.handover-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  background: #f8fafc;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  margin-top: 14px;
+  margin-bottom: 16px;
+}
+
+.handover-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 260px;
+}
+
+.handover-search-ico {
+  position: absolute;
+  left: 12px;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.handover-search-input {
+  width: 100%;
+  padding: 8px 32px 8px 34px;
+  border-radius: 7px;
+  border: 1px solid #cbd5e1;
+  background-color: #ffffff;
+  font-size: 0.8125rem;
+  color: #0f172a;
+  outline: none;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.handover-search-input:focus {
+  border-color: #059669;
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.15);
+}
+
+.handover-filter-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.filter-select-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.filter-select-ico {
+  position: absolute;
+  left: 10px;
+  color: #64748b;
+  pointer-events: none;
+}
+
+.custom-select-input {
+  appearance: none;
+  padding: 7px 28px 7px 30px;
+  border-radius: 7px;
+  border: 1px solid #cbd5e1;
+  background-color: #ffffff;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #334155;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748b'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 14px;
+}
+
+.custom-select-input:focus {
+  border-color: #059669;
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.15);
+}
+
+.btn-clear-search {
+  position: absolute;
+  right: 8px;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 2px;
+}
+.btn-clear-search:hover { color: #475569; }
 </style>

@@ -11,6 +11,7 @@ import type {
   MaintenanceRecord,
   MaintenanceType,
   VehicleAssignmentHistory,
+  HandoverRecord,
 } from '@/types';
 import type { HubLocation } from '@/types/map';
 import {
@@ -1359,5 +1360,47 @@ export const initialVehicleAssignments: VehicleAssignmentHistory[] = [
     driverName: 'Đỗ Văn Máy',
     assignedFrom: '2024-11-20',
     notes: 'Phân công thợ cơ giới chuyên trách máy đào',
+  },
+];
+
+// ==========================================
+// 14. BIÊN BẢN BÀN GIAO & MƯỢN TRẢ XE (HANDOVERS)
+// ==========================================
+export const initialHandovers: HandoverRecord[] = [
+  {
+    id: 1,
+    vehicleId: 1,
+    vehiclePlate: '51C-889.26',
+    fromTeam: 'Đội 1',
+    toTeam: 'Đội 2',
+    driverName: 'Phạm Văn Tài',
+    fromDriverId: 101,
+    borrowStartAt: '2026-09-07 07:30',
+    expectedReturnAt: '2026-09-07 11:30',
+    actualReturnAt: '2026-09-07 11:30',
+    handoverOdo: 125620,
+    returnOdo: 125680,
+    fuelLevel: '85%',
+    conditionNotes: 'Xe sạch, áp suất lốp đủ, phanh hoạt động tốt, đầy đủ giấy tờ',
+    status: 'BORROWING',
+    createdAt: '2026-09-07 07:30',
+  },
+  {
+    id: 2,
+    vehicleId: 3,
+    vehiclePlate: '51A-992.34',
+    fromTeam: 'Đội công ty',
+    toTeam: 'Đội kỹ thuật',
+    driverName: 'Lê Văn Tài',
+    fromDriverId: 103,
+    borrowStartAt: '2026-09-06 13:00',
+    expectedReturnAt: '2026-09-06 17:30',
+    actualReturnAt: '2026-09-06 17:30',
+    handoverOdo: 89400,
+    returnOdo: 89480,
+    fuelLevel: '90%',
+    conditionNotes: 'Đã trả xe nguyên trạng về bãi đỗ văn phòng công ty',
+    status: 'RETURNED',
+    createdAt: '2026-09-06 13:00',
   },
 ];
