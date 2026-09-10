@@ -766,7 +766,7 @@ function applyBatchTemplate(type: VehicleType) {
     <!-- TAB 3: QUY CHUẨN CHUNG & THEO LOẠI XE -->
     <!-- ======================================================= -->
     <div v-if="activeTab === 'categories'" class="tab-content mt-3">
-      <div class="grid-2 gap-3">
+      <div class="grid-2 gap-4">
         <!-- Cột 1: Cấu hình mặc định toàn hệ thống -->
         <div class="card p-4 category-panel-card">
           <div class="panel-card-header">
@@ -781,12 +781,12 @@ function applyBatchTemplate(type: VehicleType) {
             </div>
           </div>
 
-          <div class="default-rules-list mt-3">
+          <div class="default-rules-list">
             <!-- Rule 1: Đệm 2 chuyến -->
             <div class="rule-setting-card">
               <div class="rule-info">
                 <div class="rule-title-row">
-                  <Clock :size="15" class="text-primary" />
+                  <Clock :size="16" class="text-primary" />
                   <strong class="rule-title">Thời gian đệm nghỉ giữa 2 chuyến:</strong>
                 </div>
                 <p class="rule-desc">
@@ -809,10 +809,10 @@ function applyBatchTemplate(type: VehicleType) {
             </div>
 
             <!-- Rule 2: Giãn cách xuất bến -->
-            <div class="rule-setting-card mt-3">
+            <div class="rule-setting-card">
               <div class="rule-info">
                 <div class="rule-title-row">
-                  <ArrowRight :size="15" class="text-emerald-600" />
+                  <ArrowRight :size="16" class="text-emerald-600" />
                   <strong class="rule-title">Giãn cách xuất bến tối thiểu giữa 2 xe:</strong>
                 </div>
                 <p class="rule-desc">
@@ -835,7 +835,7 @@ function applyBatchTemplate(type: VehicleType) {
             </div>
 
             <!-- Rule 3: Chế độ điều xe cứu viện khẩn cấp -->
-            <div class="emergency-override-card mt-3" :class="{ active: config.allowEmergencyOverride }">
+            <div class="emergency-override-card" :class="{ active: config.allowEmergencyOverride }">
               <div class="emergency-card-body">
                 <div class="emergency-icon-wrap">
                   <ShieldCheck v-if="config.allowEmergencyOverride" :size="20" class="text-amber-600" />
@@ -876,13 +876,13 @@ function applyBatchTemplate(type: VehicleType) {
             </div>
           </div>
 
-          <div class="type-cards-list mt-3">
+          <div class="type-cards-list">
             <!-- Xe bồn téc chở mủ -->
-            <div class="type-setting-card mb-3">
+            <div class="type-setting-card">
               <div class="type-card-header">
                 <div class="type-title-box">
                   <div class="type-icon-circle latex">
-                    <Truck :size="16" />
+                    <Truck :size="18" />
                   </div>
                   <div>
                     <strong class="type-name">Xe Bồn Chở Mủ</strong>
@@ -892,7 +892,7 @@ function applyBatchTemplate(type: VehicleType) {
                 <span class="badge-cat latex">Mủ Cao Su</span>
               </div>
 
-              <div class="type-params-grid mt-3">
+              <div class="type-params-grid">
                 <div class="type-param-item">
                   <span class="type-param-label">
                     <Clock :size="13" class="text-slate-400" />
@@ -932,11 +932,11 @@ function applyBatchTemplate(type: VehicleType) {
             </div>
 
             <!-- Xe chở người / cán bộ -->
-            <div class="type-setting-card mb-3">
+            <div class="type-setting-card">
               <div class="type-card-header">
                 <div class="type-title-box">
                   <div class="type-icon-circle passenger">
-                    <Car :size="16" />
+                    <Car :size="18" />
                   </div>
                   <div>
                     <strong class="type-name">Xe Chở Người / Cán Bộ</strong>
@@ -946,7 +946,7 @@ function applyBatchTemplate(type: VehicleType) {
                 <span class="badge-cat passenger">Công Vụ</span>
               </div>
 
-              <div class="type-params-grid mt-3">
+              <div class="type-params-grid">
                 <div class="type-param-item">
                   <span class="type-param-label">
                     <Clock :size="13" class="text-slate-400" />
@@ -990,7 +990,7 @@ function applyBatchTemplate(type: VehicleType) {
               <div class="type-card-header">
                 <div class="type-title-box">
                   <div class="type-icon-circle milling">
-                    <Sliders :size="16" />
+                    <Sliders :size="18" />
                   </div>
                   <div>
                     <strong class="type-name">Xe Cơ Giới / Máy Xúc</strong>
@@ -1000,7 +1000,7 @@ function applyBatchTemplate(type: VehicleType) {
                 <span class="badge-cat milling">Cơ Giới</span>
               </div>
 
-              <div class="type-params-grid mt-3">
+              <div class="type-params-grid">
                 <div class="type-param-item">
                   <span class="type-param-label">
                     <Clock :size="13" class="text-slate-400" />
@@ -1906,13 +1906,15 @@ function applyBatchTemplate(type: VehicleType) {
 .category-panel-card {
   background: #ffffff;
   border: 1px solid #e2e8f0;
-  border-radius: 12px;
+  border-radius: 14px;
+  padding: 24px !important;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
 .panel-card-header {
-  padding-bottom: 12px;
+  padding-bottom: 16px;
   border-bottom: 1px solid #f1f5f9;
+  margin-bottom: 20px;
 }
 
 .panel-header-title-wrap {
@@ -1922,8 +1924,8 @@ function applyBatchTemplate(type: VehicleType) {
 }
 
 .panel-icon-wrap {
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
   border-radius: 10px;
   display: flex;
   align-items: center;
@@ -1951,18 +1953,24 @@ function applyBatchTemplate(type: VehicleType) {
 .panel-subtitle {
   font-size: 0.75rem;
   color: #64748b;
-  margin: 2px 0 0 0;
+  margin: 3px 0 0 0;
+}
+
+.default-rules-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
 .rule-setting-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 14px 16px;
+  gap: 20px;
+  padding: 20px 22px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
-  border-radius: 10px;
+  border-radius: 12px;
   transition: all 0.15s ease;
 }
 
@@ -1979,21 +1987,21 @@ function applyBatchTemplate(type: VehicleType) {
 .rule-title-row {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-bottom: 4px;
+  gap: 8px;
+  margin-bottom: 6px;
 }
 
 .rule-title {
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 700;
   color: #1e293b;
 }
 
 .rule-desc {
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   color: #64748b;
   margin: 0;
-  line-height: 1.4;
+  line-height: 1.55;
 }
 
 .input-unit-composite {
@@ -2043,8 +2051,8 @@ function applyBatchTemplate(type: VehicleType) {
 .emergency-override-card {
   background: #f8fafc;
   border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 14px 16px;
+  border-radius: 12px;
+  padding: 20px 22px;
   transition: all 0.2s ease;
 }
 
@@ -2056,13 +2064,13 @@ function applyBatchTemplate(type: VehicleType) {
 .emergency-card-body {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
 }
 
 .emergency-icon-wrap {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
   background: #ffffff;
   display: flex;
   align-items: center;
@@ -2082,17 +2090,17 @@ function applyBatchTemplate(type: VehicleType) {
 
 .emergency-title {
   display: block;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 700;
   color: #1e293b;
-  margin-bottom: 2px;
+  margin-bottom: 4px;
 }
 
 .emergency-desc {
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   color: #64748b;
   margin: 0;
-  line-height: 1.35;
+  line-height: 1.5;
 }
 
 /* TOGGLE SWITCH */
@@ -2144,11 +2152,17 @@ function applyBatchTemplate(type: VehicleType) {
 }
 
 /* TYPE SETTING CARDS (RIGHT COLUMN) */
+.type-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
 .type-setting-card {
   background: #f8fafc;
   border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 14px 16px;
+  border-radius: 12px;
+  padding: 20px 22px;
   transition: all 0.15s ease;
 }
 
@@ -2162,18 +2176,19 @@ function applyBatchTemplate(type: VehicleType) {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  margin-bottom: 16px;
 }
 
 .type-title-box {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
 .type-icon-circle {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2196,7 +2211,7 @@ function applyBatchTemplate(type: VehicleType) {
 }
 
 .type-name {
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 800;
   color: #0f172a;
 }
@@ -2205,25 +2220,26 @@ function applyBatchTemplate(type: VehicleType) {
   display: block;
   font-size: 0.6875rem;
   color: #64748b;
+  margin-top: 1px;
 }
 
 .type-params-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
+  gap: 20px;
 }
 
 .type-param-item {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .type-param-label {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-size: 0.75rem;
+  gap: 6px;
+  font-size: 0.8125rem;
   font-weight: 700;
   color: #475569;
 }
