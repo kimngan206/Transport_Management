@@ -206,6 +206,12 @@ function getVehicleTripWaypoints(v: VehicleMapState): [number, number][] {
     finalPts = [startPt, endPt];
   }
 
+  // Đảm bảo điểm đầu và cuối trùng khít 100% với tọa độ GPS của Hub xuất phát và Hub đích
+  if (finalPts.length >= 2) {
+    finalPts[0] = startPt;
+    finalPts[finalPts.length - 1] = endPt;
+  }
+
   return finalPts;
 }
 

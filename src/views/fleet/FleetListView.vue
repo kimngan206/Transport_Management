@@ -170,7 +170,7 @@ const defaultHandovers: HandoverRecord[] = [
     handoverOdo: 89400,
     returnOdo: 89480,
     fuelLevel: '90%',
-    conditionNotes: 'Đã bàn giao ca theo biên bản kiểm tra tình trạng xe',
+    conditionNotes: 'Đã bàn giao xe theo biên bản kiểm tra tình trạng xe',
     status: 'RETURNED',
     createdAt: '2026-09-06 13:00',
   },
@@ -1712,7 +1712,7 @@ function handleDeleteHandover(record: HandoverRecord) {
         </button>
       </div>
 
-      <!-- Thanh chuyển đổi phân hệ: Bàn giao ca vs Điều chuyển & Bộ lọc -->
+      <!-- Thanh chuyển đổi phân hệ: Bàn giao xe vs Điều chuyển & Bộ lọc -->
       <div class="handover-toolbar">
         <!-- Segmented Tab Toggle -->
         <div class="segmented-control">
@@ -1722,7 +1722,7 @@ function handleDeleteHandover(record: HandoverRecord) {
             :class="{ active: handoverSectionTab === 'HANDOVER' }"
             @click="handoverSectionTab = 'HANDOVER'"
           >
-            Bàn giao ca
+            Bàn giao xe
           </button>
           <button
             type="button"

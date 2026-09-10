@@ -869,6 +869,40 @@ export const mockStorage = {
       }
       return [...defaultRoutes];
     }
+
+    // Tự động đồng bộ tọa độ GPS trạm từ danh mục đường bộ chuẩn
+    let modified = false;
+    const roadCoords: Record<string, { lat: number; lng: number }> = {
+      TC1: { lat: 11.51138, lng: 106.60247 },
+      D1: { lat: 11.56658, lng: 106.63256 },
+      D2: { lat: 11.58909, lng: 106.56799 },
+      D3: { lat: 11.62039, lng: 106.67075 },
+      NM: { lat: 11.48501, lng: 106.62013 },
+      VP: { lat: 11.47200, lng: 106.61504 },
+    };
+
+    res.forEach((r: any) => {
+      if (r.from && roadCoords[r.from.code || r.from.id]) {
+        const rc = roadCoords[r.from.code || r.from.id];
+        if (Math.abs(r.from.lat - rc.lat) > 0.00005 || Math.abs(r.from.lng - rc.lng) > 0.00005) {
+          r.from.lat = rc.lat;
+          r.from.lng = rc.lng;
+          modified = true;
+        }
+      }
+      if (r.to && roadCoords[r.to.code || r.to.id]) {
+        const rc = roadCoords[r.to.code || r.to.id];
+        if (Math.abs(r.to.lat - rc.lat) > 0.00005 || Math.abs(r.to.lng - rc.lng) > 0.00005) {
+          r.to.lat = rc.lat;
+          r.to.lng = rc.lng;
+          modified = true;
+        }
+      }
+    });
+    if (modified) {
+      saveToStorage(STORAGE_KEYS.ECOTECH_ROUTES, res);
+    }
+
     return res;
   },
   saveEcotechRoutes<T = any>(data: T[]) {

@@ -1440,7 +1440,7 @@ export const initialHandovers: HandoverRecord[] = [
     handoverOdo: 89400,
     returnOdo: 89480,
     fuelLevel: '90%',
-    conditionNotes: 'Đã bàn giao ca theo biên bản kiểm tra tình trạng xe',
+    conditionNotes: 'Đã bàn giao xe theo biên bản kiểm tra tình trạng xe',
     status: 'RETURNED',
     createdAt: '2026-09-06 13:00',
   },

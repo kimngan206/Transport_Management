@@ -479,6 +479,15 @@ function renderRoutes() {
         outboundWps = route.waypoints;
       }
 
+      // Đảm bảo đầu và cuối tuyến chiều đi tiếp giáp chính xác 100% với vị trí GPS trạm xuất phát & đích đến
+      if (outboundWps && outboundWps.length >= 2) {
+        outboundWps[0] = [route.from.lat, route.from.lng];
+        const lastDest = allDestinations[allDestinations.length - 1];
+        if (lastDest) {
+          outboundWps[outboundWps.length - 1] = [lastDest.lat, lastDest.lng];
+        }
+      }
+
       // 1. VẼ CHIỀU ĐI (CHUẨN GOOGLE MAPS NAVIGATION: RÕ RÀNG, TINH TẾ, KHÔNG BỊ RỐI NÉT)
       if (outboundWps.length >= 2) {
         // 1.1 Lớp viền đệm trắng bảo vệ đường (Casing) tách bạch nét vẽ với bản đồ nền
@@ -556,6 +565,11 @@ function renderRoutes() {
             ? 'Đích đến'
             : (isLast && route.isRoundTrip ? `Điểm ${idx + 1} (quay về)` : `Điểm ${idx + 1}`);
 
+          // Đảm bảo ghim chính xác tọa độ điểm mút của Polyline
+          const destPoint: [number, number] = (isLast && outboundWps.length > 0)
+            ? outboundWps[outboundWps.length - 1]
+            : [destHub.lat, destHub.lng];
+
           const destIcon = L.divIcon({
             className: 'route-endpoint-divicon',
             html: `
@@ -570,7 +584,7 @@ function renderRoutes() {
             iconSize: [0, 0],
             iconAnchor: [0, 0],
           });
-          const destMarker = L.marker([destHub.lat, destHub.lng], { icon: destIcon, zIndexOffset: 2400 }).addTo(mapInstance.value);
+          const destMarker = L.marker(destPoint, { icon: destIcon, zIndexOffset: 2400 }).addTo(mapInstance.value);
           routePolylines.push(destMarker);
         });
       }

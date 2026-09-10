@@ -458,8 +458,6 @@ const showSection = computed(() => {
                 <span>Điều Phối Chuyến</span>
               </span>
               <div class="group-btn-right">
-                <span v-if="pendingCount > 0" class="mini-badge badge-amber" title="Có yêu cầu xe mới cần duyệt">{{ pendingCount }}</span>
-                <span v-else-if="approvedCount > 0" class="mini-badge badge-blue" title="Yêu cầu chờ gán xe">{{ approvedCount }}</span>
                 <ChevronDown v-if="openGroups.dispatch" :size="13" />
                 <ChevronRight v-else :size="13" />
               </div>
@@ -468,7 +466,6 @@ const showSection = computed(() => {
             <div v-show="openGroups.dispatch" class="sub-links-list">
               <router-link to="/dispatch?view=board" class="sub-nav-link" :class="{ active: route.path === '/dispatch' && route.query.view === 'board' }">
                 <span>Ghép chuyến</span>
-                <span v-if="pendingCount > 0" class="mini-badge badge-amber">{{ pendingCount }}</span>
               </router-link>
               <router-link to="/dispatch" class="sub-nav-link" :class="{ active: route.path === '/dispatch' && (!route.query.view || route.query.view === 'map') }">
                 <span>Bản đồ & Lộ trình xe</span>
@@ -524,7 +521,6 @@ const showSection = computed(() => {
                 <div class="sub-nav-label">
                   <span>Bàn giao / Điều chuyển</span>
                 </div>
-                <span v-if="handoverBorrowingCount > 0" class="mini-badge badge-amber">{{ handoverBorrowingCount }}</span>
               </router-link>
 
             </div>
@@ -561,7 +557,6 @@ const showSection = computed(() => {
                 <span>Vận Hành Tài Xế</span>
               </span>
               <div class="group-btn-right">
-                <span v-if="myTripsCount > 0" class="mini-badge badge-green">{{ myTripsCount }}</span>
                 <ChevronDown v-if="openGroups.operations" :size="13" />
                 <ChevronRight v-else :size="13" />
               </div>
@@ -570,7 +565,6 @@ const showSection = computed(() => {
             <div v-show="openGroups.operations" class="sub-links-list">
               <router-link to="/driver-schedule" class="sub-nav-link" :class="{ active: route.path === '/driver-schedule' }">
                 <span>Lịch trình nhận xe</span>
-                <span v-if="myTripsCount > 0" class="mini-badge badge-green">{{ myTripsCount }}</span>
               </router-link>
 
               <router-link to="/driver/expenses" class="sub-nav-link" :class="{ active: route.path === '/driver/expenses' }">
@@ -603,7 +597,6 @@ const showSection = computed(() => {
                 <span>Bảo Dưỡng & Sự Cố</span>
               </span>
               <div class="group-btn-right">
-                <span v-if="dueMaintCount > 0" class="mini-badge badge-red">{{ dueMaintCount }}</span>
                 <ChevronDown v-if="openGroups.maintenance" :size="13" />
                 <ChevronRight v-else :size="13" />
               </div>
@@ -612,7 +605,6 @@ const showSection = computed(() => {
             <div v-show="openGroups.maintenance" class="sub-links-list">
               <router-link to="/maintenance" class="sub-nav-link" :class="{ active: route.path === '/maintenance' }">
                 <span>Cần bảo dưỡng</span>
-                <span v-if="dueMaintCount > 0" class="mini-badge badge-red">{{ dueMaintCount }}</span>
               </router-link>
               <router-link to="/maintenance/types" class="sub-nav-link" :class="{ active: route.path === '/maintenance/types' }">
                 <span>Cài đặt bảo dưỡng</span>

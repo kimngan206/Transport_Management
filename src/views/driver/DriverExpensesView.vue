@@ -317,9 +317,6 @@ function getExpenseTypeBadge(type: TripExpense['expenseType']): string {
                   >
                     <Eye :size="13" />
                     <span>Xem bằng chứng</span>
-                    <span v-if="getExpenseImages(exp).length > 1" class="proof-qty-badge">
-                      {{ getExpenseImages(exp).length }}
-                    </span>
                   </button>
 
                   <button
