@@ -10,9 +10,10 @@ import type { TransportRequest, TransportTrip } from '@/types';
 import StatusBadge from '@/components/common/StatusBadge.vue';
 import TablePagination from '@/components/common/TablePagination.vue';
 import SingleTripDispatchForm from '@/components/dispatch/SingleTripDispatchForm.vue';
+import FleetDispatchMap from '@/components/dispatch/FleetDispatchMap.vue';
 import TripExpensesModal from '@/components/common/TripExpensesModal.vue';
 import EditTripModal from '@/components/dispatch/EditTripModal.vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import BookingCreateModal from '@/components/booking/BookingCreateModal.vue';
 import { getTripDaySequence } from '@/utils/tripHelpers';
 import {
@@ -25,6 +26,8 @@ import {
   X,
   Clock,
   Edit2,
+  MapPin,
+  LayoutGrid,
 } from 'lucide-vue-next';
 
 const authStore = useAuthStore();
@@ -35,7 +38,34 @@ const dialog = useDialogStore();
 const viewExpensesTrip = ref<any>(null);
 const editingTrip = ref<TransportTrip | null>(null);
 const route = useRoute();
+const router = useRouter();
 const editingRequest = ref<TransportRequest | null>(null);
+const fleetMapRef = ref<InstanceType<typeof FleetDispatchMap> | null>(null);
+
+// Chế độ xem: 'map' (Bản đồ & Lộ trình GPS) hoặc 'board' (Bảng thẻ Kanban 3 cột)
+const viewMode = ref<'map' | 'board'>((route.query.view as string) === 'board' ? 'board' : 'map');
+
+watch(
+  () => route.query.view,
+  (newVal) => {
+    viewMode.value = newVal === 'board' ? 'board' : 'map';
+    if (viewMode.value === 'map') {
+      setTimeout(() => {
+        fleetMapRef.value?.invalidateSize();
+      }, 120);
+    }
+  }
+);
+
+function switchView(mode: 'map' | 'board') {
+  viewMode.value = mode;
+  router.replace({ query: { ...route.query, view: mode } });
+  if (mode === 'map') {
+    setTimeout(() => {
+      fleetMapRef.value?.invalidateSize();
+    }, 120);
+  }
+}
 
 
 const dispatchingRequest = ref<TransportRequest | null>(null);
@@ -146,6 +176,9 @@ const trips = computed(() => dispatchStore.trips);
 
 function openBatchWithRequest(req: TransportRequest) {
   dispatchingRequest.value = req;
+  if (viewMode.value === 'map') {
+    viewMode.value = 'board';
+  }
 }
 
 function openEditRequest(req: TransportRequest) {
@@ -291,7 +324,47 @@ function getServingTeam(req: TransportRequest): { label: string; isFactory: bool
       </div>
     </div>
 
-    <!-- Khối Thiết Lập Điều Phối & Ghép Xe Trực Tiếp (Không dùng modal popup) -->
+    <!-- Bộ chuyển đổi chế độ xem -->
+    <div class="view-mode-tabs mb-4">
+      <button
+        class="tab-btn"
+        :class="{ active: viewMode === 'map' }"
+        @click="switchView('map')"
+      >
+        <MapPin :size="16" />
+        <span>Bản Đồ Lộ Trình & Sơ Đồ Điều Xe (GPS Realtime)</span>
+      </button>
+      <button
+        class="tab-btn"
+        :class="{ active: viewMode === 'board' }"
+        @click="switchView('board')"
+      >
+        <LayoutGrid :size="16" />
+        <span>Bảng Yêu Cầu Chờ Ghép Xe</span>
+      </button>
+    </div>
+
+    <!-- 1. CHẾ ĐỘ XEM BẢN ĐỒ & SƠ ĐỒ ĐIỀU XE -->
+    <div v-if="viewMode === 'map'">
+      <!-- Thanh thông báo yêu cầu chờ duyệt khi đang xem Bản đồ -->
+      <div v-if="pendingApprovalRequests.length > 0" class="dispatch-alert-banner mb-3">
+        <div class="alert-banner-left">
+          <Clock :size="16" class="text-amber" />
+          <span>
+            Hiện có <strong>{{ pendingApprovalRequests.length }} yêu cầu đặt xe mới</strong> đang chờ bạn phê duyệt và xếp xe vận chuyển.
+          </span>
+        </div>
+        <button class="btn btn-warning btn-xs" @click="switchView('board'); filterReqStatus = 'PENDING'">
+          <span>Xem & Duyệt Xe Ngay ➔</span>
+        </button>
+      </div>
+
+      <FleetDispatchMap ref="fleetMapRef" />
+    </div>
+
+    <!-- 2. BẢNG DANH SÁCH YÊU CẦU ĐẶT XE & CHỜ ĐIỀU PHỐI / KHỐI GHÉP XE TRỰC TIẾP -->
+    <div v-else>
+      <!-- Khối Thiết Lập Điều Phối & Ghép Xe Trực Tiếp (Không dùng modal popup) -->
       <SingleTripDispatchForm
         v-if="dispatchingRequest"
         :request="dispatchingRequest"
@@ -645,8 +718,7 @@ function getServingTeam(req: TransportRequest): { label: string; isFactory: bool
         :pageSizeOptions="[5, 8, 15, 30]"
       />
     </div>
-
-
+  </div>
 
     <!-- Modal Sửa Chuyến Xe -->
     <EditTripModal
@@ -712,6 +784,58 @@ function getServingTeam(req: TransportRequest): { label: string; isFactory: bool
 </template>
 
 <style scoped>
+.view-mode-tabs {
+  display: inline-flex;
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: var(--radius-md);
+  gap: 4px;
+  border: 1px solid var(--border-card);
+  margin-bottom: 22px;
+}
+.tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.tab-btn:hover {
+  color: var(--text-primary);
+}
+.tab-btn.active {
+  background: #ffffff;
+  color: #15803d;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+.dispatch-alert-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: var(--radius-md);
+  padding: 10px 16px;
+  gap: 12px;
+}
+.alert-banner-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.8125rem;
+  color: #92400e;
+}
+.text-amber {
+  color: #d97706;
+}
+
 .page-header {
   display: flex;
   justify-content: space-between;
