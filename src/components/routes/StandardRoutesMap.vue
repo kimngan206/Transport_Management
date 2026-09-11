@@ -341,12 +341,6 @@ function initMap() {
 
   L.control.zoom({ position: 'bottomright' }).addTo(mapInstance.value);
 
-  mapInstance.value.on('zoomend', () => {
-    if (mapInstance.value) {
-      mapInstance.value.invalidateSize();
-    }
-  });
-
   updateTileLayer();
   renderHubMarkers();
   renderRoutes();
@@ -2167,13 +2161,5 @@ onUnmounted(() => {
 }
 .dot.mid {
   background: #0284c7;
-}
-.route-pin-node.is-mid .pin-pill {
-  background: #0284c7;
-  color: #ffffff;
-  border-color: #0284c7;
-}
-.route-pin-node.is-mid .pin-anchor-dot {
-  border-top-color: #0284c7;
 }
 </style>

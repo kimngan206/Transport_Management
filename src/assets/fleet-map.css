@@ -21,7 +21,7 @@
   align-items: center;
   justify-content: flex-end;
   filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.25));
-  transition: transform 0.2s ease, opacity 0.2s ease;
+  transition: opacity 0.2s ease;
   pointer-events: auto;
   white-space: nowrap;
 }
@@ -143,6 +143,15 @@
   box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.5);
 }
 
+.vehicle-marker-wrapper.is-dimmed {
+  opacity: 0.65;
+  transition: opacity 0.2s ease;
+}
+
+.vehicle-marker-wrapper.is-dimmed:hover {
+  opacity: 1;
+}
+
 /* Hiệu ứng sóng radar xe đang chạy */
 .pulse-ring {
   position: absolute;
@@ -172,12 +181,10 @@
 
 .route-pin-node {
   position: absolute;
-  left: 50%;
-  bottom: 0;
-  transform: translate(-50%, 9.5px);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
   user-select: none;
   cursor: pointer;
   filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.18));
@@ -185,6 +192,10 @@
 }
 
 .pin-pill {
+  position: absolute;
+  left: 0;
+  bottom: 12px;
+  transform: translateX(-50%);
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -193,11 +204,12 @@
   border-radius: 9999px;
   white-space: nowrap;
   font-family: inherit;
-  transition: transform 0.2s ease;
+  transition: transform 0.15s ease;
+  transform-origin: bottom center;
 }
 
 .pin-pill:hover {
-  transform: scale(1.05);
+  transform: translateX(-50%) scale(1.05);
 }
 
 .pin-letter {
@@ -225,11 +237,15 @@
 }
 
 .pin-anchor-dot {
+  position: absolute;
+  left: 0;
+  top: 0;
   width: 14px;
   height: 14px;
+  box-sizing: border-box;
   border-radius: 50%;
   border: 2.5px solid #ffffff;
-  margin-top: 3px;
+  transform: translate(-50%, -50%);
   flex-shrink: 0;
 }
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
+import { ref, shallowRef, markRaw, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
 import type { HubLocation, VehicleMapState } from '@/types/map';
 import { ECOTECH_HUBS, ECOTECH_ROUTES, initialVehicleMapStates } from '@/mocks/mapData';
 import { getRoadRouteBetweenHubs } from '@/services/routingService';
@@ -23,7 +23,7 @@ import L, { safeInitMap, createTileLayer } from '@/utils/leaflet';
 //=============================================================================
 const dispatchStore = useDispatchStore();
 const mapContainer = ref<HTMLElement | null>(null);
-const mapInstance = ref<any>(null);
+const mapInstance = shallowRef<any>(null);
 const isFullScreen = ref(false);
 const filterStatus = ref<'ALL' | 'RUNNING' | 'AVAILABLE' | 'MAINTENANCE'>('ALL');
 const searchQuery = ref('');
@@ -115,28 +115,17 @@ function initMap() {
   }
 
   // Khởi tạo bản đồ an toàn theo chuẩn GIS
-  mapInstance.value = safeInitMap(mapContainer.value, {
+  const rawMap = safeInitMap(mapContainer.value, {
     center: [11.5400, 106.6200],
     zoom: 12,
     zoomControl: false,
     preferCanvas: true,
   });
+  mapInstance.value = markRaw(rawMap);
 
   L.control.zoom({ position: 'bottomright' }).addTo(mapInstance.value);
 
-  mapInstance.value.on('zoomend', () => {
-    if (mapInstance.value) {
-      mapInstance.value.invalidateSize();
-    }
-  });
-
-  mapInstance.value.on('moveend', () => {
-    if (mapInstance.value) {
-      mapInstance.value.invalidateSize();
-    }
-  });
-
-  routeLayerGroup = L.layerGroup().addTo(mapInstance.value);
+  routeLayerGroup = markRaw(L.layerGroup().addTo(mapInstance.value));
 
   updateTileLayer();
   renderStandardRoutes();
@@ -225,77 +214,7 @@ function renderStandardRoutes() {
     routeLayerGroup = L.layerGroup().addTo(mapInstance.value);
   }
 
-  // Khi có xe được chọn: Hiển thị nổi bật lộ trình của xe
-  if (selectedVehicleId.value !== null) {
-    const v = vehicleMapStates.value.find((item) => item.id === selectedVehicleId.value);
-    if (!v) return;
-
-    const activeWaypoints = getVehicleTripWaypoints(v);
-    if (activeWaypoints.length >= 2) {
-      // 1. Viền đệm trắng bảo vệ đường (Casing) giúp phân tách rõ với nền bản đồ
-      L.polyline(activeWaypoints, {
-        color: '#ffffff',
-        weight: 7.5,
-        opacity: 0.95,
-        lineCap: 'round',
-        lineJoin: 'round',
-      }).addTo(routeLayerGroup);
-
-      // 2. Tuyến đường chính sắc nét Google Maps
-      L.polyline(activeWaypoints, {
-        color: '#16a34a',
-        weight: 4.5,
-        opacity: 1,
-        lineCap: 'round',
-        lineJoin: 'round',
-      }).addTo(routeLayerGroup);
-
-      // 4. PIN ĐIỂM ĐẦU (XUẤT PHÁT) - Ghim chính xác đầu mút xuất phát (Đầu 1 của quãng đường)
-      const originPoint = activeWaypoints[0];
-      const originShort = v.fromHub?.shortName || 'Xuất phát';
-      const originCode = v.fromHub?.code || '';
-      const originIcon = L.divIcon({
-        className: 'route-endpoint-divicon',
-        html: `
-          <div class="route-pin-node is-start">
-            <div class="pin-pill">
-              <span class="pin-letter">Đi</span>
-              ${originCode ? `<span class="pin-code-tag">${originCode}</span>` : ''}
-              <span class="pin-text">Xuất phát: <strong>${originShort}</strong></span>
-            </div>
-            <div class="pin-anchor-dot"></div>
-          </div>
-        `,
-        iconSize: [0, 0],
-        iconAnchor: [0, 0],
-      });
-      L.marker(originPoint, { icon: originIcon, zIndexOffset: 2500 }).addTo(routeLayerGroup);
-
-      // 5. PIN ĐIỂM CUỐI (ĐÍCH ĐẾN) - Ghim chính xác đầu mút đích đến (Đầu 2 của quãng đường)
-      const destPoint = activeWaypoints[activeWaypoints.length - 1];
-      const destShort = v.toHub?.shortName || 'Đích đến';
-      const destCode = v.toHub?.code || '';
-      const destIcon = L.divIcon({
-        className: 'route-endpoint-divicon',
-        html: `
-          <div class="route-pin-node is-end">
-            <div class="pin-pill">
-              <span class="pin-letter">Đến</span>
-              ${destCode ? `<span class="pin-code-tag">${destCode}</span>` : ''}
-              <span class="pin-text">Đích đến: <strong>${destShort}</strong></span>
-            </div>
-            <div class="pin-anchor-dot"></div>
-          </div>
-        `,
-        iconSize: [0, 0],
-        iconAnchor: [0, 0],
-      });
-      L.marker(destPoint, { icon: destIcon, zIndexOffset: 2500 }).addTo(routeLayerGroup);
-    }
-    return;
-  }
-
-  // Khi chưa chọn xe nào: Hiển thị nền mờ mạng lưới đồng bộ như tuyến đường
+  // 1. Luôn hiển thị nền mạng lưới tuyến đường quy chuẩn toàn hệ thống
   ECOTECH_ROUTES.forEach((route) => {
     L.polyline(route.waypoints, {
       color: '#cbd5e1',
@@ -305,6 +224,75 @@ function renderStandardRoutes() {
       lineCap: 'round',
     }).addTo(routeLayerGroup);
   });
+
+  // 2. Khi có xe được chọn và có lộ trình: Vẽ đè lộ trình nổi bật của xe đó lên trên
+  if (selectedVehicleId.value !== null) {
+    const v = vehicleMapStates.value.find((item) => item.id === selectedVehicleId.value);
+    if (v) {
+      const activeWaypoints = getVehicleTripWaypoints(v);
+      if (activeWaypoints.length >= 2) {
+        // 1. Viền đệm trắng bảo vệ đường (Casing) giúp phân tách rõ với nền bản đồ
+        L.polyline(activeWaypoints, {
+          color: '#ffffff',
+          weight: 7.5,
+          opacity: 0.95,
+          lineCap: 'round',
+          lineJoin: 'round',
+        }).addTo(routeLayerGroup);
+
+        // 2. Tuyến đường chính sắc nét Google Maps
+        L.polyline(activeWaypoints, {
+          color: '#16a34a',
+          weight: 4.5,
+          opacity: 1,
+          lineCap: 'round',
+          lineJoin: 'round',
+        }).addTo(routeLayerGroup);
+
+        // 4. PIN ĐIỂM ĐẦU (XUẤT PHÁT) - Ghim chính xác đầu mút xuất phát (Đầu 1 của quãng đường)
+        const originPoint = activeWaypoints[0];
+        const originShort = v.fromHub?.shortName || 'Xuất phát';
+        const originCode = v.fromHub?.code || '';
+        const originIcon = L.divIcon({
+          className: 'route-endpoint-divicon',
+          html: `
+            <div class="route-pin-node is-start">
+              <div class="pin-pill">
+                <span class="pin-letter">Đi</span>
+                ${originCode ? `<span class="pin-code-tag">${originCode}</span>` : ''}
+                <span class="pin-text">Xuất phát: <strong>${originShort}</strong></span>
+              </div>
+              <div class="pin-anchor-dot"></div>
+            </div>
+          `,
+          iconSize: [0, 0],
+          iconAnchor: [0, 0],
+        });
+        const originMarker = markRaw(L.marker(originPoint, { icon: originIcon, zIndexOffset: 2500 }).addTo(routeLayerGroup));
+
+        // 5. PIN ĐIỂM CUỐI (ĐÍCH ĐẾN) - Ghim chính xác đầu mút đích đến (Đầu 2 của quãng đường)
+        const destPoint = activeWaypoints[activeWaypoints.length - 1];
+        const destShort = v.toHub?.shortName || 'Đích đến';
+        const destCode = v.toHub?.code || '';
+        const destIcon = L.divIcon({
+          className: 'route-endpoint-divicon',
+          html: `
+            <div class="route-pin-node is-end">
+              <div class="pin-pill">
+                <span class="pin-letter">Đến</span>
+                ${destCode ? `<span class="pin-code-tag">${destCode}</span>` : ''}
+                <span class="pin-text">Đích đến: <strong>${destShort}</strong></span>
+              </div>
+              <div class="pin-anchor-dot"></div>
+            </div>
+          `,
+          iconSize: [0, 0],
+          iconAnchor: [0, 0],
+        });
+        const destMarker = markRaw(L.marker(destPoint, { icon: destIcon, zIndexOffset: 2500 }).addTo(routeLayerGroup));
+      }
+    }
+  }
 }
 
 //=============================================================================
@@ -329,39 +317,25 @@ function renderHubMarkers() {
 
   hubMarkers.forEach((m) => {
     try {
-      mapInstance.value.removeLayer(m);
+      m.unbindPopup();
+      m.remove();
     } catch (err) {}
   });
   hubMarkers = [];
 
-  // Khi đang chọn 1 xe cụ thể:
-  if (selectedVehicleId.value !== null) {
-    const v = vehicleMapStates.value.find((item) => item.id === selectedVehicleId.value);
-    // Nếu xe đang có lộ trình (routeCode) thì điểm đi (A) và điểm đến (B) đã được biểu diễn
-    // qua Pin A và Pin B trong renderStandardRoutes(). Ẩn toàn bộ các trạm khác để tránh chồng lấn gây rối.
-    if (v && v.routeCode) {
+  const selectedV = selectedVehicleId.value !== null
+    ? vehicleMapStates.value.find((item) => item.id === selectedVehicleId.value)
+    : null;
+  const hasActiveRoute = selectedV && selectedV.routeCode && getVehicleTripWaypoints(selectedV).length >= 2;
+
+  // Luôn hiển thị đầy đủ tất cả các trạm nông trường/nhà máy trên bản đồ
+  ECOTECH_HUBS.forEach((hub) => {
+    // Nếu xe đang chọn có lộ trình hoạt động, điểm đầu & đích đến đã có Pin Điểm Đi / Điểm Đến nổi bật
+    // Bỏ qua vẽ hub marker thường cho 2 trạm đó để tránh đè 2 pin lên nhau tại cùng 1 vị trí
+    if (hasActiveRoute && (hub.code === selectedV?.fromHub?.code || hub.code === selectedV?.toHub?.code)) {
       return;
     }
 
-    // Nếu xe không có lộ trình (xe đỗ sẵn sàng hoặc bảo dưỡng tại trạm), chỉ hiển thị duy nhất trạm của xe đó
-    if (v && v.fromHub) {
-      const currentHub = ECOTECH_HUBS.find((h) => h.code === v.fromHub?.code);
-      if (currentHub) {
-        const customIcon = L.divIcon({
-          className: 'custom-hub-icon',
-          html: getHubIconHtml(currentHub),
-          iconSize: [36, 42],
-          iconAnchor: [18, 42],
-        });
-        const marker = L.marker([currentHub.lat, currentHub.lng], { icon: customIcon }).addTo(mapInstance.value);
-        hubMarkers.push(marker);
-      }
-    }
-    return;
-  }
-
-  // Chế độ xem tổng thể: Hiển thị đầy đủ tất cả các trạm nông trường
-  ECOTECH_HUBS.forEach((hub) => {
     const customIcon = L.divIcon({
       className: 'custom-hub-icon',
       html: getHubIconHtml(hub),
@@ -369,7 +343,7 @@ function renderHubMarkers() {
       iconAnchor: [18, 42],
     });
 
-    const marker = L.marker([hub.lat, hub.lng], { icon: customIcon }).addTo(mapInstance.value);
+    const marker = markRaw(L.marker([hub.lat, hub.lng], { icon: customIcon }).addTo(mapInstance.value));
 
     const popupContent = `
       <div class="map-popup-card">
@@ -385,7 +359,7 @@ function renderHubMarkers() {
       </div>
     `;
 
-    marker.bindPopup(popupContent, { maxWidth: 280, className: 'custom-leaflet-popup' });
+    marker.bindPopup(popupContent, { maxWidth: 280, autoPan: false, className: 'custom-leaflet-popup' });
     hubMarkers.push(marker);
   });
 }
@@ -403,10 +377,12 @@ function getVehicleIconHtml(v: VehicleMapState, isSelected: boolean) {
     statusColor = '#e11d48';
   }
 
+  const isAnySelected = selectedVehicleId.value !== null;
   const selectedClass = isSelected ? 'is-selected' : '';
+  const dimmedClass = (isAnySelected && !isSelected) ? 'is-dimmed' : '';
 
   return `
-    <div class="vehicle-marker-wrapper ${selectedClass}" style="--veh-color: ${statusColor}">
+    <div class="vehicle-marker-wrapper ${selectedClass} ${dimmedClass}" style="--veh-color: ${statusColor}">
       ${pulse}
       <div class="vehicle-avatar">
         <span class="veh-icon">🚚</span>
@@ -421,11 +397,9 @@ function renderVehicleMarkers() {
 
   vehicleMapStates.value.forEach((v) => {
     const isSelected = selectedVehicleId.value === v.id;
-    // Khi đang chọn 1 xe: CHỈ hiển thị duy nhất xe đó trên bản đồ!
-    // Các xe khác hoàn toàn bị ẩn để không gây rối mắt và chồng chéo.
-    const isVisible = selectedVehicleId.value !== null
-      ? isSelected
-      : (filterStatus.value === 'ALL' || filterStatus.value === v.status);
+    // Giữ tất cả các xe hiển thị trên bản đồ. Nếu đang lọc theo status thì hiển thị theo filter,
+    // đồng thời xe đang được chọn luôn luôn hiển thị.
+    const isVisible = isSelected || (filterStatus.value === 'ALL' || filterStatus.value === v.status);
 
     if (!isVisible) {
       if (vehicleMarkers.has(v.id)) {
@@ -435,6 +409,7 @@ function renderVehicleMarkers() {
       return;
     }
 
+    // Neo icon chuẩn xác tại tâm hình chữ nhật [55, 15] để tọa độ GPS không bị trôi lệch khi zoom
     const icon = L.divIcon({
       className: 'custom-vehicle-icon',
       html: getVehicleIconHtml(v, isSelected),
@@ -471,7 +446,7 @@ function renderVehicleMarkers() {
       marker.setIcon(icon);
       marker.setZIndexOffset(isSelected ? 3500 : 500);
     } else {
-      const marker = L.marker([vLat, vLng], { icon, zIndexOffset: isSelected ? 3500 : 500 }).addTo(mapInstance.value);
+      const marker = markRaw(L.marker([vLat, vLng], { icon, zIndexOffset: isSelected ? 3500 : 500 }).addTo(mapInstance.value));
       marker.on('click', () => focusVehicle(v));
       vehicleMarkers.set(v.id, marker);
     }
@@ -493,7 +468,6 @@ function focusVehicle(v: VehicleMapState) {
   renderHubMarkers();
 
   if (mapInstance.value) {
-    mapInstance.value.invalidateSize();
     const tripPts = getVehicleTripWaypoints(v);
     if (tripPts.length >= 2) {
       const allPts = [...tripPts, [v.currentLat, v.currentLng] as [number, number]];
@@ -504,7 +478,7 @@ function focusVehicle(v: VehicleMapState) {
         maxZoom: 13,
       });
     } else {
-      mapInstance.value.flyTo([v.currentLat, v.currentLng], 12.5, { duration: 0.8 });
+      mapInstance.value.setView([v.currentLat, v.currentLng], 12.5);
     }
 
     const marker = vehicleMarkers.get(v.id);
@@ -575,7 +549,7 @@ function focusVehicle(v: VehicleMapState) {
       marker.bindPopup(popupContent, {
         maxWidth: 320,
         offset: [0, -22],
-        autoPanPadding: [50, 50],
+        autoPan: false,
         className: 'custom-leaflet-popup'
       }).openPopup();
     }
@@ -585,9 +559,8 @@ function focusVehicle(v: VehicleMapState) {
 function resetMapView() {
   selectedVehicleId.value = null;
   if (mapInstance.value) {
-    mapInstance.value.invalidateSize();
     mapInstance.value.closePopup();
-    mapInstance.value.flyTo([11.5400, 106.6200], 12, { duration: 0.8 });
+    mapInstance.value.setView([11.5400, 106.6200], 12);
   }
   renderStandardRoutes();
   renderVehicleMarkers();
@@ -797,13 +770,17 @@ onUnmounted(() => {
 
       <div v-else class="map-legend-card single-vehicle-legend">
         <h5 class="legend-title">Sơ Đồ Xe {{ selectedVehicle.licensePlate }}</h5>
-        <div class="legend-item">
+        <div v-if="selectedVehicle.fromHub?.code !== selectedVehicle.toHub?.code" class="legend-item">
           <span class="legend-icon icon-start-pin">Đi</span>
           <span>Điểm xuất phát: <strong>{{ selectedVehicle.fromHub?.shortName || 'Xuất phát' }}</strong></span>
         </div>
-        <div class="legend-item">
+        <div v-if="selectedVehicle.fromHub?.code !== selectedVehicle.toHub?.code" class="legend-item">
           <span class="legend-icon icon-end-pin">Đến</span>
           <span>Điểm đích đến: <strong>{{ selectedVehicle.toHub?.shortName || 'Đích đến' }}</strong></span>
+        </div>
+        <div v-else class="legend-item">
+          <span class="legend-icon icon-station">{{ selectedVehicle.fromHub?.code || 'TC' }}</span>
+          <span>Vị trí hiện tại: <strong>{{ selectedVehicle.fromHub?.shortName || 'Trạm' }}</strong></span>
         </div>
         <div v-if="selectedRoute" class="legend-item">
           <span class="legend-line line-running"></span>
