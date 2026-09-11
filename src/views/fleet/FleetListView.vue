@@ -7,7 +7,17 @@ import { useDispatchStore } from '@/stores/dispatch';
 import { useDialogStore } from '@/stores/dialog';
 import { getVehicleDailyTrips, getDriverDailyTrips } from '@/utils/tripHelpers';
 import { mockStorage } from '@/services/mockStorage';
-import type { Vehicle, Driver, VehicleCategory, HandoverRecord, HandoverStatus, HandoverWorkflowType } from '@/types';
+import type {
+  Vehicle,
+  Driver,
+  VehicleCategory,
+  HandoverRecord,
+  HandoverStatus,
+  HandoverWorkflowType,
+  HandoverChecklist,
+  HandoverReasonType,
+} from '@/types';
+import { initialHandovers } from '@/mocks';
 import StatusBadge from '@/components/common/StatusBadge.vue';
 import TablePagination from '@/components/common/TablePagination.vue';
 import FormulaBuilder from '@/components/common/FormulaBuilder.vue';
@@ -28,6 +38,14 @@ import {
   X,
   RotateCcw,
   AlertTriangle,
+  ArrowRightLeft,
+  FileText,
+  Check,
+  ShieldCheck,
+  CheckSquare,
+  Square,
+  Clock,
+  ClipboardCheck,
 } from 'lucide-vue-next';
 
 const route = useRoute();
@@ -134,93 +152,12 @@ watch(
   { immediate: true }
 );
 
-// Danh sách bàn giao mượn trả xe (US-28)
-const defaultHandovers: HandoverRecord[] = [
-  {
-    id: 1,
-    vehicleId: 1,
-    vehiclePlate: '51C-889.26',
-    workflowType: 'HANDOVER',
-    fromTeam: 'Đội 1',
-    toTeam: 'Đội 2',
-    driverName: 'Phạm Văn Tài',
-    fromDriverId: 101,
-    borrowStartAt: '2026-09-07 07:30',
-    expectedReturnAt: '2026-09-07 11:30',
-    actualReturnAt: '2026-09-07 11:30',
-    handoverOdo: 125620,
-    returnOdo: 125680,
-    fuelLevel: '85%',
-    conditionNotes: 'Xe sạch, áp suất lốp đủ, phanh hoạt động tốt, đầy đủ giấy tờ',
-    status: 'BORROWING',
-    createdAt: '2026-09-07 07:30',
-  },
-  {
-    id: 2,
-    vehicleId: 3,
-    vehiclePlate: '51A-992.34',
-    workflowType: 'HANDOVER',
-    fromTeam: 'Đội 1',
-    toTeam: 'Đội 3',
-    driverName: 'Lê Văn Tài',
-    fromDriverId: 102,
-    borrowStartAt: '2026-09-06 13:00',
-    expectedReturnAt: '2026-09-06 17:30',
-    actualReturnAt: '2026-09-06 17:30',
-    handoverOdo: 89400,
-    returnOdo: 89480,
-    fuelLevel: '90%',
-    conditionNotes: 'Đã bàn giao xe theo biên bản kiểm tra tình trạng xe',
-    status: 'RETURNED',
-    createdAt: '2026-09-06 13:00',
-  },
-  {
-    id: 3,
-    vehicleId: 2,
-    vehiclePlate: '70C-123.45',
-    workflowType: 'TRANSFER',
-    fromTeam: 'Nông trường 1',
-    toTeam: 'Nông trường 3',
-    fromStation: 'Trạm 1',
-    toStation: 'Trạm 3',
-    transferReason: 'Điều chuyển xe bồn chi viện thu gom mủ đợt cao điểm',
-    driverName: 'Trần Văn Vận',
-    fromDriverId: 101,
-    borrowStartAt: '2026-09-08 08:00',
-    expectedReturnAt: '2026-09-15 17:00',
-    handoverOdo: 146800,
-    fuelLevel: '95%',
-    conditionNotes: 'Điều chuyển mượn xe bồn chở mủ trong 7 ngày',
-    status: 'BORROWING',
-    createdAt: '2026-09-08 08:00',
-  },
-  {
-    id: 4,
-    vehicleId: 4,
-    vehiclePlate: '60C-567.89',
-    workflowType: 'TRANSFER',
-    fromTeam: 'Nhà máy chế biến',
-    toTeam: 'Nông trường 2',
-    fromStation: 'Nhà máy',
-    toStation: 'Nông trường 2',
-    transferReason: 'Điều chuyển máy đào làm đường lô vườn cây',
-    driverName: 'Đỗ Văn Máy',
-    fromDriverId: 104,
-    borrowStartAt: '2026-09-02 07:00',
-    expectedReturnAt: '2026-09-05 17:00',
-    actualReturnAt: '2026-09-05 16:30',
-    handoverOdo: 4820,
-    returnOdo: 4850,
-    fuelLevel: '80%',
-    conditionNotes: 'Đã hoàn thành đợt điều chuyển và bàn giao lại cho nhà máy',
-    status: 'RETURNED',
-    createdAt: '2026-09-02 07:00',
-  },
-];
+// Danh sách bàn giao mượn trả & điều chuyển xe
+const defaultHandovers: HandoverRecord[] = initialHandovers;
 const handoverList = ref<HandoverRecord[]>(mockStorage.getHandovers(defaultHandovers));
 const handoverStatusFilter = ref<'ALL' | HandoverStatus>('ALL');
 const searchHandoverKeyword = ref('');
-const handoverSectionTab = ref<'HANDOVER' | 'TRANSFER'>('HANDOVER');
+const handoverSectionTab = ref<'BORROW_RETURN' | 'TRANSFER' | 'DRIVER_HANDOVER'>('BORROW_RETURN');
 const isDriverRole = computed(() => authStore.activeRole === 'Driver');
 const isDispatcherRole = computed(() => authStore.activeRole === 'Dispatcher' || authStore.activeRole === 'Admin');
 const currentDriverId = computed(() => authStore.currentUser.driverId ?? null);
@@ -232,15 +169,32 @@ const visibleHandovers = computed(() => {
 
   return handoverList.value.filter((h) => {
     if (!currentDriverId.value) {
-      return h.driverName === authStore.currentUser.fullName;
+      return h.driverName === authStore.currentUser.fullName || h.toDriverName === authStore.currentUser.fullName;
     }
 
-    return h.toDriverId === currentDriverId.value || h.fromDriverId === currentDriverId.value || h.driverName === authStore.currentUser.fullName;
+    return (
+      h.toDriverId === currentDriverId.value ||
+      h.fromDriverId === currentDriverId.value ||
+      h.driverName === authStore.currentUser.fullName ||
+      h.toDriverName === authStore.currentUser.fullName
+    );
   });
 });
 
 const tabHandovers = computed(() => {
-  return visibleHandovers.value.filter((h) => (h.workflowType ?? 'HANDOVER') === handoverSectionTab.value);
+  return visibleHandovers.value.filter((h) => {
+    const wf = h.workflowType ?? 'BORROW_RETURN';
+    if (handoverSectionTab.value === 'BORROW_RETURN') {
+      return wf === 'BORROW_RETURN' || (wf === 'HANDOVER' && !h.handoverChecklist && !h.toDriverId);
+    }
+    if (handoverSectionTab.value === 'TRANSFER') {
+      return wf === 'TRANSFER';
+    }
+    if (handoverSectionTab.value === 'DRIVER_HANDOVER') {
+      return wf === 'DRIVER_HANDOVER' || (wf === 'HANDOVER' && (!!h.handoverChecklist || !!h.toDriverId));
+    }
+    return false;
+  });
 });
 
 const filteredHandovers = computed(() => {
@@ -256,8 +210,14 @@ const filteredHandovers = computed(() => {
       return (
         h.vehiclePlate?.toLowerCase().includes(q) ||
         h.driverName?.toLowerCase().includes(q) ||
+        h.fromDriverName?.toLowerCase().includes(q) ||
+        h.toDriverName?.toLowerCase().includes(q) ||
         h.fromTeam?.toLowerCase().includes(q) ||
         h.toTeam?.toLowerCase().includes(q) ||
+        h.fromManagerName?.toLowerCase().includes(q) ||
+        h.toManagerName?.toLowerCase().includes(q) ||
+        h.decisionNumber?.toLowerCase().includes(q) ||
+        h.transferReason?.toLowerCase().includes(q) ||
         h.conditionNotes?.toLowerCase().includes(q) ||
         h.note?.toLowerCase().includes(q)
       );
@@ -278,12 +238,43 @@ watch([handoverSectionTab, handoverStatusFilter, searchHandoverKeyword], () => {
 
 const handoverSummary = computed(() => {
   const list = tabHandovers.value;
+  if (handoverSectionTab.value === 'BORROW_RETURN') {
+    return {
+      total: list.length,
+      stat1Label: 'Đang mượn',
+      stat1Val: list.filter((h) => h.status === 'BORROWING').length,
+      stat2Label: 'Đã hoàn trả',
+      stat2Val: list.filter((h) => h.status === 'RETURNED').length,
+      stat3Label: 'Quá hạn trả',
+      stat3Val: list.filter((h) => h.status === 'OVERDUE').length,
+      stat4Label: 'Tổng lượt mượn',
+      stat4Val: list.length,
+    };
+  }
+  if (handoverSectionTab.value === 'TRANSFER') {
+    const uniqueUnits = new Set(list.map((h) => h.toTeam).filter(Boolean));
+    return {
+      total: list.length,
+      stat1Label: 'Đã điều chuyển',
+      stat1Val: list.filter((h) => h.status === 'RETURNED' || h.status === 'BORROWING').length,
+      stat2Label: 'Đơn vị tiếp nhận',
+      stat2Val: uniqueUnits.size,
+      stat3Label: 'Có số quyết định',
+      stat3Val: list.filter((h) => !!h.decisionNumber).length,
+      stat4Label: 'Tổng lệnh điều chuyển',
+      stat4Val: list.length,
+    };
+  }
   return {
     total: list.length,
-    borrowing: list.filter((h) => h.status === 'BORROWING').length,
-    returned: list.filter((h) => h.status === 'RETURNED').length,
-    overdue: list.filter((h) => h.status === 'OVERDUE').length,
-    cancelled: list.filter((h) => h.status === 'CANCELLED').length,
+    stat1Label: 'Đã bàn giao',
+    stat1Val: list.filter((h) => h.status === 'RETURNED').length,
+    stat2Label: 'Chờ nhận xe',
+    stat2Val: list.filter((h) => h.status === 'BORROWING').length,
+    stat3Label: 'Nghỉ việc / Hoán đổi',
+    stat3Val: list.filter((h) => h.handoverReasonType === 'RESIGNATION' || h.handoverReasonType === 'DRIVER_SWAP').length,
+    stat4Label: 'Tổng biên bản bàn giao',
+    stat4Val: list.length,
   };
 });
 
@@ -297,40 +288,24 @@ function syncVehicleStatusFromHandover(record: HandoverRecord) {
   const vehicle = fleetStore.vehicles.find((v) => v.licensePlate === record.vehiclePlate);
   if (!vehicle) return;
 
-  const workflowType = record.workflowType ?? 'HANDOVER';
+  const workflowType = record.workflowType ?? 'BORROW_RETURN';
 
   if (workflowType === 'TRANSFER') {
-    if (record.status === 'BORROWING') {
-      vehicle.status = 'OnTrip';
-      if (record.toDriverId) {
-        vehicle.assignedDriverId = record.toDriverId;
-      }
-      vehicle.assignedDriverName = record.driverName;
+    if (record.toTeam) {
+      vehicle.teamName = record.toTeam;
+      vehicle.operatingUnitType = record.toTeam.includes('Nhà máy') ? 'Factory' : 'Team';
       fleetStore.updateVehicle(vehicle);
-      return;
     }
-
-    if (record.status === 'RETURNED' || record.status === 'CANCELLED') {
-      const hasActiveBorrowing = handoverList.value.some(
-        (h) => h.vehiclePlate === record.vehiclePlate && h.id !== record.id && h.workflowType === 'TRANSFER' && h.status === 'BORROWING'
-      );
-
-      if (!hasActiveBorrowing) {
-        vehicle.status = 'Available';
-        vehicle.assignedDriverId = undefined;
-        vehicle.assignedDriverName = undefined;
-        fleetStore.updateVehicle(vehicle);
-      }
-    }
-
     return;
   }
 
-  if (workflowType === 'HANDOVER') {
+  if (workflowType === 'DRIVER_HANDOVER') {
     if (record.toDriverId) {
       vehicle.assignedDriverId = record.toDriverId;
     }
-    vehicle.assignedDriverName = record.driverName;
+    if (record.toDriverName || record.driverName) {
+      vehicle.assignedDriverName = record.toDriverName || record.driverName;
+    }
     fleetStore.updateVehicle(vehicle);
   }
 }
@@ -349,11 +324,13 @@ function handleDriverReceiveHandover(record: HandoverRecord) {
     const nextNote = h.note ? `${h.note}\n${receiveMessage}` : receiveMessage;
     return {
       ...h,
+      status: 'RETURNED',
       note: nextNote,
     };
   });
 
   mockStorage.saveHandovers(handoverList.value);
+  syncVehicleStatusFromHandover({ ...record, status: 'RETURNED' });
   dialog.showSuccess(`Bạn đã xác nhận nhận xe [${record.vehiclePlate}] thành công.`, 'Xác nhận nhận xe');
 }
 
@@ -362,26 +339,32 @@ syncVehicleStatusesFromHandovers();
 function getHandoverStatusLabel(status: HandoverStatus, workflowType?: HandoverWorkflowType): string {
   switch (status) {
     case 'BORROWING':
-      return workflowType === 'TRANSFER' ? 'Đang mượn (đợt còn hiệu lực)' : 'Đang bàn giao (đợt hiện tại)';
+      if (workflowType === 'BORROW_RETURN') return 'Đang mượn';
+      if (workflowType === 'TRANSFER') return 'Chờ tiếp nhận';
+      return 'Chờ nhận xe';
     case 'RETURNED':
-      return workflowType === 'TRANSFER' ? 'Đã trả (đợt đã đóng)' : 'Đã bàn giao';
+      if (workflowType === 'BORROW_RETURN') return 'Đã hoàn trả';
+      if (workflowType === 'TRANSFER') return 'Đã điều chuyển';
+      return 'Đã bàn giao';
     case 'OVERDUE':
-      return 'Quá hạn (cần xử lý)';
+      return 'Quá hạn hoàn trả';
     case 'CANCELLED':
       return 'Đã hủy';
     default:
-      return 'Không xác định';
+      return status;
   }
 }
 
 function getHandoverWorkflowLabel(type: HandoverWorkflowType | undefined): string {
-  switch (type ?? 'HANDOVER') {
-    case 'HANDOVER':
-      return 'Bàn giao xe';
+  switch (type) {
+    case 'BORROW_RETURN':
+      return 'Mượn / Trả xe';
     case 'TRANSFER':
       return 'Điều chuyển xe';
+    case 'DRIVER_HANDOVER':
+      return 'Bàn giao hiện trạng';
     default:
-      return 'Không xác định';
+      return 'Bàn giao / Mượn';
   }
 }
 
@@ -398,6 +381,28 @@ function getHandoverStatusClass(status: HandoverStatus): string {
     default:
       return 'badge-secondary';
   }
+}
+
+function getReasonTypeLabel(reason?: string): string {
+  switch (reason) {
+    case 'RESIGNATION':
+      return 'Nghỉ việc / Chuyển công tác';
+    case 'DRIVER_SWAP':
+      return 'Hoán đổi tài xế quản lý';
+    case 'NEW_ASSIGNMENT':
+      return 'Phân công tài xế mới';
+    case 'SHIFT_CHANGE':
+      return 'Đổi ca dài hạn';
+    default:
+      return 'Thay đổi tài xế';
+  }
+}
+
+function countChecklistItems(checklist?: HandoverChecklist): { passed: number; total: number } {
+  if (!checklist) return { passed: 6, total: 6 };
+  const keys = Object.keys(checklist) as (keyof HandoverChecklist)[];
+  const passed = keys.filter((k) => !!checklist[k]).length;
+  return { passed, total: keys.length };
 }
 
 function getDriverNameById(driverId?: number): string {
@@ -981,27 +986,59 @@ function handleDeleteDriver(driver: Driver) {
   });
 }
 
-// ==================== Modal 4: Lập phiếu bàn giao mượn trả ====================
+// ==================== Modal: Lập phiếu bàn giao / điều chuyển / mượn trả ====================
 const showAddHandoverModal = ref(false);
 const editingHandover = ref<HandoverRecord | null>(null);
-const newHandoverWorkflowType = ref<HandoverWorkflowType>('HANDOVER');
+const newHandoverWorkflowType = ref<HandoverWorkflowType>('BORROW_RETURN');
 const newHandoverPlate = ref(fleetStore.vehicles[0]?.licensePlate || '');
 const newHandoverFromDriver = ref(fleetStore.drivers[0]?.fullName || '');
-const newHandoverDriver = ref(fleetStore.drivers[0]?.fullName || '');
+const newHandoverDriver = ref(fleetStore.drivers[1]?.fullName || fleetStore.drivers[0]?.fullName || '');
 const newHandoverVehicleTeam = ref('');
-const newHandoverFromTeam = ref('');
-const newHandoverToTeam = ref('');
-const newHandoverFromStation = ref('Nhà máy');
-const newHandoverToStation = ref('Trạm Cán 1');
+const newHandoverFromTeam = ref('Trạm Cán 2');
+const newHandoverToTeam = ref('Trạm Cán 1');
+const newHandoverFromManager = ref('');
+const newHandoverToManager = ref('');
+const newHandoverDecisionNumber = ref('45/QĐ-TCT-2026');
+const newHandoverEffectiveDate = ref(new Date().toISOString().slice(0, 10));
 const newHandoverTransferReason = ref('');
 const newHandoverReplacingVehicle = ref('');
+const newHandoverReasonType = ref<HandoverReasonType>('DRIVER_SWAP');
 const newHandoverBorrowTime = ref(new Date().toISOString().slice(0, 16));
-const newHandoverReturnTime = ref('');
+const newHandoverReturnTime = ref(new Date(Date.now() + 5 * 24 * 3600 * 1000).toISOString().slice(0, 16));
 const newHandoverActualReturnTime = ref('');
 const newHandoverOdo = ref(120000);
 const newHandoverReturnOdo = ref<number | undefined>(undefined);
 const newHandoverFuel = ref('90%');
-const newHandoverNotes = ref('Xe sạch, áp suất lốp đủ, phanh hoạt động tốt, đầy đủ giấy tờ');
+const newHandoverNotes = ref('Xe sạch sẽ, đầy đủ giấy tờ, phanh và lốp hoạt động tốt');
+const newHandoverChecklist = ref<HandoverChecklist>({
+  bodyAndPaint: true,
+  brakesAndLights: true,
+  tiresAndSpare: true,
+  cleanliness: true,
+  toolsAndJack: true,
+  documents: true,
+});
+const selectedHandoverDocs = ref<string[]>([
+  'Cà vẹt xe bản chính',
+  'Sổ chứng nhận kiểm định an toàn kỹ thuật',
+  'Bảo hiểm dân sự bắt buộc',
+  'Thẻ nhiên liệu FleetCard',
+]);
+
+const standardUnitPresets = [
+  'Trạm Cán 1',
+  'Trạm Cán 2',
+  'Trạm Cán 3',
+  'Đội 1',
+  'Đội 2',
+  'Đội 3',
+  'Đội 4',
+  'Nhà máy chế biến',
+  'Ban Quản lý Nông trường 1',
+  'Ban Quản lý Nông trường 2',
+  'Phòng Điều độ & Vận tải',
+];
+
 const selectedHandoverVehicle = computed(() =>
   fleetStore.vehicles.find((v) => v.licensePlate === newHandoverPlate.value)
 );
@@ -1020,25 +1057,43 @@ const returnHandoverImageUrl = ref<string>('');
 function resetHandoverForm() {
   const firstVehicle = fleetStore.vehicles[0];
   const firstDriver = fleetStore.drivers[0];
+  const secondDriver = fleetStore.drivers[1] || firstDriver;
 
-  newHandoverWorkflowType.value = 'HANDOVER';
+  newHandoverWorkflowType.value = handoverSectionTab.value;
   newHandoverPlate.value = firstVehicle?.licensePlate || '';
   newHandoverFromDriver.value = firstVehicle?.assignedDriverName || firstDriver?.fullName || '';
-  newHandoverDriver.value = firstDriver?.fullName || '';
-  newHandoverVehicleTeam.value = firstVehicle?.teamName || 'Đội 1';
-  newHandoverFromTeam.value = firstVehicle?.teamName || '';
-  newHandoverToTeam.value = '';
-  newHandoverFromStation.value = 'Nhà máy';
-  newHandoverToStation.value = 'Trạm Cán 1';
+  newHandoverDriver.value = secondDriver?.fullName || '';
+  newHandoverVehicleTeam.value = firstVehicle?.teamName || 'Trạm Cán 2';
+  newHandoverFromTeam.value = firstVehicle?.teamName || 'Trạm Cán 2';
+  newHandoverToTeam.value = 'Trạm Cán 1';
+  newHandoverFromManager.value = '';
+  newHandoverToManager.value = '';
+  newHandoverDecisionNumber.value = `45/QĐ-TCT-${new Date().getFullYear()}`;
+  newHandoverEffectiveDate.value = new Date().toISOString().slice(0, 10);
   newHandoverTransferReason.value = '';
   newHandoverReplacingVehicle.value = '';
+  newHandoverReasonType.value = 'DRIVER_SWAP';
   newHandoverBorrowTime.value = new Date().toISOString().slice(0, 16);
-  newHandoverReturnTime.value = '';
+  newHandoverReturnTime.value = new Date(Date.now() + 5 * 24 * 3600 * 1000).toISOString().slice(0, 16);
   newHandoverActualReturnTime.value = '';
   newHandoverOdo.value = firstVehicle?.currentOdoKm || 120000;
   newHandoverReturnOdo.value = undefined;
   newHandoverFuel.value = '90%';
-  newHandoverNotes.value = 'Xe sạch, áp suất lốp đủ, phanh hoạt động tốt, đầy đủ giấy tờ';
+  newHandoverNotes.value = 'Xe sạch sẽ, đầy đủ giấy tờ, phanh và lốp hoạt động tốt';
+  newHandoverChecklist.value = {
+    bodyAndPaint: true,
+    brakesAndLights: true,
+    tiresAndSpare: true,
+    cleanliness: true,
+    toolsAndJack: true,
+    documents: true,
+  };
+  selectedHandoverDocs.value = [
+    'Cà vẹt xe bản chính',
+    'Sổ chứng nhận kiểm định an toàn kỹ thuật',
+    'Bảo hiểm dân sự bắt buộc',
+    'Thẻ nhiên liệu FleetCard',
+  ];
 }
 
 function onHandoverVehicleChange() {
@@ -1060,29 +1115,39 @@ function onHandoverVehicleChange() {
 function openAddHandoverModal() {
   editingHandover.value = null;
   resetHandoverForm();
+  newHandoverWorkflowType.value = handoverSectionTab.value;
   showAddHandoverModal.value = true;
 }
 
 function openEditHandoverModal(record: HandoverRecord) {
   editingHandover.value = record;
-  newHandoverWorkflowType.value = record.workflowType ?? 'HANDOVER';
+  newHandoverWorkflowType.value = record.workflowType ?? 'BORROW_RETURN';
   newHandoverPlate.value = record.vehiclePlate;
-  newHandoverFromDriver.value = getDriverNameById(record.fromDriverId) || record.fromTeam || '';
-  newHandoverDriver.value = record.driverName;
+  newHandoverFromDriver.value = record.fromDriverName || getDriverNameById(record.fromDriverId) || '';
+  newHandoverDriver.value = record.toDriverName || record.driverName || '';
   newHandoverVehicleTeam.value = record.fromTeam || 'Chưa có đội';
-  newHandoverFromTeam.value = record.workflowType === 'TRANSFER' ? record.fromTeam : '';
-  newHandoverToTeam.value = record.workflowType === 'TRANSFER' ? record.toTeam : '';
-  newHandoverFromStation.value = record.workflowType === 'TRANSFER' ? (record.fromStation || 'Nhà máy') : 'Nhà máy';
-  newHandoverToStation.value = record.workflowType === 'TRANSFER' ? (record.toStation || 'Trạm Cán 1') : 'Trạm Cán 1';
-  newHandoverTransferReason.value = record.transferReason ?? '';
-  newHandoverReplacingVehicle.value = record.workflowType === 'TRANSFER' ? (record.replacingVehiclePlate || '') : '';
-  newHandoverBorrowTime.value = record.borrowStartAt.replace(' ', 'T');
+  newHandoverFromTeam.value = record.fromTeam || '';
+  newHandoverToTeam.value = record.toTeam || '';
+  newHandoverFromManager.value = record.fromManagerName || '';
+  newHandoverToManager.value = record.toManagerName || '';
+  newHandoverDecisionNumber.value = record.decisionNumber || '';
+  newHandoverEffectiveDate.value = record.effectiveDate || (record.borrowStartAt ? record.borrowStartAt.slice(0, 10) : new Date().toISOString().slice(0, 10));
+  newHandoverTransferReason.value = record.transferReason || '';
+  newHandoverReplacingVehicle.value = record.replacingVehiclePlate || '';
+  newHandoverReasonType.value = record.handoverReasonType || 'DRIVER_SWAP';
+  newHandoverBorrowTime.value = record.borrowStartAt ? record.borrowStartAt.replace(' ', 'T') : new Date().toISOString().slice(0, 16);
   newHandoverReturnTime.value = record.expectedReturnAt ? record.expectedReturnAt.replace(' ', 'T') : '';
   newHandoverActualReturnTime.value = record.actualReturnAt ? record.actualReturnAt.replace(' ', 'T') : '';
   newHandoverOdo.value = record.handoverOdo;
   newHandoverReturnOdo.value = record.returnOdo ?? undefined;
-  newHandoverFuel.value = record.fuelLevel;
-  newHandoverNotes.value = record.conditionNotes;
+  newHandoverFuel.value = record.fuelLevel || '90%';
+  newHandoverNotes.value = record.conditionNotes || '';
+  if (record.handoverChecklist) {
+    newHandoverChecklist.value = { ...record.handoverChecklist };
+  }
+  if (record.handoverDocuments) {
+    selectedHandoverDocs.value = [...record.handoverDocuments];
+  }
   showAddHandoverModal.value = true;
 }
 
@@ -1091,7 +1156,7 @@ function openReturnHandoverModal(record: HandoverRecord, mode: 'READY' | 'RETURN
   returningHandover.value = record;
   returnHandoverActualTime.value = new Date().toISOString().slice(0, 16);
   returnHandoverOdo.value = record.returnOdo ?? record.handoverOdo;
-  returnHandoverFuel.value = record.fuelLevel || '90%';
+  returnHandoverFuel.value = record.returnFuelLevel || record.fuelLevel || '90%';
   returnHandoverNotes.value = record.note || '';
   returnHandoverImageUrl.value = record.handoverImageUrl || '';
   showReturnHandoverModal.value = true;
@@ -1102,61 +1167,166 @@ function openHandoverDetailModal(record: HandoverRecord) {
   showHandoverDetailModal.value = true;
 }
 
-function submitReturnHandover() {
-  if (!returningHandover.value) return;
+function normalizeDateTime(value: string): string {
+  return value ? value.replace('T', ' ') : '';
+}
 
-  const now = new Date().toISOString().slice(0, 16).replace('T', ' ');
+function saveHandoverRecord(payload: HandoverRecord, successMsg: string) {
+  if (editingHandover.value) {
+    handoverList.value = handoverList.value.map((h) => (h.id === editingHandover.value?.id ? payload : h));
+  } else {
+    handoverList.value.unshift(payload);
+  }
+  mockStorage.saveHandovers(handoverList.value);
+  syncVehicleStatusFromHandover(payload);
+  showAddHandoverModal.value = false;
+  editingHandover.value = null;
+  dialog.showSuccess(successMsg, 'Lưu Biên Bản Thành Công');
+}
 
-  if (handoverActionMode.value === 'READY') {
-    const fromDriverName = getDriverNameById(returningHandover.value.fromDriverId) || returningHandover.value.fromTeam || 'tài xế trước';
-    const nextDriverName = getDriverNameById(returningHandover.value.toDriverId) || returningHandover.value.driverName || 'tài xế tiếp theo';
-    const readyMessage = `Xe ${returningHandover.value.vehiclePlate} đã đến bãi và sẵn sàng bàn giao. Vui lòng liên hệ ${fromDriverName} để kiểm tra xe trước khi nhận.`;
-
-    handoverList.value = handoverList.value.map((h) => {
-      if (h.id !== returningHandover.value?.id) return h;
-
-      return {
-        ...h,
-        handoverImageUrl: returnHandoverImageUrl.value || h.handoverImageUrl,
-        conditionNotes: returnHandoverNotes.value.trim() || h.conditionNotes,
-        note: h.note ? `${h.note}\n${readyMessage}` : readyMessage,
-      };
-    });
-
-    mockStorage.saveHandovers(handoverList.value);
-    mockStorage.addDriverNotification({
-      title: `Xe ${returningHandover.value.vehiclePlate} đã đến và sẵn sàng bàn giao`,
-      content: `Xe ${returningHandover.value.vehiclePlate} đã đến, sẵn sàng bàn giao. Vui lòng liên hệ ${fromDriverName} để kiểm tra xe trước khi nhận.`,
-      createdAt: now,
-      type: 'HANDOVER_READY',
-      vehiclePlate: returningHandover.value.vehiclePlate,
-      targetDriverId: returningHandover.value.toDriverId,
-      targetDriverName: nextDriverName,
-      fromDriverName,
-    });
-
-    dialog.showSuccess(`Đã gửi thông báo bàn giao xe [${returningHandover.value.vehiclePlate}] cho ${nextDriverName}.`, 'Bàn Giao Xe Thành Công');
-
-    showReturnHandoverModal.value = false;
-    returningHandover.value = null;
-    returnHandoverActualTime.value = new Date().toISOString().slice(0, 16);
-    returnHandoverOdo.value = undefined;
-    returnHandoverFuel.value = '90%';
-    returnHandoverNotes.value = '';
-    returnHandoverImageUrl.value = '';
+function handleAddHandover() {
+  if (!newHandoverPlate.value) {
+    dialog.showWarning('Vui lòng chọn phương tiện để lập biên bản!', 'Thiếu Thông Tin Phương Tiện', 'Kiểm tra lại');
     return;
   }
+
+  const vehicle = fleetStore.vehicles.find((v) => v.licensePlate === newHandoverPlate.value);
+  const plate = newHandoverPlate.value;
+
+  if (newHandoverWorkflowType.value === 'BORROW_RETURN') {
+    if (!newHandoverFromTeam.value.trim() || !newHandoverToTeam.value.trim()) {
+      dialog.showWarning('Vui lòng nhập đơn vị cho mượn và đơn vị mượn xe!', 'Thiếu Đơn Vị Mượn / Trả', 'Kiểm tra lại');
+      return;
+    }
+
+    const payload: HandoverRecord = {
+      id: editingHandover.value?.id ?? Date.now(),
+      vehicleId: vehicle?.id ?? 0,
+      vehiclePlate: plate,
+      workflowType: 'BORROW_RETURN',
+      fromTeam: newHandoverFromTeam.value.trim(),
+      toTeam: newHandoverToTeam.value.trim(),
+      fromManagerName: newHandoverFromManager.value.trim() || undefined,
+      toManagerName: newHandoverToManager.value.trim() || undefined,
+      replacingVehiclePlate: newHandoverReplacingVehicle.value.trim() || undefined,
+      driverName: vehicle?.assignedDriverName || 'Theo điều phối',
+      borrowStartAt: normalizeDateTime(newHandoverBorrowTime.value),
+      expectedReturnAt: newHandoverReturnTime.value ? normalizeDateTime(newHandoverReturnTime.value) : undefined,
+      actualReturnAt: newHandoverActualReturnTime.value ? normalizeDateTime(newHandoverActualReturnTime.value) : undefined,
+      handoverOdo: Number(newHandoverOdo.value) || 0,
+      returnOdo: newHandoverReturnOdo.value ?? undefined,
+      fuelLevel: newHandoverFuel.value,
+      conditionNotes: newHandoverNotes.value.trim() || 'Mượn xe tạm thời giữa các đơn vị',
+      status: newHandoverActualReturnTime.value ? 'RETURNED' : 'BORROWING',
+      createdAt: new Date().toISOString().slice(0, 16),
+    };
+
+    saveHandoverRecord(payload, `Phiếu mượn xe [${plate}] từ [${payload.fromTeam}] cho [${payload.toTeam}] đã được lưu thành công!`);
+    return;
+  }
+
+  if (newHandoverWorkflowType.value === 'TRANSFER') {
+    if (!newHandoverToTeam.value.trim()) {
+      dialog.showWarning('Vui lòng chọn hoặc nhập đơn vị mới tiếp nhận quản lý xe!', 'Thiếu Đơn Vị Tiếp Nhận', 'Kiểm tra lại');
+      return;
+    }
+
+    const targetUnit = newHandoverToTeam.value.trim();
+    if (vehicle) {
+      vehicle.teamName = targetUnit;
+      vehicle.operatingUnitType = targetUnit.includes('Nhà máy') ? 'Factory' : 'Team';
+      fleetStore.updateVehicle(vehicle);
+    }
+
+    const payload: HandoverRecord = {
+      id: editingHandover.value?.id ?? Date.now(),
+      vehicleId: vehicle?.id ?? 0,
+      vehiclePlate: plate,
+      workflowType: 'TRANSFER',
+      fromTeam: newHandoverFromTeam.value.trim() || 'Đơn vị cũ',
+      toTeam: targetUnit,
+      fromManagerName: newHandoverFromManager.value.trim() || undefined,
+      toManagerName: newHandoverToManager.value.trim() || undefined,
+      decisionNumber: newHandoverDecisionNumber.value.trim() || undefined,
+      effectiveDate: newHandoverEffectiveDate.value || new Date().toISOString().slice(0, 10),
+      transferReason: newHandoverTransferReason.value.trim() || 'Điều chuyển quyền quản lý phương tiện sang đơn vị mới',
+      driverName: vehicle?.assignedDriverName || 'Đơn vị mới phân công',
+      borrowStartAt: normalizeDateTime(newHandoverBorrowTime.value),
+      handoverOdo: Number(newHandoverOdo.value) || 0,
+      fuelLevel: newHandoverFuel.value,
+      handoverDocuments: [...selectedHandoverDocs.value],
+      conditionNotes: newHandoverNotes.value.trim() || 'Đã chuyển giao toàn bộ quyền quản lý phương tiện',
+      status: 'RETURNED',
+      createdAt: new Date().toISOString().slice(0, 16),
+    };
+
+    saveHandoverRecord(payload, `Đã điều chuyển quyền quản lý xe [${plate}] về [${targetUnit}] thành công! Danh sách phương tiện đã được cập nhật.`);
+    return;
+  }
+
+  if (newHandoverWorkflowType.value === 'DRIVER_HANDOVER') {
+    if (!newHandoverDriver.value) {
+      dialog.showWarning('Vui lòng chọn tài xế tiếp nhận xe mới!', 'Thiếu Tài Xế Tiếp Nhận', 'Kiểm tra lại');
+      return;
+    }
+
+    const newDriver = fleetStore.drivers.find((d) => d.fullName === newHandoverDriver.value);
+    const fromDriver = fleetStore.drivers.find((d) => d.fullName === newHandoverFromDriver.value);
+
+    if (vehicle && newDriver) {
+      fleetStore.assignDriverToVehicle(
+        vehicle.id,
+        newDriver.id,
+        `Bàn giao từ ${newHandoverFromDriver.value} sang ${newDriver.fullName} (${getReasonTypeLabel(newHandoverReasonType.value)})`
+      );
+    }
+
+    const payload: HandoverRecord = {
+      id: editingHandover.value?.id ?? Date.now(),
+      vehicleId: vehicle?.id ?? 0,
+      vehiclePlate: plate,
+      workflowType: 'DRIVER_HANDOVER',
+      fromTeam: vehicle?.teamName || 'Đội xe',
+      toTeam: vehicle?.teamName || 'Đội xe',
+      handoverReasonType: newHandoverReasonType.value,
+      fromDriverId: fromDriver?.id,
+      fromDriverName: newHandoverFromDriver.value,
+      toDriverId: newDriver?.id,
+      toDriverName: newHandoverDriver.value,
+      driverName: newHandoverDriver.value,
+      borrowStartAt: normalizeDateTime(newHandoverBorrowTime.value),
+      handoverOdo: Number(newHandoverOdo.value) || 0,
+      fuelLevel: newHandoverFuel.value,
+      handoverChecklist: { ...newHandoverChecklist.value },
+      conditionNotes: newHandoverNotes.value.trim() || 'Biên bản bàn giao hiện trạng kỹ thuật xe thay tài xế',
+      handoverImageUrl: returnHandoverImageUrl.value || undefined,
+      status: 'RETURNED',
+      note: `Bàn giao từ ${newHandoverFromDriver.value} sang ${newHandoverDriver.value}`,
+      createdAt: new Date().toISOString().slice(0, 16),
+    };
+
+    saveHandoverRecord(
+      payload,
+      `Biên bản bàn giao hiện trạng xe [${plate}] cho tài xế [${newHandoverDriver.value}] đã lập thành công! Tài xế phụ trách xe đã được cập nhật.`
+    );
+    return;
+  }
+}
+
+function submitReturnHandover() {
+  if (!returningHandover.value) return;
 
   const returnOdoValue = Number(returnHandoverOdo.value);
   if (!returnOdoValue || returnOdoValue < returningHandover.value.handoverOdo) {
     dialog.showWarning(
-      'Vui lòng nhập ODO lúc trả hợp lệ và lớn hơn hoặc bằng ODO bàn giao.',
-      'Thiếu / Sai Thông Tin Trả Xe',
+      'Vui lòng nhập ODO lúc trả hợp lệ và lớn hơn hoặc bằng ODO bàn giao ban đầu.',
+      'Thiếu / Sai ODO Trả Xe',
       'Kiểm tra lại'
     );
     return;
   }
 
+  const now = new Date().toISOString().slice(0, 16).replace('T', ' ');
   const actualReturnAt = normalizeDateTime(returnHandoverActualTime.value) || now;
 
   handoverList.value = handoverList.value.map((h) => {
@@ -1166,10 +1336,10 @@ function submitReturnHandover() {
       ...h,
       actualReturnAt,
       returnOdo: returnOdoValue,
-      fuelLevel: returnHandoverFuel.value,
+      returnFuelLevel: returnHandoverFuel.value,
       conditionNotes: returnHandoverNotes.value.trim() || h.conditionNotes,
       handoverImageUrl: returnHandoverImageUrl.value || h.handoverImageUrl,
-      note: returnHandoverNotes.value.trim() || h.note || `Đã xác nhận trả xe lúc ${now}`,
+      note: returnHandoverNotes.value.trim() || h.note || `Đã hoàn trả xe lúc ${now}`,
       status: 'RETURNED',
     };
 
@@ -1178,7 +1348,10 @@ function submitReturnHandover() {
   });
 
   mockStorage.saveHandovers(handoverList.value);
-  dialog.showSuccess(`Đã lưu biên bản trả xe cho [${returningHandover.value.vehiclePlate}] thành công!`, 'Trả Xe Thành Công');
+  dialog.showSuccess(
+    `Đã xác nhận hoàn trả xe [${returningHandover.value.vehiclePlate}] về cho [${returningHandover.value.fromTeam}] thành công!`,
+    'Hoàn Trả Xe Thành Công'
+  );
 
   showReturnHandoverModal.value = false;
   returningHandover.value = null;
@@ -1187,78 +1360,6 @@ function submitReturnHandover() {
   returnHandoverFuel.value = '90%';
   returnHandoverNotes.value = '';
   returnHandoverImageUrl.value = '';
-}
-
-function normalizeDateTime(value: string): string {
-  return value ? value.replace('T', ' ') : '';
-}
-
-function handleAddHandover() {
-  if (!newHandoverPlate.value) {
-    dialog.showWarning('Vui lòng chọn phương tiện để lập phiếu!', 'Thiếu Thông Tin Phương Tiện', 'Kiểm tra lại');
-    return;
-  }
-
-  const vehicle = fleetStore.vehicles.find((v) => v.licensePlate === newHandoverPlate.value);
-  const fromDriver = fleetStore.drivers.find((d) => d.fullName === newHandoverFromDriver.value) || fleetStore.drivers.find((d) => d.id === vehicle?.assignedDriverId);
-  const driver = fleetStore.drivers.find((d) => d.fullName === newHandoverDriver.value);
-  const plate = newHandoverPlate.value;
-  const driverName = newHandoverWorkflowType.value === 'HANDOVER'
-    ? newHandoverDriver.value || 'Chưa phân công'
-    : (newHandoverDriver.value || vehicle?.assignedDriverName || 'Chưa phân công');
-  const actualReturnAt = newHandoverActualReturnTime.value ? normalizeDateTime(newHandoverActualReturnTime.value) : undefined;
-
-  const handoverDispatchNote = newHandoverWorkflowType.value === 'HANDOVER'
-    ? `Lịch điều phối viên: ${fromDriver?.fullName || newHandoverFromDriver.value} bàn giao xe ${plate} cho ${driverName} tại bãi xe. Người nhận ca tiếp theo sẽ xác nhận nhận xe trong ứng dụng.`
-    : undefined;
-
-  if (newHandoverWorkflowType.value === 'HANDOVER' && (!newHandoverFromDriver.value || !newHandoverDriver.value)) {
-    dialog.showWarning('Vui lòng chọn tài xế bàn giao và tài xế nhận xe để lập phiếu bàn giao!', 'Thiếu Thông Tin Bàn Giao', 'Kiểm tra lại');
-    return;
-  }
-
-  const handoverPayload: HandoverRecord = {
-    id: editingHandover.value?.id ?? Date.now(),
-    vehicleId: vehicle?.id ?? 0,
-    vehiclePlate: plate,
-    workflowType: newHandoverWorkflowType.value,
-    fromTeam: newHandoverWorkflowType.value === 'TRANSFER'
-      ? (newHandoverFromTeam.value.trim() || 'Nhà máy')
-      : (newHandoverVehicleTeam.value.trim() || 'Đội công ty'),
-    toTeam: newHandoverWorkflowType.value === 'TRANSFER'
-      ? (newHandoverToTeam.value.trim() || 'Trạm Cán 1')
-      : '',
-    fromStation: newHandoverWorkflowType.value === 'TRANSFER' ? (newHandoverFromStation.value.trim() || 'Nhà máy') : undefined,
-    toStation: newHandoverWorkflowType.value === 'TRANSFER' ? (newHandoverToStation.value.trim() || 'Trạm Cán 1') : undefined,
-    transferReason: newHandoverWorkflowType.value === 'TRANSFER' ? (newHandoverTransferReason.value.trim() || undefined) : undefined,
-    replacingVehiclePlate: newHandoverWorkflowType.value === 'TRANSFER' ? (newHandoverReplacingVehicle.value.trim() || undefined) : undefined,
-    driverName,
-    fromDriverId: fromDriver?.id ?? vehicle?.assignedDriverId,
-    toDriverId: driver?.id,
-    borrowStartAt: normalizeDateTime(newHandoverBorrowTime.value),
-    expectedReturnAt: newHandoverReturnTime.value ? normalizeDateTime(newHandoverReturnTime.value) : undefined,
-    actualReturnAt,
-    handoverOdo: Number(newHandoverOdo.value) || 0,
-    returnOdo: newHandoverReturnOdo.value ?? undefined,
-    fuelLevel: newHandoverFuel.value,
-    conditionNotes: newHandoverNotes.value.trim() || 'Xe bàn giao nguyên trạng hoạt động tốt',
-    note: handoverDispatchNote,
-    status: actualReturnAt ? 'RETURNED' : 'BORROWING',
-    createdAt: new Date().toISOString().slice(0, 16),
-  };
-
-  if (editingHandover.value) {
-    handoverList.value = handoverList.value.map((h) => h.id === editingHandover.value?.id ? handoverPayload : h);
-    dialog.showSuccess(`Phiếu bàn giao xe [${plate}] đã được cập nhật thành công!`, 'Cập Nhật Phiếu Bàn Giao');
-  } else {
-    handoverList.value.unshift(handoverPayload);
-    dialog.showSuccess(`Phiếu bàn giao xe [${plate}] cho tài xế [${driverName}] đã được lập thành công!`, 'Lập Phiếu Bàn Giao Thành Công');
-  }
-
-  mockStorage.saveHandovers(handoverList.value);
-  syncVehicleStatusFromHandover(handoverPayload);
-  showAddHandoverModal.value = false;
-  editingHandover.value = null;
 }
 
 function handleReturnHandover(record: HandoverRecord) {
@@ -1284,15 +1385,24 @@ function handleReturnHandoverImageUpload(event: Event) {
 
 function handleDeleteHandover(record: HandoverRecord) {
   dialog.showConfirm({
-    title: 'Xác Nhận Xóa Phiếu Bàn Giao',
-    message: `Bạn có chắc chắn muốn xóa phiếu bàn giao xe [${record.vehiclePlate}] khỏi nhật ký?`,
+    title: 'Xác Nhận Xóa Biên Bản',
+    message: `Bạn có chắc chắn muốn xóa biên bản cho xe [${record.vehiclePlate}] khỏi hệ thống?`,
     confirmText: 'Xác Nhận Xóa',
     onConfirm: () => {
       handoverList.value = handoverList.value.filter((h) => h.id !== record.id);
       mockStorage.saveHandovers(handoverList.value);
-      dialog.showSuccess(`Đã xóa phiếu bàn giao [${record.vehiclePlate}] khỏi hệ thống!`, 'Xóa Phiếu Thành Công');
+      dialog.showSuccess(`Đã xóa biên bản xe [${record.vehiclePlate}] thành công!`, 'Xóa Thành Công');
     },
   });
+}
+
+function truncateText(text: string | null | undefined, maxWords: number = 5): string {
+  if (!text) return '—';
+  const words = text.split(' ');
+  if (words.length > maxWords) {
+    return words.slice(0, maxWords).join(' ') + '...';
+  }
+  return text;
 }
 </script>
 
@@ -1696,39 +1806,65 @@ function handleDeleteHandover(record: HandoverRecord) {
       />
     </div>
 
-    <!-- 4. Bảng Bàn giao xe (US-28) -->
+    <!-- 4. Phân hệ Bàn giao, Điều chuyển & Mượn trả xe -->
     <div v-else class="card">
       <div class="card-header flex-between">
         <div>
-          <h3 class="card-title">Bàn Giao & Mượn Trả Xe</h3>
-          <p v-if="!isDriverRole" class="text-xs text-muted">Biên bản bàn giao hiện trạng, mượn trả chìa khóa và kiểm tra chỉ số ODO, xăng dầu</p>
-          <p v-else class="text-xs text-muted">Phiếu bàn giao được giao cho bạn. Vui lòng xác nhận nhận xe và trả xe khi kết thúc ca làm việc.</p>
+          <h3 class="card-title">Quản Lý Bàn Giao, Điều Chuyển & Mượn Trả Xe</h3>
+          <p v-if="handoverSectionTab === 'BORROW_RETURN'" class="text-xs text-muted">
+            Theo dõi quy trình mượn / trả xe giữa các đơn vị (Trạm cán, Đội, Nhà máy) - ghi nhận ODO, xăng dầu và đối soát khi hoàn trả
+          </p>
+          <p v-else-if="handoverSectionTab === 'TRANSFER'" class="text-xs text-muted">
+            Điều chuyển quyền quản lý phương tiện sang đơn vị khác theo quyết định của công ty, tự động cập nhật danh sách xe
+          </p>
+          <p v-else class="text-xs text-muted">
+            Biên bản bàn giao hiện trạng kỹ thuật và pháp lý xe khi thay tài xế phụ trách (nghỉ việc, hoán đổi, phân công mới)
+          </p>
         </div>
         <button v-if="isDispatcherRole" class="btn btn-primary" @click="openAddHandoverModal">
           <Plus :size="16" />
-          <span>Lập Phiếu Bàn Giao</span>
+          <span>
+            {{
+              handoverSectionTab === 'BORROW_RETURN'
+                ? 'Lập Phiếu Mượn Xe'
+                : handoverSectionTab === 'TRANSFER'
+                  ? 'Lập Lệnh Điều Chuyển'
+                  : 'Lập Biên Bản Bàn Giao'
+            }}
+          </span>
         </button>
       </div>
 
-      <!-- Thanh chuyển đổi phân hệ: Bàn giao xe vs Điều chuyển & Bộ lọc -->
+      <!-- Thanh chuyển đổi phân hệ: 3 Sub-tabs rõ ràng & Bộ lọc -->
       <div class="handover-toolbar">
-        <!-- Segmented Tab Toggle -->
+        <!-- Segmented Tab Toggle with 3 Tabs -->
         <div class="segmented-control">
           <button
             type="button"
-            class="segmented-tab"
-            :class="{ active: handoverSectionTab === 'HANDOVER' }"
-            @click="handoverSectionTab = 'HANDOVER'"
+            class="segmented-tab flex items-center gap-2"
+            :class="{ active: handoverSectionTab === 'BORROW_RETURN' }"
+            @click="handoverSectionTab = 'BORROW_RETURN'"
           >
-            Bàn giao xe
+            <ArrowRightLeft :size="14" />
+            <span>Mượn / Trả Xe (giữa các đơn vị)</span>
           </button>
           <button
             type="button"
-            class="segmented-tab"
+            class="segmented-tab flex items-center gap-2"
             :class="{ active: handoverSectionTab === 'TRANSFER' }"
             @click="handoverSectionTab = 'TRANSFER'"
           >
-            Điều chuyển
+            <Building2 :size="14" />
+            <span>Điều Chuyển Xe (chuyển đơn vị quản lý)</span>
+          </button>
+          <button
+            type="button"
+            class="segmented-tab flex items-center gap-2"
+            :class="{ active: handoverSectionTab === 'DRIVER_HANDOVER' }"
+            @click="handoverSectionTab = 'DRIVER_HANDOVER'"
+          >
+            <UserCheck :size="14" />
+            <span>Bàn Giao Hiện Trạng (thay tài xế)</span>
           </button>
         </div>
 
@@ -1740,7 +1876,7 @@ function handleDeleteHandover(record: HandoverRecord) {
               v-model="searchHandoverKeyword"
               type="text"
               class="handover-search-input"
-              placeholder="Tìm biển số, tài xế, đội..."
+              placeholder="Tìm biển số, đơn vị, tài xế..."
             />
             <button
               v-if="searchHandoverKeyword"
@@ -1755,61 +1891,77 @@ function handleDeleteHandover(record: HandoverRecord) {
           <div class="handover-filter-item">
             <span class="filter-label">Trạng thái:</span>
             <select v-model="handoverStatusFilter" class="filter-select-input">
-              <option value="ALL">Tất cả ({{ handoverSummary.total }})</option>
-              <option value="BORROWING">Đang mượn / còn hiệu lực ({{ handoverSummary.borrowing }})</option>
-              <option value="RETURNED">Đã trả / đã đóng đợt ({{ handoverSummary.returned }})</option>
-              <option value="OVERDUE">Quá hạn / cần xử lý ({{ handoverSummary.overdue }})</option>
-              <option value="CANCELLED">Đã hủy ({{ handoverSummary.cancelled }})</option>
+              <option value="ALL">Tất cả ({{ tabHandovers.length }})</option>
+              <option value="BORROWING">{{ handoverSummary.stat1Label }} ({{ handoverSummary.stat1Val }})</option>
+              <option value="RETURNED">{{ handoverSummary.stat2Label }} ({{ handoverSummary.stat2Val }})</option>
+              <option value="OVERDUE">Quá hạn ({{ tabHandovers.filter(h => h.status === 'OVERDUE').length }})</option>
+              <option value="CANCELLED">Đã hủy ({{ tabHandovers.filter(h => h.status === 'CANCELLED').length }})</option>
             </select>
           </div>
         </div>
       </div>
 
+      <!-- KPI Summary Cards động theo từng phân hệ -->
       <div style="display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px;">
         <div style="padding: 12px 14px; border-radius: 12px; border: 1px solid #dfe7ef; background: linear-gradient(135deg, #fef3c7, #fff7ed);">
-          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #8a5b00; font-weight: 700;">Đang mượn / còn hiệu lực</div>
-          <div style="margin-top: 8px; font-size: 22px; font-weight: 800; color: #7c3f00;">{{ handoverSummary.borrowing }}</div>
+          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #8a5b00; font-weight: 700;">
+            {{ handoverSummary.stat1Label }}
+          </div>
+          <div style="margin-top: 8px; font-size: 22px; font-weight: 800; color: #7c3f00;">
+            {{ handoverSummary.stat1Val }}
+          </div>
         </div>
         <div style="padding: 12px 14px; border-radius: 12px; border: 1px solid #dfe7ef; background: linear-gradient(135deg, #dcfce7, #f0fdf4);">
-          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #166534; font-weight: 700;">Đã trả / đã đóng đợt</div>
-          <div style="margin-top: 8px; font-size: 22px; font-weight: 800; color: #166534;">{{ handoverSummary.returned }}</div>
+          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #166534; font-weight: 700;">
+            {{ handoverSummary.stat2Label }}
+          </div>
+          <div style="margin-top: 8px; font-size: 22px; font-weight: 800; color: #166534;">
+            {{ handoverSummary.stat2Val }}
+          </div>
         </div>
         <div style="padding: 12px 14px; border-radius: 12px; border: 1px solid #dfe7ef; background: linear-gradient(135deg, #fce7f3, #fff1f2);">
-          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #9d174d; font-weight: 700;">Quá hạn / cần xử lý</div>
-          <div style="margin-top: 8px; font-size: 22px; font-weight: 800; color: #9d174d;">{{ handoverSummary.overdue }}</div>
+          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #9d174d; font-weight: 700;">
+            {{ handoverSummary.stat3Label }}
+          </div>
+          <div style="margin-top: 8px; font-size: 22px; font-weight: 800; color: #9d174d;">
+            {{ handoverSummary.stat3Val }}
+          </div>
         </div>
         <div style="padding: 12px 14px; border-radius: 12px; border: 1px solid #dfe7ef; background: linear-gradient(135deg, #dbeafe, #eff6ff);">
-          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #1d4ed8; font-weight: 700;">Tổng phiếu</div>
-          <div style="margin-top: 8px; font-size: 22px; font-weight: 800; color: #1e3a8a;">{{ handoverSummary.total }}</div>
+          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #1d4ed8; font-weight: 700;">
+            {{ handoverSummary.stat4Label }}
+          </div>
+          <div style="margin-top: 8px; font-size: 22px; font-weight: 800; color: #1e3a8a;">
+            {{ handoverSummary.stat4Val }}
+          </div>
         </div>
       </div>
 
+      <!-- Bảng dữ liệu: Tùy biến theo từng Sub-tab -->
       <div class="table-container">
-        <table class="table">
+        <!-- 1. BẢNG MƯỢN / TRẢ XE -->
+        <table v-if="handoverSectionTab === 'BORROW_RETURN'" class="table">
           <thead>
             <tr>
               <th>Phương Tiện</th>
-              <th>Loại</th>
-              <template v-if="!isDriverRole">
-                <th>{{ handoverSectionTab === 'TRANSFER' ? 'Tài Xế Sở Hữu' : 'Tài Xế Cũ' }}</th>
-                <th>{{ handoverSectionTab === 'TRANSFER' ? 'Tài Xế Tạm Thời' : 'Tài Xế Hiện Tại' }}</th>
-              </template>
-              <th>{{ handoverSectionTab === 'TRANSFER' ? 'Thời Gian Mượn' : 'Thời Gian Bàn Giao' }}</th>
-              <th>Thời Gian Trả</th>
+              <th>Đơn Vị Mượn</th>
+              <th>Đơn Vị Cho Mượn</th>
+              <th>Đại Diện 2 Bên</th>
+              <th>Xe Cần Thay Thế</th>
+              <th>Thời Gian Mượn - Trả</th>
               <th>ODO Bàn Giao</th>
-              <th>Mức Nhiên Liệu</th>
-              <th v-if="!isDriverRole">Biên Bản Hiện Trạng Xe</th>
-              <th v-else>Ghi Chú Thực Tế</th>
-              <th>Tình Trạng</th>
+              <th>Nhiên Liệu</th>
+              <th>Lý Do Mượn Xe</th>
+              <th>Trạng Thái</th>
               <th class="text-center">Hành Động</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="filteredHandovers.length === 0">
-              <td :colspan="isDriverRole ? 8 : 11" class="text-center py-5">
+              <td colspan="11" class="text-center py-5">
                 <div class="empty-state-subtab">
-                  <Truck :size="36" class="text-muted opacity-40 mb-2" />
-                  <p class="text-sm text-muted font-medium">Không tìm thấy biên bản bàn giao nào phù hợp với bộ lọc hiện tại.</p>
+                  <ArrowRightLeft :size="36" class="text-muted opacity-40 mb-2" />
+                  <p class="text-sm text-muted font-medium">Không tìm thấy biên bản mượn/trả xe nào phù hợp với bộ lọc hiện tại.</p>
                   <button v-if="handoverStatusFilter !== 'ALL' || searchHandoverKeyword" class="btn btn-outline btn-sm mt-2" @click="resetHandoverFilters">
                     <RotateCcw :size="13" />
                     <span>Xem tất cả biên bản</span>
@@ -1819,57 +1971,263 @@ function handleDeleteHandover(record: HandoverRecord) {
             </tr>
             <tr v-for="h in paginatedHandovers" :key="h.id">
               <td>
-                <button class="btn-plate-link" @click="openHandoverDetailModal(h)" title="Xem chi tiết phiếu bàn giao / điều chuyển">
+                <button class="btn-plate-link" @click="openHandoverDetailModal(h)" title="Xem chi tiết phiếu mượn xe">
                   <strong>{{ h.vehiclePlate }}</strong>
                 </button>
               </td>
               <td>
-                <span class="badge badge-secondary">
-                  {{ getHandoverWorkflowLabel(h.workflowType) }}
+                <span class="badge-unit-team">{{ h.toTeam || '—' }}</span>
+              </td>
+              <td>
+                <span class="badge-unit-factory">{{ h.fromTeam || '—' }}</span>
+              </td>
+              <td>
+                <div class="text-xs">
+                  <div><strong>Nhận:</strong> {{ h.toManagerName || 'Quản lý nhận' }}</div>
+                  <div class="text-muted"><strong>Giao:</strong> {{ h.fromManagerName || 'Quản lý giao' }}</div>
+                </div>
+              </td>
+              <td>
+                <span v-if="h.replacingVehiclePlate" class="badge badge-warning" title="Xe bị hỏng cần mượn chi viện">
+                  ⚠️ {{ h.replacingVehiclePlate }}
+                </span>
+                <span v-else class="text-muted text-xs italic">—</span>
+              </td>
+              <td>
+                <div class="text-xs">
+                  <div><strong>Từ:</strong> {{ h.borrowStartAt }}</div>
+                  <div><strong>Hẹn:</strong> {{ h.expectedReturnAt || '—' }}</div>
+                  <div v-if="h.actualReturnAt" class="text-emerald-700 font-semibold">
+                    <strong>Đã trả:</strong> {{ h.actualReturnAt }}
+                  </div>
+                </div>
+              </td>
+              <td>
+                <strong>{{ h.handoverOdo.toLocaleString() }} km</strong>
+                <div v-if="h.returnOdo" class="text-xs text-muted">
+                  Trả: {{ h.returnOdo.toLocaleString() }} km
+                </div>
+              </td>
+              <td>
+                <span class="badge badge-completed">{{ h.fuelLevel }}</span>
+                <span v-if="h.returnFuelLevel" class="text-xs text-muted block mt-1">
+                  Trả: {{ h.returnFuelLevel }}
                 </span>
               </td>
-              <template v-if="!isDriverRole">
-                <td>{{ getDriverNameById(h.fromDriverId) || h.fromTeam || '—' }}</td>
-                <td>{{ h.driverName || h.toTeam || '—' }}</td>
-              </template>
-              <td>{{ h.borrowStartAt }}</td>
-              <td>{{ h.actualReturnAt || h.expectedReturnAt || '—' }}</td>
-              <td><strong>{{ h.handoverOdo.toLocaleString() }} km</strong></td>
-              <td><span class="badge badge-completed">{{ h.fuelLevel }}</span></td>
-              <td v-if="!isDriverRole" class="text-sm text-secondary">{{ h.conditionNotes }}</td>
-              <td v-else class="text-sm text-secondary">
-                <span v-if="h.note">{{ h.note }}</span>
-                <span v-else class="text-muted italic">Chưa có ghi chú thực tế</span>
+              <td class="text-sm text-secondary" style="max-width: 220px;" :title="h.conditionNotes || h.transferReason || ''">
+                {{ truncateText(h.conditionNotes || h.transferReason) }}
               </td>
               <td>
                 <span class="badge" :class="getHandoverStatusClass(h.status)">
-                  {{ getHandoverStatusLabel(h.status, h.workflowType) }}
+                  {{ getHandoverStatusLabel(h.status, 'BORROW_RETURN') }}
+                </span>
+              </td>
+              <td class="text-center">
+                <div class="actions-group">
+                  <button
+                    v-if="h.status === 'BORROWING'"
+                    class="btn-action btn-primary"
+                    @click="handleReturnHandover(h)"
+                    title="Xác nhận trả xe về đơn vị gốc"
+                  >
+                    <RotateCcw :size="14" />
+                  </button>
+                  <button class="btn-action btn-secondary" @click="openHandoverDetailModal(h)" title="Xem chi tiết phiếu">
+                    <Info :size="14" />
+                  </button>
+                  <button v-if="isDispatcherRole" class="btn-action btn-edit" @click="openEditHandoverModal(h)" title="Chỉnh sửa phiếu">
+                    <Edit2 :size="14" />
+                  </button>
+                  <button v-if="isDispatcherRole" class="btn-action btn-delete" @click="handleDeleteHandover(h)" title="Xóa phiếu">
+                    <Trash2 :size="14" />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- 2. BẢNG ĐIỀU CHUYỂN XE -->
+        <table v-else-if="handoverSectionTab === 'TRANSFER'" class="table">
+          <thead>
+            <tr>
+              <th>Phương Tiện</th>
+              <th>Đơn Vị Chuyển Giao (Cũ)</th>
+              <th>Đơn Vị Tiếp Nhận (Mới)</th>
+              <th>Số Quyết Định & Hiệu Lực</th>
+              <th>Đại Diện 2 Bên</th>
+              <th>Lý Do Điều Chuyển</th>
+              <th>ODO Bàn Giao</th>
+              <th>Hồ Sơ Kèm Theo</th>
+              <th>Trạng Thái</th>
+              <th class="text-center">Hành Động</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-if="filteredHandovers.length === 0">
+              <td colspan="10" class="text-center py-5">
+                <div class="empty-state-subtab">
+                  <Building2 :size="36" class="text-muted opacity-40 mb-2" />
+                  <p class="text-sm text-muted font-medium">Không tìm thấy lệnh điều chuyển xe nào phù hợp với bộ lọc hiện tại.</p>
+                  <button v-if="handoverStatusFilter !== 'ALL' || searchHandoverKeyword" class="btn btn-outline btn-sm mt-2" @click="resetHandoverFilters">
+                    <RotateCcw :size="13" />
+                    <span>Xem tất cả lệnh điều chuyển</span>
+                  </button>
+                </div>
+              </td>
+            </tr>
+            <tr v-for="h in paginatedHandovers" :key="h.id">
+              <td>
+                <button class="btn-plate-link" @click="openHandoverDetailModal(h)" title="Xem chi tiết lệnh điều chuyển">
+                  <strong>{{ h.vehiclePlate }}</strong>
+                </button>
+              </td>
+              <td>
+                <span class="badge-unit-team">{{ h.fromTeam || '—' }}</span>
+              </td>
+              <td>
+                <span class="badge-unit-factory font-bold text-emerald-800 bg-emerald-100 border border-emerald-300">
+                  ➔ {{ h.toTeam || '—' }}
+                </span>
+              </td>
+              <td>
+                <div>
+                  <span class="font-semibold text-primary block">{{ h.decisionNumber || 'QĐ-TCT' }}</span>
+                  <span class="text-xs text-muted">Hiệu lực: {{ h.effectiveDate || h.borrowStartAt?.slice(0, 10) || '—' }}</span>
+                </div>
+              </td>
+              <td>
+                <div class="text-xs">
+                  <div><strong>Giao:</strong> {{ h.fromManagerName || 'Đơn vị giao' }}</div>
+                  <div><strong>Nhận:</strong> {{ h.toManagerName || 'Đơn vị nhận' }}</div>
+                </div>
+              </td>
+              <td class="text-sm text-secondary" style="max-width: 240px;" :title="h.transferReason || h.conditionNotes || ''">
+                {{ truncateText(h.transferReason || h.conditionNotes) }}
+              </td>
+              <td>
+                <strong>{{ h.handoverOdo.toLocaleString() }} km</strong>
+              </td>
+              <td>
+                <span class="badge badge-secondary" title="Hồ sơ xe đi kèm">
+                  <FileText :size="12" class="mr-1 inline" />
+                  {{ (h.handoverDocuments && h.handoverDocuments.length) || 4 }} loại giấy tờ
+                </span>
+              </td>
+              <td>
+                <span class="badge badge-completed">
+                  {{ getHandoverStatusLabel(h.status, 'TRANSFER') }}
+                </span>
+              </td>
+              <td class="text-center">
+                <div class="actions-group">
+                  <button class="btn-action btn-secondary" @click="openHandoverDetailModal(h)" title="Xem chi tiết quyết định điều chuyển">
+                    <Info :size="14" />
+                  </button>
+                  <button v-if="isDispatcherRole" class="btn-action btn-edit" @click="openEditHandoverModal(h)" title="Chỉnh sửa lệnh điều chuyển">
+                    <Edit2 :size="14" />
+                  </button>
+                  <button v-if="isDispatcherRole" class="btn-action btn-delete" @click="handleDeleteHandover(h)" title="Xóa lệnh điều chuyển">
+                    <Trash2 :size="14" />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- 3. BẢNG BÀN GIAO HIỆN TRẠNG XE (THAY TÀI XẾ) -->
+        <table v-else class="table">
+          <thead>
+            <tr>
+              <th>Phương Tiện</th>
+              <th>Tài Xế Bàn Giao (Cũ)</th>
+              <th>Tài Xế Tiếp Nhận (Mới)</th>
+              <th>Lý Do Bàn Giao</th>
+              <th>Thời Điểm Bàn Giao</th>
+              <th>ODO Bàn Giao</th>
+              <th>Nhiên Liệu</th>
+              <th>Checklist Hiện Trạng</th>
+              <th>Ghi Chú & Cam Kết</th>
+              <th>Trạng Thái</th>
+              <th class="text-center">Hành Động</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-if="filteredHandovers.length === 0">
+              <td colspan="11" class="text-center py-5">
+                <div class="empty-state-subtab">
+                  <UserCheck :size="36" class="text-muted opacity-40 mb-2" />
+                  <p class="text-sm text-muted font-medium">Không tìm thấy biên bản bàn giao hiện trạng nào phù hợp với bộ lọc hiện tại.</p>
+                  <button v-if="handoverStatusFilter !== 'ALL' || searchHandoverKeyword" class="btn btn-outline btn-sm mt-2" @click="resetHandoverFilters">
+                    <RotateCcw :size="13" />
+                    <span>Xem tất cả biên bản</span>
+                  </button>
+                </div>
+              </td>
+            </tr>
+            <tr v-for="h in paginatedHandovers" :key="h.id">
+              <td>
+                <button class="btn-plate-link" @click="openHandoverDetailModal(h)" title="Xem chi tiết biên bản bàn giao hiện trạng">
+                  <strong>{{ h.vehiclePlate }}</strong>
+                </button>
+              </td>
+              <td>
+                <strong>{{ h.fromDriverName || getDriverNameById(h.fromDriverId) || '—' }}</strong>
+              </td>
+              <td>
+                <strong class="text-emerald-700">➔ {{ h.toDriverName || h.driverName || '—' }}</strong>
+              </td>
+              <td>
+                <span class="badge badge-secondary">
+                  {{ getReasonTypeLabel(h.handoverReasonType) }}
+                </span>
+              </td>
+              <td>
+                <span class="text-xs font-mono">{{ h.borrowStartAt }}</span>
+              </td>
+              <td>
+                <strong>{{ h.handoverOdo.toLocaleString() }} km</strong>
+              </td>
+              <td>
+                <span class="badge badge-completed">{{ h.fuelLevel }}</span>
+              </td>
+              <td>
+                <span class="badge badge-completed" title="Số hạng mục kỹ thuật đạt chuẩn">
+                  <ShieldCheck :size="13" class="mr-1 inline" />
+                  {{ countChecklistItems(h.handoverChecklist).passed }}/{{ countChecklistItems(h.handoverChecklist).total }} mục đạt
+                </span>
+              </td>
+              <td class="text-sm text-secondary" style="max-width: 220px;" :title="h.conditionNotes || ''">
+                {{ truncateText(h.conditionNotes) }}
+              </td>
+              <td>
+                <span class="badge" :class="getHandoverStatusClass(h.status)">
+                  {{ getHandoverStatusLabel(h.status, 'DRIVER_HANDOVER') }}
                 </span>
               </td>
               <td class="text-center">
                 <div v-if="isDriverRole" class="actions-group">
                   <button
-                    v-if="currentDriverId && h.fromDriverId === currentDriverId && h.status === 'BORROWING'"
+                    v-if="h.status === 'BORROWING' && (!h.note || !h.note.includes('Đã xác nhận nhận xe'))"
                     class="btn-action btn-primary"
-                    @click="handleDriverReadyToHandover(h)"
-                    title="Bàn giao xe"
+                    @click="handleDriverReceiveHandover(h)"
+                    title="Xác nhận nhận xe & hiện trạng"
                   >
                     <CheckCircle2 :size="14" />
                   </button>
-                  <button
-                    v-else-if="h.status === 'BORROWING' && !h.note?.includes('Đã xác nhận nhận xe')"
-                    class="btn-action btn-primary"
-                    @click="handleDriverReceiveHandover(h)"
-                    title="Xác nhận nhận xe"
-                  >
+                  <button class="btn-action btn-secondary" @click="openHandoverDetailModal(h)" title="Xem chi tiết biên bản">
                     <Info :size="14" />
                   </button>
                 </div>
                 <div v-else class="actions-group">
-                  <button class="btn-action btn-edit" @click="openEditHandoverModal(h)" title="Chỉnh sửa phiếu bàn giao">
+                  <button class="btn-action btn-secondary" @click="openHandoverDetailModal(h)" title="Xem chi tiết biên bản">
+                    <Info :size="14" />
+                  </button>
+                  <button class="btn-action btn-edit" @click="openEditHandoverModal(h)" title="Chỉnh sửa biên bản">
                     <Edit2 :size="14" />
                   </button>
-                  <button class="btn-action btn-delete" @click="handleDeleteHandover(h)" title="Xóa phiếu bàn giao">
+                  <button class="btn-action btn-delete" @click="handleDeleteHandover(h)" title="Xóa biên bản">
                     <Trash2 :size="14" />
                   </button>
                 </div>
@@ -1878,6 +2236,7 @@ function handleDeleteHandover(record: HandoverRecord) {
           </tbody>
         </table>
       </div>
+
       <TablePagination
         v-model:currentPage="handoverCurrentPage"
         v-model:pageSize="handoverPageSize"
@@ -2324,44 +2683,75 @@ function handleDeleteHandover(record: HandoverRecord) {
       </div>
     </div>
 
-    <!-- Modal 4: Lập phiếu bàn giao xe -->
+    <!-- Modal 4: Lập phiếu Mượn Trả / Điều Chuyển / Bàn Giao Hiện Trạng -->
     <div v-if="showAddHandoverModal" class="modal-backdrop" @click.self="showAddHandoverModal = false">
-      <div class="modal-content">
+      <div class="modal-content" style="max-width: 780px;">
         <div class="modal-header">
           <h3 class="modal-title">
-            {{ editingHandover ? (newHandoverWorkflowType === 'TRANSFER' ? 'Chỉnh Sửa Phiếu Điều chuyển Xe' : 'Chỉnh Sửa Phiếu Bàn Giao Xe') : (newHandoverWorkflowType === 'TRANSFER' ? 'Lập Phiếu Điều chuyển Xe' : 'Lập Phiếu Bàn Giao Xe') }}
+            <template v-if="editingHandover">
+              {{
+                newHandoverWorkflowType === 'BORROW_RETURN'
+                  ? 'Chỉnh Sửa Phiếu Mượn / Trả Xe'
+                  : newHandoverWorkflowType === 'TRANSFER'
+                    ? 'Chỉnh Sửa Quyết Định Điều Chuyển Quyền Quản Lý'
+                    : 'Chỉnh Sửa Biên Bản Bàn Giao Hiện Trạng Xe'
+              }}
+            </template>
+            <template v-else>
+              {{
+                newHandoverWorkflowType === 'BORROW_RETURN'
+                  ? 'Lập Phiếu Mượn Xe Giữa Các Đơn Vị'
+                  : newHandoverWorkflowType === 'TRANSFER'
+                    ? 'Lập Lệnh Điều Chuyển Xe Sang Đơn Vị Mới'
+                    : 'Lập Biên Bản Bàn Giao Hiện Trạng Xe Cho Tài Xế'
+              }}
+            </template>
           </h3>
         </div>
         <div class="modal-body">
-          <div class="form-group">
-            <label class="form-label">Loại biên bản <span class="required">*</span></label>
+          <!-- 3-Pill Radio Selector for Workflow Types -->
+          <div class="form-group mb-4">
+            <label class="form-label" style="font-size: 0.875rem; font-weight: 700; color: #1e293b;">
+              Quy trình nghiệp vụ thực hiện <span class="required">*</span>
+            </label>
             <div class="workflow-radio-group">
-              <label class="radio-pill-item" :class="{ active: newHandoverWorkflowType === 'HANDOVER' }">
-                <input v-model="newHandoverWorkflowType" type="radio" value="HANDOVER" />
-                <span>Bàn giao xe</span>
+              <label class="radio-pill-item" :class="{ active: newHandoverWorkflowType === 'BORROW_RETURN' }">
+                <input v-model="newHandoverWorkflowType" type="radio" value="BORROW_RETURN" />
+                <div>
+                  <div style="font-weight: 700;">1. Mượn / Trả xe tạm</div>
+                  <div style="font-size: 0.75rem; color: #64748b;">Hỗ trợ đơn vị bị sự cố/thiếu xe</div>
+                </div>
               </label>
               <label class="radio-pill-item" :class="{ active: newHandoverWorkflowType === 'TRANSFER' }">
                 <input v-model="newHandoverWorkflowType" type="radio" value="TRANSFER" />
-                <span>Điều chuyển xe</span>
+                <div>
+                  <div style="font-weight: 700;">2. Điều chuyển xe</div>
+                  <div style="font-size: 0.75rem; color: #64748b;">Chuyển hẳn quyền quản lý</div>
+                </div>
+              </label>
+              <label class="radio-pill-item" :class="{ active: newHandoverWorkflowType === 'DRIVER_HANDOVER' }">
+                <input v-model="newHandoverWorkflowType" type="radio" value="DRIVER_HANDOVER" />
+                <div>
+                  <div style="font-weight: 700;">3. Bàn giao tài xế</div>
+                  <div style="font-size: 0.75rem; color: #64748b;">Thay thế, nghỉ việc, hoán đổi</div>
+                </div>
               </label>
             </div>
           </div>
 
-          <div class="grid-3">
+          <!-- Common Vehicle Selection Row -->
+          <div class="grid-3 mb-3">
             <div class="form-group">
-              <label class="form-label">
-                {{ newHandoverWorkflowType === 'TRANSFER' ? 'Biển số xe chi viện' : 'Phương tiện bàn giao' }}
-                <span class="required">*</span>
-              </label>
+              <label class="form-label">Phương tiện thực hiện <span class="required">*</span></label>
               <select v-model="newHandoverPlate" class="form-select" @change="onHandoverVehicleChange">
                 <option v-for="v in fleetStore.vehicles" :key="v.id" :value="v.licensePlate">
-                  {{ v.licensePlate }}
+                  {{ v.licensePlate }} ({{ v.teamName || 'Chưa phân đội' }})
                 </option>
               </select>
             </div>
 
             <div class="form-group">
-              <label class="form-label">Dòng xe / Tên phương tiện</label>
+              <label class="form-label">Dòng xe / Tên xe</label>
               <input
                 :value="selectedHandoverVehicle?.model || '—'"
                 type="text"
@@ -2371,225 +2761,724 @@ function handleDeleteHandover(record: HandoverRecord) {
               />
             </div>
 
-            <div v-if="newHandoverWorkflowType === 'HANDOVER'" class="form-group">
-              <label class="form-label">Đội của xe</label>
+            <div class="form-group">
+              <label class="form-label">Đơn vị quản lý hiện tại</label>
               <input
-                v-model="newHandoverVehicleTeam"
+                :value="selectedHandoverVehicle?.teamName || 'Công ty'"
                 type="text"
                 class="form-input"
-                placeholder="Ví dụ: Đội 3"
+                readonly
+                style="background-color: #f8fafc; font-weight: 600; color: #1e293b;"
+              />
+            </div>
+          </div>
+
+          <!-- ==================== NHÁNH 1: MƯỢN / TRẢ XE ==================== -->
+          <div v-if="newHandoverWorkflowType === 'BORROW_RETURN'" class="handover-branch-box">
+            <div class="p-3 mb-3 rounded border" style="background-color: #f0fdf4; border-color: #bbf7d0; font-size: 0.8125rem; color: #166534;">
+              <strong>Quy trình mượn / trả xe:</strong> Áp dụng khi đơn vị (Trạm cán / Đội / Nhà máy) bị hỏng xe hoặc tăng tải đột xuất, cần mượn tạm xe từ đơn vị bạn trong vài ngày rồi hoàn trả. <em>Quyền quản lý gốc trên hệ thống không bị thay đổi.</em>
+            </div>
+
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">Đơn vị cho mượn xe <span class="required">*</span></label>
+                <input
+                  v-model="newHandoverFromTeam"
+                  type="text"
+                  list="unitPresetsList"
+                  class="form-input"
+                  placeholder="Ví dụ: Trạm Cán 2"
+                />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Đơn vị mượn xe <span class="required">*</span></label>
+                <input
+                  v-model="newHandoverToTeam"
+                  type="text"
+                  list="unitPresetsList"
+                  class="form-input"
+                  placeholder="Ví dụ: Trạm Cán 1"
+                />
+              </div>
+            </div>
+
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">Người đại diện bên cho mượn</label>
+                <input v-model="newHandoverFromManager" type="text" class="form-input" placeholder="Ví dụ: Quản lý Trạm Cán 2 (Lê Văn B)" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Người đại diện bên mượn xe</label>
+                <input v-model="newHandoverToManager" type="text" class="form-input" placeholder="Ví dụ: Quản lý Trạm Cán 1 (Nguyễn Văn A)" />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Xe bị sự cố cần mượn xe này thay thế (Biển số / Tình trạng hỏng)</label>
+              <input
+                v-model="newHandoverReplacingVehicle"
+                type="text"
+                class="form-input"
+                placeholder="Ví dụ: 93A-012.34 (Hỏng hộp số, đang chờ phụ tùng sửa chữa 5 ngày)"
               />
             </div>
 
-            <div v-else class="form-group">
-              <label class="form-label">Đơn vị / đội gửi</label>
-              <input v-model="newHandoverFromTeam" type="text" class="form-input" placeholder="Ví dụ: Nhà máy" />
-            </div>
-          </div>
-
-          <div v-if="newHandoverWorkflowType === 'HANDOVER'" class="grid-2">
-            <div class="form-group">
-              <label class="form-label">Tài xế trả xe <span class="required">*</span></label>
-              <div class="driver-select-row">
-                <select v-model="newHandoverFromDriver" class="form-select">
-                  <option v-for="d in fleetStore.drivers" :key="d.id" :value="d.fullName">
-                    {{ d.fullName }} ({{ d.licenseClass }})
-                  </option>
-                </select>
-                <button
-                  type="button"
-                  class="btn btn-secondary btn-sm"
-                  :disabled="!newHandoverFromDriver"
-                  @click="openDriverDetailByName(newHandoverFromDriver)"
-                >
-                  Xem hồ sơ
-                </button>
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">Thời điểm bắt đầu mượn <span class="required">*</span></label>
+                <input v-model="newHandoverBorrowTime" type="datetime-local" class="form-input" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Thời điểm dự kiến hoàn trả <span class="required">*</span></label>
+                <input v-model="newHandoverReturnTime" type="datetime-local" class="form-input" />
               </div>
             </div>
-            <div class="form-group">
-              <label class="form-label">Tài xế nhận xe</label>
-              <div class="driver-select-row">
-                <select v-model="newHandoverDriver" class="form-select">
-                  <option v-for="d in fleetStore.drivers" :key="d.id" :value="d.fullName">
-                    {{ d.fullName }} ({{ d.licenseClass }})
-                  </option>
+
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">Chỉ số ODO lúc bàn giao mượn (km) <span class="required">*</span></label>
+                <input v-model.number="newHandoverOdo" type="number" class="form-input" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Mức nhiên liệu hiện tại</label>
+                <select v-model="newHandoverFuel" class="form-select">
+                  <option value="100%">100% (Đầy bình)</option>
+                  <option value="90%">90%</option>
+                  <option value="80%">80%</option>
+                  <option value="70%">70%</option>
+                  <option value="50%">50% (Nửa bình)</option>
+                  <option value="30%">30%</option>
+                  <option value="10%">10%</option>
                 </select>
-                <button
-                  type="button"
-                  class="btn btn-secondary btn-sm"
-                  :disabled="!newHandoverDriver"
-                  @click="openDriverDetailByName(newHandoverDriver)"
-                >
-                  Xem hồ sơ
-                </button>
               </div>
             </div>
-          </div>
 
-          <div v-else class="form-group">
-            <label class="form-label">Đơn vị / đội nhận</label>
-            <input v-model="newHandoverToTeam" type="text" class="form-input" placeholder="Ví dụ: Trạm Cán 2" />
-          </div>
-
-          <div v-if="newHandoverWorkflowType === 'TRANSFER'" class="form-group">
-            <label class="form-label">Lý do điều chuyển</label>
-            <textarea
-              v-model="newHandoverTransferReason"
-              class="form-input"
-              rows="2"
-              placeholder="Ví dụ: Xe chính hỏng máy, cần mượn xe dự phòng trong 7 ngày để tiếp tục thu gom mủ"
-            ></textarea>
-          </div>
-
-          <div class="grid-2">
             <div class="form-group">
-              <label class="form-label">{{ newHandoverWorkflowType === 'TRANSFER' ? 'Thời điểm mượn' : 'Thời điểm bàn giao' }}</label>
-              <input v-model="newHandoverBorrowTime" type="datetime-local" class="form-input" />
-            </div>
-            <div class="form-group">
-              <label class="form-label">Thời điểm trả dự kiến</label>
-              <input v-model="newHandoverReturnTime" type="datetime-local" class="form-input" />
+              <label class="form-label">Ghi chú hiện trạng & cam kết mượn xe</label>
+              <textarea
+                v-model="newHandoverNotes"
+                class="form-input"
+                rows="2"
+                placeholder="Ví dụ: Thân vỏ nguyên vẹn, lốp tốt, mượn phục vụ thu gom mủ 5 ngày, cam kết rửa sạch và trả đủ mức dầu..."
+              ></textarea>
             </div>
           </div>
 
+          <!-- ==================== NHÁNH 2: ĐIỀU CHUYỂN XE ==================== -->
+          <div v-else-if="newHandoverWorkflowType === 'TRANSFER'" class="handover-branch-box">
+            <div class="p-3 mb-3 rounded border" style="background-color: #eff6ff; border-color: #bfdbfe; font-size: 0.8125rem; color: #1e40af;">
+              <strong>Quy trình điều chuyển xe:</strong> Chuyển giao hẳn quyền quản lý phương tiện sang đơn vị mới theo quyết định của công ty/tổng công ty. <em>Hệ thống sẽ tự động cập nhật đơn vị phụ trách mới trong danh sách phương tiện.</em>
+            </div>
+
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">Đơn vị quản lý cũ (Bên giao) <span class="required">*</span></label>
+                <input
+                  v-model="newHandoverFromTeam"
+                  type="text"
+                  list="unitPresetsList"
+                  class="form-input"
+                  placeholder="Ví dụ: Trạm Cán 1"
+                />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Đơn vị tiếp nhận mới (Bên nhận) <span class="required">*</span></label>
+                <input
+                  v-model="newHandoverToTeam"
+                  type="text"
+                  list="unitPresetsList"
+                  class="form-input"
+                  placeholder="Ví dụ: Trạm Cán 2"
+                />
+              </div>
+            </div>
+
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">Số quyết định điều chuyển <span class="required">*</span></label>
+                <input
+                  v-model="newHandoverDecisionNumber"
+                  type="text"
+                  class="form-input"
+                  placeholder="Ví dụ: 45/QĐ-TCT-2026"
+                />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Ngày hiệu lực quyết định <span class="required">*</span></label>
+                <input v-model="newHandoverEffectiveDate" type="date" class="form-input" />
+              </div>
+            </div>
+
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">Đại diện bên giao (Họ tên / Chức vụ)</label>
+                <input v-model="newHandoverFromManager" type="text" class="form-input" placeholder="Ví dụ: Nguyễn Văn A (Phụ trách Trạm Cán 1)" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Đại diện bên nhận (Họ tên / Chức vụ)</label>
+                <input v-model="newHandoverToManager" type="text" class="form-input" placeholder="Ví dụ: Lê Văn B (Phụ trách Trạm Cán 2)" />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Căn cứ & Lý do điều chuyển quyền quản lý <span class="required">*</span></label>
+              <textarea
+                v-model="newHandoverTransferReason"
+                class="form-input"
+                rows="2"
+                placeholder="Ví dụ: Thực hiện QĐ-45 về việc sắp xếp lại cơ cấu phân bổ phương tiện vận tải phục vụ cao điểm thu gom mủ tại Trạm Cán 2"
+              ></textarea>
+            </div>
+
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">Chỉ số ODO tại thời điểm điều chuyển (km)</label>
+                <input v-model.number="newHandoverOdo" type="number" class="form-input" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Mức nhiên liệu hiện tại</label>
+                <select v-model="newHandoverFuel" class="form-select">
+                  <option value="100%">100% (Đầy bình)</option>
+                  <option value="90%">90%</option>
+                  <option value="80%">80%</option>
+                  <option value="70%">70%</option>
+                  <option value="50%">50% (Nửa bình)</option>
+                  <option value="30%">30%</option>
+                  <option value="10%">10%</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Hồ sơ, giấy tờ bàn giao kèm theo</label>
+              <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 4px;">
+                <label
+                  v-for="doc in ['Cà vẹt xe bản chính', 'Sổ chứng nhận kiểm định an toàn kỹ thuật', 'Bảo hiểm TNDS bắt buộc', 'Thẻ nhiên liệu FleetCard', 'Sổ theo dõi lịch sử bảo dưỡng', 'Chìa khóa gốc & phụ']"
+                  :key="doc"
+                  class="flex items-center gap-2 p-2 rounded border"
+                  :style="{ backgroundColor: selectedHandoverDocs.includes(doc) ? '#f0fdf4' : '#ffffff', borderColor: selectedHandoverDocs.includes(doc) ? '#86efac' : '#e2e8f0', cursor: 'pointer', fontSize: '0.8125rem' }"
+                >
+                  <input
+                    type="checkbox"
+                    :value="doc"
+                    v-model="selectedHandoverDocs"
+                    style="accent-color: #15803d; width: 15px; height: 15px;"
+                  />
+                  <span>{{ doc }}</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Ghi chú hiện trạng pháp lý & kỹ thuật</label>
+              <textarea
+                v-model="newHandoverNotes"
+                class="form-input"
+                rows="2"
+                placeholder="Ví dụ: Bàn giao toàn bộ quyền sử dụng xe cùng đầy đủ hồ sơ pháp lý, xe trong trạng thái vận hành tốt..."
+              ></textarea>
+            </div>
+          </div>
+
+          <!-- ==================== NHÁNH 3: BÀN GIAO HIỆN TRẠNG TÀI XẾ ==================== -->
+          <div v-else class="handover-branch-box">
+            <div class="p-3 mb-3 rounded border" style="background-color: #faf5ff; border-color: #e9d5ff; font-size: 0.8125rem; color: #6b21a8;">
+              <strong>Quy trình bàn giao tài xế:</strong> Lập biên bản kiểm tra hiện trạng kỹ thuật xe khi thay đổi tài xế phụ trách (nghỉ việc, hoán đổi xe, hoặc phân công tài xế mới). <em>Hệ thống sẽ tự động gán tài xế nhận xe làm người phụ trách chính của phương tiện.</em>
+            </div>
+
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">Lý do bàn giao hiện trạng <span class="required">*</span></label>
+                <select v-model="newHandoverReasonType" class="form-select">
+                  <option value="DRIVER_SWAP">Hoán đổi tài xế quản lý xe</option>
+                  <option value="RESIGNATION">Tài xế nghỉ việc / Chuyển công tác</option>
+                  <option value="NEW_ASSIGNMENT">Phân công tài xế mới phụ trách</option>
+                  <option value="SHIFT_CHANGE">Đổi ca dài hạn</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Thời điểm bàn giao xe <span class="required">*</span></label>
+                <input v-model="newHandoverBorrowTime" type="datetime-local" class="form-input" />
+              </div>
+            </div>
+
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">Tài xế bàn giao (Cũ / Trả xe) <span class="required">*</span></label>
+                <div class="driver-select-row">
+                  <select v-model="newHandoverFromDriver" class="form-select">
+                    <option v-for="d in fleetStore.drivers" :key="d.id" :value="d.fullName">
+                      {{ d.fullName }} ({{ d.licenseClass }})
+                    </option>
+                  </select>
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-sm"
+                    :disabled="!newHandoverFromDriver"
+                    @click="openDriverDetailByName(newHandoverFromDriver)"
+                  >
+                    Xem hồ sơ
+                  </button>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label">Tài xế tiếp nhận (Mới) <span class="required">*</span></label>
+                <div class="driver-select-row">
+                  <select v-model="newHandoverDriver" class="form-select">
+                    <option v-for="d in fleetStore.drivers" :key="d.id" :value="d.fullName">
+                      {{ d.fullName }} ({{ d.licenseClass }})
+                    </option>
+                  </select>
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-sm"
+                    :disabled="!newHandoverDriver"
+                    @click="openDriverDetailByName(newHandoverDriver)"
+                  >
+                    Xem hồ sơ
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="grid-2">
+              <div class="form-group">
+                <label class="form-label">Chỉ số ODO lúc bàn giao (km) <span class="required">*</span></label>
+                <input v-model.number="newHandoverOdo" type="number" class="form-input" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Mức nhiên liệu hiện tại</label>
+                <select v-model="newHandoverFuel" class="form-select">
+                  <option value="100%">100% (Đầy bình)</option>
+                  <option value="90%">90%</option>
+                  <option value="80%">80%</option>
+                  <option value="70%">70%</option>
+                  <option value="50%">50% (Nửa bình)</option>
+                  <option value="30%">30%</option>
+                  <option value="10%">10%</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Bảng Checklist kiểm tra hiện trạng xe -->
+            <div class="form-group">
+              <label class="form-label" style="font-weight: 700;">
+                Bảng checklist kiểm tra hiện trạng kỹ thuật xe (6 tiêu chí)
+              </label>
+              <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 6px;">
+                <label
+                  class="flex items-center gap-2 p-2 rounded border"
+                  :style="{ backgroundColor: newHandoverChecklist.bodyAndPaint ? '#f0fdf4' : '#fff1f2', borderColor: newHandoverChecklist.bodyAndPaint ? '#86efac' : '#fca5a5', cursor: 'pointer' }"
+                >
+                  <input type="checkbox" v-model="newHandoverChecklist.bodyAndPaint" style="accent-color: #15803d; width: 16px; height: 16px;" />
+                  <span style="font-size: 0.8125rem;">
+                    <strong>Thân vỏ & sơn:</strong> Không móp méo, trầy xước nặng
+                  </span>
+                </label>
+                <label
+                  class="flex items-center gap-2 p-2 rounded border"
+                  :style="{ backgroundColor: newHandoverChecklist.brakesAndLights ? '#f0fdf4' : '#fff1f2', borderColor: newHandoverChecklist.brakesAndLights ? '#86efac' : '#fca5a5', cursor: 'pointer' }"
+                >
+                  <input type="checkbox" v-model="newHandoverChecklist.brakesAndLights" style="accent-color: #15803d; width: 16px; height: 16px;" />
+                  <span style="font-size: 0.8125rem;">
+                    <strong>Phanh & đèn còi:</strong> Hệ thống an toàn hoạt động chuẩn
+                  </span>
+                </label>
+                <label
+                  class="flex items-center gap-2 p-2 rounded border"
+                  :style="{ backgroundColor: newHandoverChecklist.tiresAndSpare ? '#f0fdf4' : '#fff1f2', borderColor: newHandoverChecklist.tiresAndSpare ? '#86efac' : '#fca5a5', cursor: 'pointer' }"
+                >
+                  <input type="checkbox" v-model="newHandoverChecklist.tiresAndSpare" style="accent-color: #15803d; width: 16px; height: 16px;" />
+                  <span style="font-size: 0.8125rem;">
+                    <strong>Lốp xe & lốp dự phòng:</strong> Độ mòn đạt chuẩn, áp suất tốt
+                  </span>
+                </label>
+                <label
+                  class="flex items-center gap-2 p-2 rounded border"
+                  :style="{ backgroundColor: newHandoverChecklist.cleanliness ? '#f0fdf4' : '#fff1f2', borderColor: newHandoverChecklist.cleanliness ? '#86efac' : '#fca5a5', cursor: 'pointer' }"
+                >
+                  <input type="checkbox" v-model="newHandoverChecklist.cleanliness" style="accent-color: #15803d; width: 16px; height: 16px;" />
+                  <span style="font-size: 0.8125rem;">
+                    <strong>Vệ sinh cabin & bồn:</strong> Sạch sẽ, gọn gàng
+                  </span>
+                </label>
+                <label
+                  class="flex items-center gap-2 p-2 rounded border"
+                  :style="{ backgroundColor: newHandoverChecklist.toolsAndJack ? '#f0fdf4' : '#fff1f2', borderColor: newHandoverChecklist.toolsAndJack ? '#86efac' : '#fca5a5', cursor: 'pointer' }"
+                >
+                  <input type="checkbox" v-model="newHandoverChecklist.toolsAndJack" style="accent-color: #15803d; width: 16px; height: 16px;" />
+                  <span style="font-size: 0.8125rem;">
+                    <strong>Bộ đồ nghề & con đội:</strong> Đầy đủ kích lốp, tam giác phản quang
+                  </span>
+                </label>
+                <label
+                  class="flex items-center gap-2 p-2 rounded border"
+                  :style="{ backgroundColor: newHandoverChecklist.documents ? '#f0fdf4' : '#fff1f2', borderColor: newHandoverChecklist.documents ? '#86efac' : '#fca5a5', cursor: 'pointer' }"
+                >
+                  <input type="checkbox" v-model="newHandoverChecklist.documents" style="accent-color: #15803d; width: 16px; height: 16px;" />
+                  <span style="font-size: 0.8125rem;">
+                    <strong>Giấy tờ & Thẻ nhiên liệu:</strong> Đăng kiểm, bảo hiểm, cà vẹt
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Ghi chú chi tiết vết trầy xước / tình trạng phụ tùng</label>
+              <textarea
+                v-model="newHandoverNotes"
+                class="form-input"
+                rows="2"
+                placeholder="Ví dụ: Xe sạch, có vết xước nhẹ cửa phụ bên phải từ trước, lốp phụ nguyên vẹn, 2 chìa khóa..."
+              ></textarea>
+            </div>
+          </div>
+
+          <!-- Datalist presets -->
+          <datalist id="unitPresetsList">
+            <option v-for="unit in standardUnitPresets" :key="unit" :value="unit" />
+          </datalist>
         </div>
 
         <div class="modal-footer">
           <button class="btn btn-secondary" @click="showAddHandoverModal = false">Hủy</button>
           <button class="btn btn-primary" @click="handleAddHandover">
-            {{ editingHandover ? 'Lưu Thay Đổi' : (newHandoverWorkflowType === 'TRANSFER' ? 'Lập Biên Bản Điều chuyển Xe' : 'Lập Biên Bản Bàn Giao') }}
+            <template v-if="editingHandover">Lưu Thay Đổi</template>
+            <template v-else>
+              {{
+                newHandoverWorkflowType === 'BORROW_RETURN'
+                  ? 'Lập Phiếu Mượn Xe'
+                  : newHandoverWorkflowType === 'TRANSFER'
+                    ? 'Lập Lệnh Điều Chuyển'
+                    : 'Lập Biên Bản Bàn Giao'
+              }}
+            </template>
           </button>
         </div>
       </div>
     </div>
 
-    <!-- Modal: Xem chi tiết phiếu bàn giao -->
+    <!-- Modal: Xem chi tiết phiếu bàn giao / điều chuyển / mượn trả -->
     <div v-if="showHandoverDetailModal && viewingHandover" class="modal-backdrop" @click.self="showHandoverDetailModal = false">
-      <div class="modal-content" style="max-width: 700px;">
-        <div class="modal-header">
-          <h3 class="modal-title">Chi Tiết Phiếu {{ viewingHandover.workflowType === 'TRANSFER' ? 'Điều chuyển Xe' : 'Bàn Giao Xe' }}</h3>
+      <div class="modal-content" style="max-width: 720px;">
+        <div class="modal-header flex-between">
+          <div>
+            <span
+              class="badge mr-2"
+              :class="{
+                'badge-success': viewingHandover.workflowType === 'BORROW_RETURN',
+                'badge-info': viewingHandover.workflowType === 'TRANSFER',
+                'badge-warning': viewingHandover.workflowType === 'DRIVER_HANDOVER' || viewingHandover.workflowType === 'HANDOVER',
+              }"
+            >
+              {{ getHandoverWorkflowLabel(viewingHandover.workflowType) }}
+            </span>
+            <span class="badge" :class="getHandoverStatusClass(viewingHandover.status)">
+              {{ getHandoverStatusLabel(viewingHandover.status, viewingHandover.workflowType) }}
+            </span>
+          </div>
+          <h3 class="modal-title" style="margin-top: 4px;">
+            Chi Tiết {{ getHandoverWorkflowLabel(viewingHandover.workflowType) }} [{{ viewingHandover.vehiclePlate }}]
+          </h3>
         </div>
 
         <div class="modal-body">
-          <div class="grid-2">
-            <div class="form-group">
-              <label class="form-label">Phương tiện</label>
-              <div class="p-3 bg-light rounded font-bold">{{ viewingHandover.vehiclePlate }}</div>
+          <!-- Common vehicle overview -->
+          <div class="p-3 mb-3 bg-light rounded border flex-between">
+            <div>
+              <div style="font-size: 0.75rem; color: #64748b; font-weight: 600;">BIỂN SỐ PHƯƠNG TIỆN</div>
+              <div style="font-size: 1.125rem; font-weight: 800; color: #15803d;">{{ viewingHandover.vehiclePlate }}</div>
             </div>
-            <div class="form-group">
-              <label class="form-label">Loại biên bản</label>
-              <div class="p-3 bg-light rounded">{{ viewingHandover.workflowType === 'TRANSFER' ? 'Điều chuyển xe' : 'Bàn giao xe' }}</div>
+            <div>
+              <div style="font-size: 0.75rem; color: #64748b; font-weight: 600;">ODO BÀN GIAO</div>
+              <div style="font-size: 0.9375rem; font-weight: 700; color: #1e293b;">{{ viewingHandover.handoverOdo.toLocaleString() }} km</div>
             </div>
-          </div>
-
-          <div v-if="viewingHandover.workflowType === 'HANDOVER'" class="grid-2">
-            <div class="form-group">
-              <label class="form-label">Tài xế trả xe</label>
-              <div class="p-3 bg-light rounded">{{ getDriverNameById(viewingHandover.fromDriverId) || viewingHandover.fromTeam || '—' }}</div>
+            <div>
+              <div style="font-size: 0.75rem; color: #64748b; font-weight: 600;">MỨC NHIÊN LIỆU</div>
+              <div style="font-size: 0.9375rem; font-weight: 700; color: #1e293b;">{{ viewingHandover.fuelLevel || '—' }}</div>
             </div>
-            <div class="form-group">
-              <label class="form-label">Tài xế nhận xe</label>
-              <div class="p-3 bg-light rounded">{{ viewingHandover.driverName || '—' }}</div>
+            <div>
+              <div style="font-size: 0.75rem; color: #64748b; font-weight: 600;">THỜI ĐIỂM TẠO</div>
+              <div style="font-size: 0.8125rem; color: #475569;">{{ viewingHandover.borrowStartAt || viewingHandover.createdAt || '—' }}</div>
             </div>
           </div>
 
-          <div v-else class="grid-2">
-            <div class="form-group">
-              <label class="form-label">Đơn vị / đội gửi</label>
-              <div class="p-3 bg-light rounded">{{ viewingHandover.fromTeam || '—' }}</div>
+          <!-- BRANCH 1: BORROW_RETURN -->
+          <div v-if="viewingHandover.workflowType === 'BORROW_RETURN'">
+            <div class="grid-2 mb-3">
+              <div class="p-3 rounded border" style="background-color: #f8fafc;">
+                <div style="font-size: 0.75rem; font-weight: 700; color: #64748b; margin-bottom: 4px;">ĐƠN VỊ CHO MƯỢN</div>
+                <div style="font-size: 0.9375rem; font-weight: 700; color: #1e293b;">{{ viewingHandover.fromTeam || '—' }}</div>
+                <div v-if="viewingHandover.fromManagerName" style="font-size: 0.8125rem; color: #64748b; margin-top: 2px;">
+                  Đại diện: <strong>{{ viewingHandover.fromManagerName }}</strong>
+                </div>
+              </div>
+              <div class="p-3 rounded border" style="background-color: #f0fdf4; border-color: #bbf7d0;">
+                <div style="font-size: 0.75rem; font-weight: 700; color: #166534; margin-bottom: 4px;">ĐƠN VỊ MƯỢN XE</div>
+                <div style="font-size: 0.9375rem; font-weight: 700; color: #15803d;">{{ viewingHandover.toTeam || '—' }}</div>
+                <div v-if="viewingHandover.toManagerName" style="font-size: 0.8125rem; color: #166534; margin-top: 2px;">
+                  Đại diện: <strong>{{ viewingHandover.toManagerName }}</strong>
+                </div>
+              </div>
             </div>
-            <div class="form-group">
-              <label class="form-label">Đơn vị / đội nhận</label>
-              <div class="p-3 bg-light rounded">{{ viewingHandover.toTeam || '—' }}</div>
+
+            <div v-if="viewingHandover.replacingVehiclePlate" class="p-3 mb-3 rounded border" style="background-color: #fefce8; border-color: #fef08a;">
+              <div style="font-size: 0.75rem; font-weight: 700; color: #854d0e;">XE BỊ HỎNG CẦN CHI VIỆN THAY THẾ:</div>
+              <div style="font-size: 0.875rem; font-weight: 600; color: #713f12; margin-top: 2px;">{{ viewingHandover.replacingVehiclePlate }}</div>
+            </div>
+
+            <div class="grid-2 mb-3">
+              <div class="form-group">
+                <label class="form-label">Thời điểm dự kiến trả</label>
+                <div class="p-3 bg-light rounded">{{ viewingHandover.expectedReturnAt || 'Không xác định' }}</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Thời điểm hoàn trả thực tế</label>
+                <div class="p-3 bg-light rounded" :style="{ color: viewingHandover.actualReturnAt ? '#15803d' : '#64748b', fontWeight: viewingHandover.actualReturnAt ? 700 : 400 }">
+                  {{ viewingHandover.actualReturnAt || 'Đang mượn xe' }}
+                </div>
+              </div>
+            </div>
+
+            <div v-if="viewingHandover.returnOdo" class="grid-2 mb-3">
+              <div class="form-group">
+                <label class="form-label">ODO khi hoàn trả</label>
+                <div class="p-3 bg-light rounded font-bold">{{ viewingHandover.returnOdo.toLocaleString() }} km (Chạy thêm: {{ (viewingHandover.returnOdo - viewingHandover.handoverOdo).toLocaleString() }} km)</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Mức xăng dầu khi hoàn trả</label>
+                <div class="p-3 bg-light rounded font-bold">{{ viewingHandover.returnFuelLevel || '—' }}</div>
+              </div>
             </div>
           </div>
 
-          <div class="grid-2">
-            <div class="form-group">
-              <label class="form-label">{{ viewingHandover.workflowType === 'TRANSFER' ? 'Thời điểm mượn' : 'Thời điểm bàn giao' }}</label>
-              <div class="p-3 bg-light rounded">{{ viewingHandover.borrowStartAt || '—' }}</div>
+          <!-- BRANCH 2: TRANSFER -->
+          <div v-else-if="viewingHandover.workflowType === 'TRANSFER'">
+            <div class="p-3 mb-3 rounded border" style="background-color: #eff6ff; border-color: #bfdbfe;">
+              <div class="grid-2">
+                <div>
+                  <div style="font-size: 0.75rem; font-weight: 700; color: #1e40af;">SỐ QUYẾT ĐỊNH ĐIỀU CHUYỂN</div>
+                  <div style="font-size: 1rem; font-weight: 800; color: #1e3a8a;">{{ viewingHandover.decisionNumber || '—' }}</div>
+                </div>
+                <div>
+                  <div style="font-size: 0.75rem; font-weight: 700; color: #1e40af;">NGÀY HIỆU LỰC</div>
+                  <div style="font-size: 0.9375rem; font-weight: 700; color: #1e3a8a;">{{ viewingHandover.effectiveDate || viewingHandover.borrowStartAt?.slice(0, 10) || '—' }}</div>
+                </div>
+              </div>
             </div>
-            <div class="form-group">
-              <label class="form-label">Thời điểm trả dự kiến</label>
-              <div class="p-3 bg-light rounded">{{ viewingHandover.expectedReturnAt || '—' }}</div>
+
+            <div class="grid-2 mb-3">
+              <div class="p-3 rounded border" style="background-color: #f8fafc;">
+                <div style="font-size: 0.75rem; font-weight: 700; color: #64748b; margin-bottom: 4px;">ĐƠN VỊ BÀN GIAO (CŨ)</div>
+                <div style="font-size: 0.9375rem; font-weight: 700; color: #1e293b;">{{ viewingHandover.fromTeam || '—' }}</div>
+                <div v-if="viewingHandover.fromManagerName" style="font-size: 0.8125rem; color: #64748b; margin-top: 2px;">
+                  Đại diện: <strong>{{ viewingHandover.fromManagerName }}</strong>
+                </div>
+              </div>
+              <div class="p-3 rounded border" style="background-color: #f0fdf4; border-color: #bbf7d0;">
+                <div style="font-size: 0.75rem; font-weight: 700; color: #166534; margin-bottom: 4px;">ĐƠN VỊ TIẾP NHẬN (MỚI)</div>
+                <div style="font-size: 0.9375rem; font-weight: 700; color: #15803d;">{{ viewingHandover.toTeam || '—' }}</div>
+                <div v-if="viewingHandover.toManagerName" style="font-size: 0.8125rem; color: #166534; margin-top: 2px;">
+                  Đại diện: <strong>{{ viewingHandover.toManagerName }}</strong>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="viewingHandover.transferReason" class="form-group mb-3">
+              <label class="form-label">Lý do điều chuyển quyền quản lý</label>
+              <div class="p-3 bg-light rounded">{{ viewingHandover.transferReason }}</div>
+            </div>
+
+            <div v-if="viewingHandover.handoverDocuments?.length" class="form-group mb-3">
+              <label class="form-label">Hồ sơ giấy tờ bàn giao kèm theo ({{ viewingHandover.handoverDocuments.length }})</label>
+              <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;">
+                <span
+                  v-for="doc in viewingHandover.handoverDocuments"
+                  :key="doc"
+                  class="badge badge-secondary"
+                  style="font-size: 0.8125rem; padding: 4px 10px;"
+                >
+                  ✓ {{ doc }}
+                </span>
+              </div>
             </div>
           </div>
 
-          <div class="grid-2">
-            <div class="form-group">
-              <label class="form-label">ODO lúc bàn giao</label>
-              <div class="p-3 bg-light rounded">{{ viewingHandover.handoverOdo.toLocaleString() }} km</div>
+          <!-- BRANCH 3: DRIVER_HANDOVER -->
+          <div v-else>
+            <div class="p-3 mb-3 rounded border" style="background-color: #faf5ff; border-color: #e9d5ff;">
+              <div class="flex-between">
+                <div>
+                  <div style="font-size: 0.75rem; font-weight: 700; color: #6b21a8;">LÝ DO BÀN GIAO TÀI XẾ</div>
+                  <div style="font-size: 0.9375rem; font-weight: 700; color: #581c87;">
+                    {{ getReasonTypeLabel(viewingHandover.handoverReasonType) }}
+                  </div>
+                </div>
+                <div style="text-align: right;">
+                  <div style="font-size: 0.75rem; font-weight: 700; color: #6b21a8;">KẾT QUẢ CHECKLIST</div>
+                  <div style="font-size: 0.9375rem; font-weight: 800; color: #15803d;">
+                    {{ countChecklistItems(viewingHandover.handoverChecklist).passed }} / {{ countChecklistItems(viewingHandover.handoverChecklist).total }} tiêu chí ĐẠT
+                  </div>
+                </div>
+              </div>
             </div>
-            <div class="form-group">
-              <label class="form-label">Mức nhiên liệu</label>
-              <div class="p-3 bg-light rounded">{{ viewingHandover.fuelLevel || '—' }}</div>
+
+            <div class="grid-2 mb-3">
+              <div class="p-3 rounded border" style="background-color: #f8fafc;">
+                <div style="font-size: 0.75rem; font-weight: 700; color: #64748b; margin-bottom: 4px;">TÀI XẾ BÀN GIAO (CŨ)</div>
+                <div style="font-size: 0.9375rem; font-weight: 700; color: #1e293b;">
+                  {{ viewingHandover.fromDriverName || getDriverNameById(viewingHandover.fromDriverId) || '—' }}
+                </div>
+              </div>
+              <div class="p-3 rounded border" style="background-color: #f0fdf4; border-color: #bbf7d0;">
+                <div style="font-size: 0.75rem; font-weight: 700; color: #166534; margin-bottom: 4px;">TÀI XẾ TIẾP NHẬN (MỚI)</div>
+                <div style="font-size: 0.9375rem; font-weight: 700; color: #15803d;">
+                  {{ viewingHandover.toDriverName || viewingHandover.driverName || '—' }}
+                </div>
+              </div>
+            </div>
+
+            <!-- Bảng checklist 6 tiêu chuẩn trực quan -->
+            <div v-if="viewingHandover.handoverChecklist" class="form-group mb-3">
+              <label class="form-label" style="font-weight: 700;">Checklist hiện trạng kỹ thuật bàn giao</label>
+              <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 4px;">
+                <div
+                  class="p-2 rounded border flex items-center justify-between"
+                  :style="{ backgroundColor: viewingHandover.handoverChecklist.bodyAndPaint ? '#f0fdf4' : '#fff1f2', borderColor: viewingHandover.handoverChecklist.bodyAndPaint ? '#bbf7d0' : '#fecdd3', fontSize: '0.8125rem' }"
+                >
+                  <span>Thân vỏ, nước sơn</span>
+                  <span :style="{ fontWeight: 700, color: viewingHandover.handoverChecklist.bodyAndPaint ? '#15803d' : '#e11d48' }">
+                    {{ viewingHandover.handoverChecklist.bodyAndPaint ? '✓ Đạt chuẩn' : '✗ Có lỗi' }}
+                  </span>
+                </div>
+                <div
+                  class="p-2 rounded border flex items-center justify-between"
+                  :style="{ backgroundColor: viewingHandover.handoverChecklist.brakesAndLights ? '#f0fdf4' : '#fff1f2', borderColor: viewingHandover.handoverChecklist.brakesAndLights ? '#bbf7d0' : '#fecdd3', fontSize: '0.8125rem' }"
+                >
+                  <span>Hệ thống phanh, đèn còi</span>
+                  <span :style="{ fontWeight: 700, color: viewingHandover.handoverChecklist.brakesAndLights ? '#15803d' : '#e11d48' }">
+                    {{ viewingHandover.handoverChecklist.brakesAndLights ? '✓ Đạt chuẩn' : '✗ Có lỗi' }}
+                  </span>
+                </div>
+                <div
+                  class="p-2 rounded border flex items-center justify-between"
+                  :style="{ backgroundColor: viewingHandover.handoverChecklist.tiresAndSpare ? '#f0fdf4' : '#fff1f2', borderColor: viewingHandover.handoverChecklist.tiresAndSpare ? '#bbf7d0' : '#fecdd3', fontSize: '0.8125rem' }"
+                >
+                  <span>Lốp xe & lốp dự phòng</span>
+                  <span :style="{ fontWeight: 700, color: viewingHandover.handoverChecklist.tiresAndSpare ? '#15803d' : '#e11d48' }">
+                    {{ viewingHandover.handoverChecklist.tiresAndSpare ? '✓ Đạt chuẩn' : '✗ Có lỗi' }}
+                  </span>
+                </div>
+                <div
+                  class="p-2 rounded border flex items-center justify-between"
+                  :style="{ backgroundColor: viewingHandover.handoverChecklist.cleanliness ? '#f0fdf4' : '#fff1f2', borderColor: viewingHandover.handoverChecklist.cleanliness ? '#bbf7d0' : '#fecdd3', fontSize: '0.8125rem' }"
+                >
+                  <span>Vệ sinh cabin & bồn</span>
+                  <span :style="{ fontWeight: 700, color: viewingHandover.handoverChecklist.cleanliness ? '#15803d' : '#e11d48' }">
+                    {{ viewingHandover.handoverChecklist.cleanliness ? '✓ Đạt chuẩn' : '✗ Có lỗi' }}
+                  </span>
+                </div>
+                <div
+                  class="p-2 rounded border flex items-center justify-between"
+                  :style="{ backgroundColor: viewingHandover.handoverChecklist.toolsAndJack ? '#f0fdf4' : '#fff1f2', borderColor: viewingHandover.handoverChecklist.toolsAndJack ? '#bbf7d0' : '#fecdd3', fontSize: '0.8125rem' }"
+                >
+                  <span>Bộ đồ nghề, con đội</span>
+                  <span :style="{ fontWeight: 700, color: viewingHandover.handoverChecklist.toolsAndJack ? '#15803d' : '#e11d48' }">
+                    {{ viewingHandover.handoverChecklist.toolsAndJack ? '✓ Đạt chuẩn' : '✗ Có lỗi' }}
+                  </span>
+                </div>
+                <div
+                  class="p-2 rounded border flex items-center justify-between"
+                  :style="{ backgroundColor: viewingHandover.handoverChecklist.documents ? '#f0fdf4' : '#fff1f2', borderColor: viewingHandover.handoverChecklist.documents ? '#bbf7d0' : '#fecdd3', fontSize: '0.8125rem' }"
+                >
+                  <span>Đầy đủ hồ sơ giấy tờ xe</span>
+                  <span :style="{ fontWeight: 700, color: viewingHandover.handoverChecklist.documents ? '#15803d' : '#e11d48' }">
+                    {{ viewingHandover.handoverChecklist.documents ? '✓ Đạt chuẩn' : '✗ Có lỗi' }}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div class="form-group">
-            <label class="form-label">Biên bản hiện trạng xe</label>
-            <div class="p-3 bg-light rounded">{{ viewingHandover.conditionNotes || '—' }}</div>
+          <!-- Common condition notes & image -->
+          <div class="form-group mb-3">
+            <label class="form-label">Hiện trạng phương tiện & Ghi chú thỏa thuận</label>
+            <div class="p-3 bg-light rounded" style="font-size: 0.875rem;">
+              {{ viewingHandover.conditionNotes || viewingHandover.note || 'Không có ghi chú thêm.' }}
+            </div>
           </div>
 
-          <div v-if="viewingHandover.handoverImageUrl" class="form-group">
-            <label class="form-label">Ảnh trạng thái xe</label>
+          <div v-if="viewingHandover.handoverImageUrl" class="form-group mb-3">
+            <label class="form-label">Hình ảnh hiện trạng xe lúc bàn giao</label>
             <div class="p-2 bg-light rounded border text-center">
-              <img :src="viewingHandover.handoverImageUrl" alt="Hình ảnh trạng thái xe" style="max-height: 220px; max-width: 100%; object-fit: contain;" />
+              <img :src="viewingHandover.handoverImageUrl" alt="Hình ảnh hiện trạng xe" style="max-height: 220px; max-width: 100%; object-fit: contain;" />
             </div>
-          </div>
-
-          <div v-if="viewingHandover.note" class="form-group">
-            <label class="form-label">Ghi chú</label>
-            <div class="p-3 bg-light rounded whitespace-pre-wrap">{{ viewingHandover.note }}</div>
           </div>
         </div>
 
-        <div class="modal-footer">
+        <div class="modal-footer flex-between">
+          <div>
+            <button
+              v-if="viewingHandover.workflowType === 'BORROW_RETURN' && viewingHandover.status === 'BORROWING'"
+              class="btn btn-primary btn-sm"
+              @click="showHandoverDetailModal = false; openReturnHandoverModal(viewingHandover, 'RETURN')"
+            >
+              Hoàn Trả Xe Này
+            </button>
+          </div>
           <button class="btn btn-secondary" @click="showHandoverDetailModal = false">Đóng</button>
         </div>
       </div>
     </div>
 
-    <!-- Modal: Biên bản trả xe -->
+    <!-- Modal: Biên bản hoàn trả xe về đơn vị gốc -->
     <div v-if="showReturnHandoverModal && returningHandover" class="modal-backdrop" @click.self="showReturnHandoverModal = false">
       <div class="modal-content" style="max-width: 620px;">
         <div class="modal-header">
           <h3 class="modal-title">
             {{
-              handoverActionMode === 'READY'
-                ? 'Bàn Giao Xe'
-                : returningHandover.workflowType === 'TRANSFER'
-                  ? 'Biên Bản Thu Hồi / Trả Xe'
-                  : 'Biên Bản Trả Xe'
+              returningHandover.workflowType === 'BORROW_RETURN'
+                ? 'Biên Bản Hoàn Trả Xe Về Đơn Vị Gốc'
+                : 'Biên Bản Thu Hồi / Hoàn Tất Bàn Giao Xe'
             }}
           </h3>
         </div>
 
         <div class="modal-body">
-          <div class="form-group">
-            <label class="form-label">Phương tiện</label>
-            <div class="p-3 bg-light rounded font-bold">
-              {{ returningHandover.vehiclePlate }}
+          <div class="p-3 mb-3 bg-light rounded border flex-between">
+            <div>
+              <div style="font-size: 0.75rem; color: #64748b; font-weight: 600;">PHƯƠNG TIỆN HOÀN TRẢ</div>
+              <div style="font-size: 1.125rem; font-weight: 800; color: #15803d;">{{ returningHandover.vehiclePlate }}</div>
+            </div>
+            <div>
+              <div style="font-size: 0.75rem; color: #64748b; font-weight: 600;">ĐƠN VỊ ĐANG MƯỢN</div>
+              <div style="font-size: 0.9375rem; font-weight: 700; color: #1e293b;">{{ returningHandover.toTeam || '—' }}</div>
+            </div>
+            <div>
+              <div style="font-size: 0.75rem; color: #64748b; font-weight: 600;">ĐƠN VỊ NHẬN LẠI (GỐC)</div>
+              <div style="font-size: 0.9375rem; font-weight: 700; color: #15803d;">{{ returningHandover.fromTeam || '—' }}</div>
             </div>
           </div>
 
           <div class="grid-2">
             <div class="form-group">
-              <label class="form-label">
-                {{ returningHandover.workflowType === 'TRANSFER' ? 'Thời điểm hoàn trả thực tế (về Nhà máy)' : 'Thời điểm trả thực tế' }}
-              </label>
+              <label class="form-label">Thời điểm hoàn trả thực tế <span class="required">*</span></label>
               <input v-model="returnHandoverActualTime" type="datetime-local" class="form-input" />
             </div>
 
             <div class="form-group">
-              <label class="form-label">ODO lúc trả (km) <span class="required">*</span></label>
-              <input v-model.number="returnHandoverOdo" type="number" class="form-input" />
+              <label class="form-label">
+                ODO lúc trả (km) <span class="required">*</span>
+                <span style="font-size: 0.75rem; color: #64748b; font-weight: normal;">(Gốc: {{ returningHandover.handoverOdo.toLocaleString() }} km)</span>
+              </label>
+              <input v-model.number="returnHandoverOdo" type="number" class="form-input" :min="returningHandover.handoverOdo" />
             </div>
           </div>
 
           <div class="grid-2">
             <div class="form-group">
-              <label class="form-label">Mức nhiên liệu thực tế</label>
+              <label class="form-label">Mức nhiên liệu thực tế khi trả xe <span class="required">*</span></label>
               <select v-model="returnHandoverFuel" class="form-select">
                 <option value="100%">100% (Đầy bình)</option>
                 <option value="90%">90%</option>
@@ -2601,33 +3490,20 @@ function handleDeleteHandover(record: HandoverRecord) {
               </select>
             </div>
 
-            <div v-if="returningHandover.workflowType === 'TRANSFER'" class="form-group">
-              <label class="form-label">Đơn vị / đội đang giữ xe</label>
-              <div class="p-3 bg-light rounded" style="flex: 1; min-width: 0;">
-                {{ returningHandover.toTeam || '—' }}
-              </div>
-            </div>
-
-            <div v-else class="form-group">
-              <label class="form-label">Tài xế nhận xe</label>
-              <div class="flex gap-2 items-center">
-                <div class="p-3 bg-light rounded" style="flex: 1; min-width: 0;">
-                  {{ returningHandover.driverName }}
-                </div>
-                <button
-                  type="button"
-                  class="btn btn-outline btn-small"
-                  :disabled="!returningHandover.driverName"
-                  @click="openDriverDetailByName(returningHandover.driverName)"
-                >
-                  Xem hồ sơ
-                </button>
-              </div>
+            <div class="form-group">
+              <label class="form-label">Đại diện bên nhận bàn giao lại</label>
+              <input
+                :value="returningHandover.fromManagerName || returningHandover.fromTeam"
+                type="text"
+                class="form-input"
+                readonly
+                style="background-color: #f8fafc;"
+              />
             </div>
           </div>
 
           <div class="form-group">
-            <label class="form-label">Ảnh trạng thái xe sau chuyến</label>
+            <label class="form-label">Ảnh kiểm tra hiện trạng xe khi nhận lại</label>
             <input type="file" accept="image/*" class="form-input" @change="handleReturnHandoverImageUpload" />
             <div v-if="returnHandoverImageUrl" class="mt-2 p-2 bg-light rounded border text-center">
               <img :src="returnHandoverImageUrl" alt="Hình ảnh trạng thái xe" style="max-height: 180px; max-width: 100%; object-fit: contain;" />
@@ -2635,12 +3511,12 @@ function handleDeleteHandover(record: HandoverRecord) {
           </div>
 
           <div class="form-group">
-            <label class="form-label">Ghi chú thực tế khi trả xe</label>
+            <label class="form-label">Đánh giá hiện trạng khi hoàn trả & ghi chú bàn giao</label>
             <textarea
               v-model="returnHandoverNotes"
               class="form-input"
               rows="3"
-              placeholder="Ví dụ: Xe được trả sạch sẽ, lốp đủ áp suất, bình xăng còn 70%, không phát sinh hư hỏng..."
+              placeholder="Ví dụ: Đơn vị đã vệ sinh xe sạch sẽ, lốp và áp suất đầy đủ, bình dầu còn 90% đúng cam kết, không phát sinh trầy xước..."
             ></textarea>
           </div>
         </div>
@@ -2648,13 +3524,7 @@ function handleDeleteHandover(record: HandoverRecord) {
         <div class="modal-footer">
           <button class="btn btn-secondary" @click="showReturnHandoverModal = false">Hủy</button>
           <button class="btn btn-primary" @click="submitReturnHandover">
-            {{
-              handoverActionMode === 'READY'
-                ? 'Bàn Giao Xe'
-                : returningHandover.workflowType === 'TRANSFER'
-                  ? 'Lưu Biên Bản Thu Hồi / Trả Xe'
-                  : 'Lưu Biên Bản Trả Xe'
-            }}
+            {{ returningHandover.workflowType === 'BORROW_RETURN' ? 'Xác Nhận Hoàn Trả Xe Về Đơn Vị' : 'Lưu Biên Bản Hoàn Tất' }}
           </button>
         </div>
       </div>
@@ -3389,6 +4259,9 @@ function handleDeleteHandover(record: HandoverRecord) {
 }
 
 .segmented-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   padding: 6px 14px;
   font-size: 0.8125rem;
   font-weight: 600;

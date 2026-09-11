@@ -693,8 +693,9 @@ export const mockStorage = {
       return [...defaultHandovers];
     }
     // Tự động chuẩn hóa dữ liệu cũ (backward compatibility & self-healing)
-    const hasTransfer = res.some((h: any) => h.workflowType === 'TRANSFER');
-    if (!hasTransfer && initialHandovers && initialHandovers.length > 0) {
+    const hasBorrowReturn = res.some((h: any) => h.workflowType === 'BORROW_RETURN');
+    const hasDriverHandover = res.some((h: any) => h.workflowType === 'DRIVER_HANDOVER');
+    if ((!hasBorrowReturn || !hasDriverHandover) && initialHandovers && initialHandovers.length > 0) {
       saveToStorage(STORAGE_KEYS.HANDOVERS, initialHandovers);
       return [...initialHandovers] as T[];
     }
@@ -709,16 +710,16 @@ export const mockStorage = {
       else if (!status) { status = 'BORROWING'; modified = true; }
 
       let workflowType = h.workflowType;
-      if (!workflowType) {
-        workflowType = (h.id % 2 === 0) ? 'TRANSFER' : 'HANDOVER';
+      if (!workflowType || workflowType === 'HANDOVER') {
+        workflowType = h.toDriverId || h.fromDriverId || h.driverName ? 'DRIVER_HANDOVER' : 'BORROW_RETURN';
         modified = true;
       }
 
       const borrowStartAt = h.borrowStartAt || h.borrowTime || '2026-09-07 07:30';
       const expectedReturnAt = h.expectedReturnAt || h.returnTime || '2026-09-07 11:30';
       const actualReturnAt = h.actualReturnAt || (status === 'RETURNED' ? (h.returnTime || expectedReturnAt) : undefined);
-      const fromTeam = h.fromTeam || (h.id === 1 ? 'Đội 1' : 'Đội công ty');
-      const toTeam = h.toTeam || (h.id === 1 ? 'Đội 2' : 'Đội kỹ thuật');
+      const fromTeam = h.fromTeam || (h.id === 1 ? 'Trạm Cán 2' : 'Đội 1');
+      const toTeam = h.toTeam || (h.id === 1 ? 'Trạm Cán 1' : 'Đội 2');
 
       if (!h.fromTeam || !h.toTeam || !h.borrowStartAt || !h.workflowType) modified = true;
 
@@ -731,7 +732,7 @@ export const mockStorage = {
         borrowStartAt,
         expectedReturnAt,
         actualReturnAt,
-        driverName: h.driverName || h.driver || 'Phạm Văn Tài',
+        driverName: h.driverName || h.driver || 'Trần Văn Vận',
         handoverOdo: Number(h.handoverOdo) || 0,
         fuelLevel: h.fuelLevel || '85%',
         conditionNotes: h.conditionNotes || h.notes || '',
