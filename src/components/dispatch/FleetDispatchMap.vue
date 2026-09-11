@@ -384,10 +384,10 @@ function getVehicleIconHtml(v: VehicleMapState, isSelected: boolean) {
   return `
     <div class="vehicle-marker-wrapper ${selectedClass} ${dimmedClass}" style="--veh-color: ${statusColor}">
       ${pulse}
-      <div class="vehicle-avatar">
+      <div class="vehicle-avatar" title="${v.licensePlate} (${v.driverName})">
         <span class="veh-icon">🚚</span>
-        <span class="veh-plate">${v.licensePlate}</span>
       </div>
+      <div class="veh-plate">${v.licensePlate}</div>
     </div>
   `;
 }
@@ -409,12 +409,12 @@ function renderVehicleMarkers() {
       return;
     }
 
-    // Neo icon chuẩn xác tại tâm hình chữ nhật [55, 15] để tọa độ GPS không bị trôi lệch khi zoom
+    // Neo icon chuẩn xác tại tọa độ [0, 0] với icon xe tải tại tâm và biển số kế bên như POI Google Maps
     const icon = L.divIcon({
       className: 'custom-vehicle-icon',
       html: getVehicleIconHtml(v, isSelected),
-      iconSize: [110, 30],
-      iconAnchor: [55, 15],
+      iconSize: [0, 0],
+      iconAnchor: [0, 0],
     });
 
     let vLat = v.currentLat;
