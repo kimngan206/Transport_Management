@@ -31,6 +31,9 @@ import {
   Truck,
   Filter,
   ChevronDown,
+  Search,
+  X,
+  RotateCcw,
 } from 'lucide-vue-next';
 
 const authStore = useAuthStore();
@@ -45,6 +48,11 @@ const activeArriveTrip = ref<TransportTrip | null>(null);
 const activeExpenseTrip = ref<TransportTrip | null>(null);
 const viewExpensesTrip = ref<TransportTrip | null>(null);
 const actionToast = ref<string | null>(null);
+
+// Bộ lọc cho danh sách chuyến xe đang thực hiện / phân công
+const searchActiveTripKeyword = ref('');
+const selectedTripDateFilter = ref<string>('ALL');
+const selectedTripStatusFilter = ref<string>('ALL');
 
 let toastTimer: any = null;
 function showToast(msg: string) {
@@ -82,14 +90,53 @@ function onVehicleSelectChange(e: Event) {
 const myTrips = computed(() => driverStore.myTrips);
 
 const pendingOrRunningTrips = computed(() =>
-  myTrips.value.filter(
-    (t) =>
-      t.status === 'ASSIGNED' ||
-      t.status === 'ACCEPTED' ||
-      t.status === 'INPROGRESS' ||
-      t.status === 'ARRIVED'
-  )
+  [...myTrips.value]
+    .filter(
+      (t) =>
+        t.status === 'ASSIGNED' ||
+        t.status === 'ACCEPTED' ||
+        t.status === 'INPROGRESS' ||
+        t.status === 'ARRIVED'
+    )
+    .sort((a, b) => {
+      const timeA = a.scheduledStartTime ? new Date(a.scheduledStartTime).getTime() : 0;
+      const timeB = b.scheduledStartTime ? new Date(b.scheduledStartTime).getTime() : 0;
+      return timeA - timeB;
+    })
 );
+
+// Danh sách các ngày có chuyến để đưa vào dropdown lọc ngày
+const availableActiveDates = computed(() => {
+  const dates = new Set<string>();
+  pendingOrRunningTrips.value.forEach((t) => {
+    if (t.scheduledStartTime) {
+      dates.add(t.scheduledStartTime.slice(0, 10));
+    }
+  });
+  return Array.from(dates).sort();
+});
+
+// Chuyến xe đã lọc theo tiêu chí tìm kiếm, ngày và trạng thái
+const filteredActiveTrips = computed(() => {
+  return pendingOrRunningTrips.value.filter((t) => {
+    if (searchActiveTripKeyword.value.trim()) {
+      const kw = searchActiveTripKeyword.value.trim().toLowerCase();
+      const matchCode = t.tripCode.toLowerCase().includes(kw);
+      const matchRoute = (t.routeName || '').toLowerCase().includes(kw);
+      const matchPlate = (t.vehiclePlate || '').toLowerCase().includes(kw);
+      const matchNotes = (t.notes || '').toLowerCase().includes(kw);
+      if (!matchCode && !matchRoute && !matchPlate && !matchNotes) return false;
+    }
+    if (selectedTripDateFilter.value !== 'ALL') {
+      const tDate = (t.scheduledStartTime || '').slice(0, 10);
+      if (tDate !== selectedTripDateFilter.value) return false;
+    }
+    if (selectedTripStatusFilter.value !== 'ALL') {
+      if (t.status !== selectedTripStatusFilter.value) return false;
+    }
+    return true;
+  });
+});
 
 // Danh sách các chuyến xe cứu viện được phân công cho tài xế này
 const rescueTrips = computed(() => {
@@ -116,7 +163,13 @@ function confirmRescueHandover(trip: TransportTrip) {
 }
 
 const finishedTrips = computed(() =>
-  myTrips.value.filter((t) => t.status === 'COMPLETED')
+  [...myTrips.value]
+    .filter((t) => t.status === 'COMPLETED')
+    .sort((a, b) => {
+      const timeA = a.scheduledStartTime ? new Date(a.scheduledStartTime).getTime() : 0;
+      const timeB = b.scheduledStartTime ? new Date(b.scheduledStartTime).getTime() : 0;
+      return timeA - timeB;
+    })
 );
 </script>
 
@@ -196,20 +249,80 @@ const finishedTrips = computed(() =>
     </div>
 
     <!-- 1. Danh sách Chuyến đang chờ chạy hoặc Đang chạy -->
-    <div class="section-title-wrap mb-3">
-      <h3 class="section-heading text-primary">Chuyến Xe Đang Thực Hiện / Phân Công Hôm Nay</h3>
-      <span class="badge badge-green">{{ pendingOrRunningTrips.length }} chuyến</span>
+    <div class="section-title-wrap mb-3 flex justify-between items-center flex-wrap gap-3">
+      <div class="flex items-center gap-2">
+        <h3 class="section-heading text-primary">Chuyến Xe Đang Thực Hiện / Phân Công</h3>
+        <span class="badge badge-green">{{ filteredActiveTrips.length }} chuyến</span>
+      </div>
+
+      <div class="header-filters-group">
+        <div class="filter-search-wrap">
+          <Search :size="15" class="search-ico" />
+          <input
+            v-model="searchActiveTripKeyword"
+            type="text"
+            class="filter-search-input"
+            placeholder="Tìm mã chuyến, lộ trình..."
+          />
+          <button v-if="searchActiveTripKeyword" class="btn-clear-search" @click="searchActiveTripKeyword = ''" title="Xóa tìm kiếm">
+            <X :size="13" />
+          </button>
+        </div>
+
+        <div class="filter-date-wrap">
+          <Calendar :size="15" class="calendar-ico" />
+          <input
+            v-model="selectedTripDateFilter"
+            type="date"
+            class="filter-date-input"
+            title="Chọn ngày phân công trên lịch"
+            @click="($event.target as any)?.showPicker?.()"
+          />
+          <button
+            v-if="selectedTripDateFilter && selectedTripDateFilter !== 'ALL'"
+            class="btn-clear-date"
+            title="Xóa bộ lọc ngày (Xem tất cả ngày)"
+            @click="selectedTripDateFilter = 'ALL'"
+          >
+            <X :size="13" />
+          </button>
+        </div>
+
+        <select v-model="selectedTripStatusFilter" class="filter-select">
+          <option value="ALL">Tất cả trạng thái</option>
+          <option value="INPROGRESS">Đang thực hiện / Đã đi</option>
+          <option value="ACCEPTED">Đã nhận chuyến</option>
+          <option value="ASSIGNED">Mới phân công</option>
+        </select>
+
+        <button
+          v-if="searchActiveTripKeyword || selectedTripDateFilter !== 'ALL' || selectedTripStatusFilter !== 'ALL'"
+          class="btn-reset-filter"
+          title="Đặt lại bộ lọc"
+          @click="searchActiveTripKeyword = ''; selectedTripDateFilter = 'ALL'; selectedTripStatusFilter = 'ALL';"
+        >
+          <RotateCcw :size="13" />
+          <span>Đặt lại</span>
+        </button>
+      </div>
     </div>
 
-    <div v-if="pendingOrRunningTrips.length === 0" class="card empty-card mb-4">
+    <div v-if="filteredActiveTrips.length === 0" class="card empty-card mb-4">
       <Car :size="36" class="text-muted" />
-      <span class="font-bold">Hiện không có chuyến xe nào được phân công cho bạn.</span>
-      <span class="text-sm text-muted">Vui lòng chờ Điều phối viên xếp lịch hoặc chuyển vai trò để kiểm thử các luồng khác.</span>
+      <span class="font-bold">Không tìm thấy chuyến xe nào phù hợp với bộ lọc hiện tại.</span>
+      <button
+        v-if="searchActiveTripKeyword || selectedTripDateFilter !== 'ALL' || selectedTripStatusFilter !== 'ALL'"
+        class="btn btn-outline btn-sm mt-2"
+        @click="searchActiveTripKeyword = ''; selectedTripDateFilter = 'ALL'; selectedTripStatusFilter = 'ALL';"
+      >
+        <RotateCcw :size="13" />
+        <span>Xem tất cả chuyến xe</span>
+      </button>
     </div>
 
     <div v-else class="trip-cards-grid mb-4">
       <div
-        v-for="trip in pendingOrRunningTrips"
+        v-for="trip in filteredActiveTrips"
         :key="trip.id"
         class="card trip-card"
         :class="{
@@ -1259,5 +1372,132 @@ const finishedTrips = computed(() =>
   .inprogress-actions-row { grid-template-columns: 1fr; }
   .trip-expense-summary-strip { flex-direction: column; align-items: flex-start; }
   .rescue-box-grid { grid-template-columns: 1fr; }
+}
+
+/* Filter controls cho danh sách chuyến xe */
+.header-filters-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.filter-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.filter-search-wrap .search-ico {
+  position: absolute;
+  left: 11px;
+  color: #64748b;
+  pointer-events: none;
+}
+.filter-search-input {
+  height: 38px;
+  padding: 0 32px 0 34px;
+  font-size: 0.8125rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  outline: none;
+  width: 220px;
+  background: #ffffff;
+  color: #0f172a;
+  transition: all 0.2s ease;
+}
+.filter-search-input:focus {
+  border-color: #0284c7;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.12);
+}
+.btn-clear-search {
+  position: absolute;
+  right: 8px;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+}
+.btn-clear-search:hover {
+  color: #475569;
+}
+.filter-date-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.filter-date-wrap .calendar-ico {
+  position: absolute;
+  left: 11px;
+  color: #0284c7;
+  pointer-events: none;
+}
+.filter-date-input {
+  height: 38px;
+  padding: 0 28px 0 34px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  outline: none;
+  background: #ffffff;
+  color: #0f172a;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.filter-date-input:focus {
+  border-color: #0284c7;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.12);
+}
+.btn-clear-date {
+  position: absolute;
+  right: 8px;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+}
+.btn-clear-date:hover {
+  color: #475569;
+}
+.filter-select {
+  height: 38px;
+  padding: 0 12px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background-color: #ffffff;
+  color: #334155;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.filter-select:focus {
+  border-color: #0284c7;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.12);
+}
+.btn-reset-filter {
+  height: 38px;
+  padding: 0 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #475569;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.btn-reset-filter:hover {
+  background: #e2e8f0;
+  color: #0f172a;
 }
 </style>
