@@ -27,7 +27,66 @@ export type VehicleType = 'LatexTruck' | 'PassengerCar' | 'MillingMachine';
 export type VehicleOperationalStatus = 'Available' | 'OnTrip' | 'UnderMaintenance' | 'Broken';
 export type MaintenanceStatus = 'Normal' | 'Due' | 'Overdue' | 'UnderMaintenance';
 export type HandoverStatus = 'BORROWING' | 'RETURNED' | 'OVERDUE' | 'CANCELLED';
-export type HandoverWorkflowType = 'HANDOVER' | 'TRANSFER';
+export type HandoverWorkflowType = 'BORROW_RETURN' | 'TRANSFER' | 'DRIVER_HANDOVER' | 'HANDOVER';
+
+export interface HandoverChecklist {
+  bodyAndPaint: boolean;     // Thân vỏ và sơn xe
+  brakesAndLights: boolean;  // Phanh, đèn, còi, gạt mưa
+  tiresAndSpare: boolean;    // Lốp chính và lốp dự phòng
+  cleanliness: boolean;      // Vệ sinh cabin & thùng xe
+  toolsAndJack: boolean;     // Bộ dụng cụ nghề & kích nâng
+  documents: boolean;        // Hồ sơ giấy tờ xe
+}
+
+export type HandoverReasonType = 'RESIGNATION' | 'DRIVER_SWAP' | 'NEW_ASSIGNMENT' | 'SHIFT_CHANGE' | 'OTHER';
+
+export interface HandoverRecord {
+  id: number;
+  vehicleId: number;
+  vehiclePlate: string;
+  workflowType?: HandoverWorkflowType;
+
+  // 1. Phân hệ Mượn/Trả xe giữa các đơn vị
+  fromUnitType?: 'Station' | 'Team' | 'Factory';
+  toUnitType?: 'Station' | 'Team' | 'Factory';
+  fromTeam: string; // Tên đơn vị cho mượn (VD: Trạm Cán 2, Đội 1, Nhà máy)
+  toTeam: string;   // Tên đơn vị mượn (VD: Trạm Cán 1, Đội 2)
+  fromStation?: string;
+  toStation?: string;
+  fromManagerName?: string; // Quản lý đơn vị giao
+  toManagerName?: string;   // Quản lý đơn vị nhận
+  replacingVehiclePlate?: string; // Biển số xe bị hỏng cần mượn xe thay
+  replacingVehicleId?: number;
+
+  // 2. Phân hệ Điều chuyển xe (chuyển quyền quản lý sang đơn vị khác)
+  decisionNumber?: string;  // Số quyết định điều chuyển (VD: 45/QĐ-TCT)
+  transferReason?: string;  // Lý do điều chuyển / mượn xe
+  effectiveDate?: string;   // Ngày có hiệu lực điều chuyển
+  handoverDocuments?: string[]; // Danh sách hồ sơ giấy tờ bàn giao kèm theo
+
+  // 3. Phân hệ Bàn giao hiện trạng xe (thay tài xế phụ trách)
+  handoverReasonType?: HandoverReasonType;
+  driverName: string;       // Tài xế nhận xe / tài xế hiện tại
+  fromDriverId?: number;    // Tài xế bàn giao
+  fromDriverName?: string;
+  toDriverId?: number;      // Tài xế tiếp nhận
+  toDriverName?: string;
+  handoverChecklist?: HandoverChecklist;
+
+  // Thời gian, ODO và nhiên liệu
+  borrowStartAt: string;
+  expectedReturnAt?: string;
+  actualReturnAt?: string;
+  handoverOdo: number;
+  returnOdo?: number;
+  fuelLevel: string;
+  returnFuelLevel?: string;
+  conditionNotes: string;
+  handoverImageUrl?: string;
+  status: HandoverStatus;
+  note?: string;
+  createdAt: string;
+}
 
 export interface VehicleCategory {
   id: number;
@@ -260,34 +319,6 @@ export interface IncidentReport {
   latitude?: number;
   longitude?: number;
   gpsAccuracy?: number;
-}
-
-export interface HandoverRecord {
-  id: number;
-  vehicleId: number;
-  vehiclePlate: string;
-  workflowType?: HandoverWorkflowType;
-  fromTeam: string;
-  toTeam: string;
-  fromStation?: string;
-  toStation?: string;
-  transferReason?: string;
-  replacingVehiclePlate?: string;
-  replacingVehicleId?: number;
-  driverName: string;
-  fromDriverId?: number;
-  toDriverId?: number;
-  borrowStartAt: string;
-  expectedReturnAt?: string;
-  actualReturnAt?: string;
-  handoverOdo: number;
-  returnOdo?: number;
-  fuelLevel: string;
-  conditionNotes: string;
-  handoverImageUrl?: string;
-  status: HandoverStatus;
-  note?: string;
-  createdAt: string;
 }
 
 export interface MaintenanceRecord {
