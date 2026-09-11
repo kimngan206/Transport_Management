@@ -127,7 +127,7 @@ const filteredActiveTrips = computed(() => {
       const matchNotes = (t.notes || '').toLowerCase().includes(kw);
       if (!matchCode && !matchRoute && !matchPlate && !matchNotes) return false;
     }
-    if (selectedTripDateFilter.value !== 'ALL') {
+    if (selectedTripDateFilter.value && selectedTripDateFilter.value !== 'ALL') {
       const tDate = (t.scheduledStartTime || '').slice(0, 10);
       if (tDate !== selectedTripDateFilter.value) return false;
     }

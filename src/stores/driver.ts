@@ -61,24 +61,42 @@ export const useDriverStore = defineStore('driver', () => {
     selectedVehiclePlate.value = plate;
   }
 
-  // US-07: Tài xế của xe nào thì chỉ xem được lịch sử các chuyến của xe đó
+  // US-07 & Vận hành tài xế: Tài xế xem tất cả các chuyến được điều phối cho mình (kể cả khi chạy xe khác) và các chuyến của xe phụ trách thường trực
   const myTrips = computed<TransportTrip[]>(() => {
     const currentDriverId = authStore.currentUser.driverId;
+    const currentDriverPhone = authStore.currentUser.phone;
+    const currentDriverName = authStore.currentUser.fullName;
+    const isDriverRole =
+      authStore.activeRole === 'Driver' ||
+      (authStore.currentUser.roles && authStore.currentUser.roles.includes('Driver'));
     const veh = myVehicle.value;
 
     let res: TransportTrip[] = [];
 
-    // 1. Nếu là tài xế có tài khoản riêng:
-    if (currentDriverId) {
+    // 1. Nếu là tài xế có tài khoản riêng hoặc đang ở vai trò Driver:
+    if (currentDriverId || isDriverRole) {
       res = dispatchStore.trips.filter((t) => {
-        if (veh) {
-          return t.vehiclePlate === veh.licensePlate || t.vehicleId === veh.id;
-        }
-        return t.driverId === currentDriverId;
+        // Chuyến được điều phối cho tài xế này (theo ID, SĐT, hoặc Họ tên):
+        const isMyDriver =
+          (currentDriverId && t.driverId === currentDriverId) ||
+          (currentDriverPhone && t.driverPhone === currentDriverPhone) ||
+          (currentDriverName && t.driverName === currentDriverName);
+
+        // Hoặc chuyến của phương tiện tài xế phụ trách (nếu chưa gán tài xế khác):
+        const isMyVeh =
+          veh &&
+          (t.vehiclePlate === veh.licensePlate || t.vehicleId === veh.id) &&
+          (!t.driverId || isMyDriver);
+
+        return isMyDriver || isMyVeh;
       });
     } else if (selectedVehiclePlate.value === 'ALL') {
       // 2. Nếu là Dispatcher / Admin đang xem Không gian tài xế:
       res = dispatchStore.trips;
+    } else if (selectedVehiclePlate.value) {
+      res = dispatchStore.trips.filter(
+        (t) => t.vehiclePlate === selectedVehiclePlate.value
+      );
     } else if (veh) {
       // Nghiêm ngặt chỉ xem các chuyến của xe đang được chọn (myVehicle)
       res = dispatchStore.trips.filter(
