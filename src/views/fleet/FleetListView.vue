@@ -39,6 +39,7 @@ import {
   RotateCcw,
   AlertTriangle,
   ArrowRightLeft,
+  ArrowLeft,
   FileText,
   Check,
   ShieldCheck,
@@ -56,6 +57,36 @@ const dialog = useDialogStore();
 const activeTab = ref<'vehicles' | 'types' | 'drivers' | 'handover'>('vehicles');
 const activeVehicleFilter = ref<'internal' | 'external'>('internal');
 const filterUnitType = ref<'ALL' | 'Team' | 'Factory'>('ALL');
+
+const dynamicPageTitle = computed(() => {
+  switch (activeTab.value) {
+    case 'vehicles':
+      return 'Quản Lý Đội Xe & Phương Tiện';
+    case 'types':
+      return 'Danh Mục Loại Xe & Định Mức';
+    case 'drivers':
+      return 'Quản Lý Hồ Sơ Tài Xế';
+    case 'handover':
+      return 'Quản Lý Bàn Giao, Điều Chuyển & Mượn Trả Xe';
+    default:
+      return 'Quản Lý Đội Xe & Tài Xế';
+  }
+});
+
+const dynamicPageSubtitle = computed(() => {
+  switch (activeTab.value) {
+    case 'vehicles':
+      return 'Theo dõi tình trạng phương tiện, định mức nhiên liệu, ODO và phân công tài xế';
+    case 'types':
+      return 'Cấu hình định mức tiêu hao nhiên liệu, số chỗ ngồi và công thức cho từng loại xe';
+    case 'drivers':
+      return 'Danh sách tài xế cơ hữu, hạng giấy phép lái xe và trạng thái sẵn sàng nhận chuyến';
+    case 'handover':
+      return 'Theo dõi mượn trả xe giữa các đơn vị, điều chuyển quyền quản lý và biên bản bàn giao tài xế';
+    default:
+      return 'Theo dõi tình trạng phương tiện, loại xe, định mức tiêu hao, ODO và hồ sơ tài xế';
+  }
+});
 
 const todayDateStr = computed(() => new Date().toISOString().slice(0, 10));
 
@@ -512,6 +543,19 @@ function getDriverEmploymentStatusLabel(status: string): string {
       return status;
   }
 }
+
+// Kiểm tra nếu bất kỳ subpage (thêm, sửa, chi tiết) nào đang mở
+const isAnySubpageOpen = computed(() => {
+  return (
+    showAddVehModal.value ||
+    showAddCatModal.value ||
+    showAddDriverModal.value ||
+    showAddHandoverModal.value ||
+    showHandoverDetailModal.value ||
+    selectedVehicleForDetail.value !== null ||
+    selectedDriverForDetail.value !== null
+  );
+});
 
 // ==================== Modal 1: Thêm / Sửa xe ====================
 const showAddVehModal = ref(false);
@@ -1408,15 +1452,15 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
 
 <template>
   <div class="fleet-page">
-    <div class="page-header">
+    <div v-if="!isAnySubpageOpen" class="page-header">
       <div>
-        <h1 class="page-title">Quản Lý Đội Xe & Tài Xế</h1>
-        <p class="page-subtitle">Theo dõi tình trạng phương tiện, loại xe, định mức tiêu hao, ODO và hồ sơ tài xế</p>
+        <h1 class="page-title">{{ dynamicPageTitle }}</h1>
+        <p class="page-subtitle">{{ dynamicPageSubtitle }}</p>
       </div>
     </div>
 
     <!-- 1. Bảng Phương tiện -->
-    <div v-if="activeTab === 'vehicles'" class="card">
+    <div v-if="activeTab === 'vehicles' && !showAddVehModal && !selectedVehicleForDetail" class="card">
       <div class="card-header flex-between">
         <div>
           <h3 class="card-title">Danh Sách Phương Tiện Đội Xe</h3>
@@ -1637,7 +1681,7 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
     </div>
 
     <!-- 2. Bảng Loại xe (Categories) -->
-    <div v-else-if="activeTab === 'types'" class="card">
+    <div v-else-if="activeTab === 'types' && !showAddCatModal" class="card">
       <div class="card-header flex-between">
         <div>
           <h3 class="card-title">Danh Sách Loại Xe & Thiết Bị</h3>
@@ -1711,7 +1755,7 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
     </div>
 
     <!-- 3. Bảng Tài xế -->
-    <div v-else-if="activeTab === 'drivers'" class="card">
+    <div v-else-if="activeTab === 'drivers' && !showAddDriverModal && !selectedDriverForDetail" class="card">
       <div class="card-header flex-between">
         <div>
           <h3 class="card-title">Danh Sách Tài Xế</h3>
@@ -1807,7 +1851,7 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
     </div>
 
     <!-- 4. Phân hệ Bàn giao, Điều chuyển & Mượn trả xe -->
-    <div v-else class="card">
+    <div v-else-if="!showAddHandoverModal && !showHandoverDetailModal" class="card">
       <div class="card-header flex-between">
         <div>
           <h3 class="card-title">Quản Lý Bàn Giao, Điều Chuyển & Mượn Trả Xe</h3>
@@ -1901,41 +1945,7 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
         </div>
       </div>
 
-      <!-- KPI Summary Cards động theo từng phân hệ -->
-      <div style="display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px;">
-        <div style="padding: 12px 14px; border-radius: 12px; border: 1px solid #dfe7ef; background: linear-gradient(135deg, #fef3c7, #fff7ed);">
-          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #8a5b00; font-weight: 700;">
-            {{ handoverSummary.stat1Label }}
-          </div>
-          <div style="margin-top: 8px; font-size: 22px; font-weight: 800; color: #7c3f00;">
-            {{ handoverSummary.stat1Val }}
-          </div>
-        </div>
-        <div style="padding: 12px 14px; border-radius: 12px; border: 1px solid #dfe7ef; background: linear-gradient(135deg, #dcfce7, #f0fdf4);">
-          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #166534; font-weight: 700;">
-            {{ handoverSummary.stat2Label }}
-          </div>
-          <div style="margin-top: 8px; font-size: 22px; font-weight: 800; color: #166534;">
-            {{ handoverSummary.stat2Val }}
-          </div>
-        </div>
-        <div style="padding: 12px 14px; border-radius: 12px; border: 1px solid #dfe7ef; background: linear-gradient(135deg, #fce7f3, #fff1f2);">
-          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #9d174d; font-weight: 700;">
-            {{ handoverSummary.stat3Label }}
-          </div>
-          <div style="margin-top: 8px; font-size: 22px; font-weight: 800; color: #9d174d;">
-            {{ handoverSummary.stat3Val }}
-          </div>
-        </div>
-        <div style="padding: 12px 14px; border-radius: 12px; border: 1px solid #dfe7ef; background: linear-gradient(135deg, #dbeafe, #eff6ff);">
-          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #1d4ed8; font-weight: 700;">
-            {{ handoverSummary.stat4Label }}
-          </div>
-          <div style="margin-top: 8px; font-size: 22px; font-weight: 800; color: #1e3a8a;">
-            {{ handoverSummary.stat4Val }}
-          </div>
-        </div>
-      </div>
+
 
       <!-- Bảng dữ liệu: Tùy biến theo từng Sub-tab -->
       <div class="table-container">
@@ -1949,7 +1959,7 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
               <th>Đại Diện Nhận</th>
               <th>Đại Diện Giao</th>
               <th>Xe Cần Thay Thế</th>
-              <th>Thời Gian Mượn (Từ)</th>
+              <th>Ngày Mượn (Từ)</th>
               <th>Hạn Trả (Hẹn)</th>
               <th>Ngày Trả (Thực Tế)</th>
               <th>ODO Bàn Giao</th>
@@ -2001,14 +2011,14 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
                 <span v-else class="text-muted text-xs italic">—</span>
               </td>
               <td>
-                <span class="text-xs font-mono text-slate-700">{{ h.borrowStartAt }}</span>
+                <span class="text-xs font-mono text-slate-700">{{ h.borrowStartAt?.slice(0, 10) }}</span>
               </td>
               <td>
-                <span class="text-xs font-mono text-slate-700">{{ h.expectedReturnAt || '—' }}</span>
+                <span class="text-xs font-mono text-slate-700">{{ h.expectedReturnAt ? h.expectedReturnAt.slice(0, 10) : '—' }}</span>
               </td>
               <td>
                 <span v-if="h.actualReturnAt" class="text-xs font-mono text-emerald-700 font-semibold">
-                  {{ h.actualReturnAt }}
+                  {{ h.actualReturnAt.slice(0, 10) }}
                 </span>
                 <span v-else class="text-muted text-xs italic">—</span>
               </td>
@@ -2199,7 +2209,7 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
                 </span>
               </td>
               <td>
-                <span class="text-xs font-mono">{{ h.borrowStartAt }}</span>
+                <span class="text-xs font-mono">{{ h.borrowStartAt?.slice(0, 10) }}</span>
               </td>
               <td>
                 <strong>{{ h.handoverOdo.toLocaleString() }} km</strong>
@@ -2260,13 +2270,28 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
       />
     </div>
 
-    <!-- Modal 1: Thêm xe -->
-    <div v-if="showAddVehModal" class="modal-backdrop" @click.self="showAddVehModal = false">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3 class="modal-title">{{ editingVehicle ? 'Chỉnh Sửa Phương Tiện' : 'Thêm Phương Tiện Mới' }}</h3>
+    <!-- Trang Con: Thêm / Chỉnh Sửa Phương Tiện -->
+    <div v-if="showAddVehModal" class="card mb-4 p-4 shadow-sm subpage-create-card">
+      <div class="subpage-header">
+        <div class="subpage-back-row">
+          <button class="btn btn-outline btn-sm flex items-center gap-1" @click="showAddVehModal = false">
+            <ArrowLeft :size="16" />
+            <span>Quay lại danh sách phương tiện</span>
+          </button>
         </div>
-        <div class="modal-body">
+        <div class="subpage-header-main">
+          <div class="subpage-title-box">
+            <h2 class="subpage-title">
+              {{ editingVehicle ? 'Chỉnh Sửa Phương Tiện' : 'Thêm Phương Tiện Mới' }}
+            </h2>
+            <p class="subpage-subtitle">
+              Cập nhật thông số kỹ thuật, biển số, loại xe, tải trọng và phân công tài xế
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="subpage-body">
           <div class="grid-2">
             <div class="form-group">
               <label class="form-label">Biển số xe <span class="required">*</span></label>
@@ -2505,24 +2530,39 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
               placeholder="Nhập ghi chú tình trạng xe, lịch hẹn bảo dưỡng, lưu ý vận hành..."
             ></textarea>
           </div>
-        </div>
+      </div>
 
-        <div class="modal-footer">
-          <button class="btn btn-secondary" @click="showAddVehModal = false">Hủy</button>
-          <button class="btn btn-primary" @click="handleSaveVehicle">
-            {{ editingVehicle ? 'Lưu Thay Đổi' : 'Lưu Phương Tiện' }}
-          </button>
-        </div>
+      <div class="subpage-footer pt-3 mt-4 border-t flex items-center justify-end gap-2">
+        <button class="btn btn-secondary" @click="showAddVehModal = false">Hủy</button>
+        <button class="btn btn-primary" @click="handleSaveVehicle">
+          <Check :size="16" />
+          <span>{{ editingVehicle ? 'Lưu Thay Đổi' : 'Lưu Phương Tiện' }}</span>
+        </button>
       </div>
     </div>
 
-    <!-- Modal 2: Thêm / Sửa loại xe -->
-    <div v-if="showAddCatModal" class="modal-backdrop" @click.self="showAddCatModal = false">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3 class="modal-title">{{ editingCategory ? 'Chỉnh Sửa Loại Xe / Thiết Bị' : 'Thêm Loại Xe / Thiết Bị Mới' }}</h3>
+    <!-- Trang Con: Thêm / Chỉnh Sửa Loại Xe -->
+    <div v-if="showAddCatModal" class="card mb-4 p-4 shadow-sm subpage-create-card">
+      <div class="subpage-header">
+        <div class="subpage-back-row">
+          <button class="btn btn-outline btn-sm flex items-center gap-1" @click="showAddCatModal = false">
+            <ArrowLeft :size="16" />
+            <span>Quay lại danh sách loại xe</span>
+          </button>
         </div>
-        <div class="modal-body">
+        <div class="subpage-header-main">
+          <div class="subpage-title-box">
+            <h2 class="subpage-title">
+              {{ editingCategory ? 'Chỉnh Sửa Loại Xe / Thiết Bị' : 'Thêm Loại Xe / Thiết Bị Mới' }}
+            </h2>
+            <p class="subpage-subtitle">
+              Quy chuẩn mã loại xe, tên loại xe, nhóm chuyên dụng và công thức tiêu hao
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="subpage-body">
           <div class="grid-2">
             <div class="form-group">
               <label class="form-label">Mã loại xe <span class="required">*</span></label>
@@ -2569,14 +2609,14 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
               <span>Kích hoạt loại xe này trong hệ thống</span>
             </label>
           </div>
-        </div>
+      </div>
 
-        <div class="modal-footer">
-          <button class="btn btn-secondary" @click="showAddCatModal = false">Hủy</button>
-          <button class="btn btn-primary" @click="handleSaveCategory">
-            {{ editingCategory ? 'Lưu Thay Đổi' : 'Lưu Loại Xe' }}
-          </button>
-        </div>
+      <div class="subpage-footer pt-3 mt-4 border-t flex items-center justify-end gap-2">
+        <button class="btn btn-secondary" @click="showAddCatModal = false">Hủy</button>
+        <button class="btn btn-primary" @click="handleSaveCategory">
+          <Check :size="16" />
+          <span>{{ editingCategory ? 'Lưu Thay Đổi' : 'Lưu Loại Xe' }}</span>
+        </button>
       </div>
     </div>
 
@@ -2618,13 +2658,28 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
       </div>
     </div>
 
-    <!-- Modal 3: Thêm / Sửa tài xế -->
-    <div v-if="showAddDriverModal" class="modal-backdrop" @click.self="showAddDriverModal = false">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3 class="modal-title">{{ editingDriver ? 'Chỉnh Sửa Hồ Sơ Tài Xế' : 'Thêm Tài Xế Mới' }}</h3>
+    <!-- Trang Con: Thêm / Chỉnh Sửa Hồ Sơ Tài Xế -->
+    <div v-if="showAddDriverModal" class="card mb-4 p-4 shadow-sm subpage-create-card">
+      <div class="subpage-header">
+        <div class="subpage-back-row">
+          <button class="btn btn-outline btn-sm flex items-center gap-1" @click="showAddDriverModal = false">
+            <ArrowLeft :size="16" />
+            <span>Quay lại danh sách tài xế</span>
+          </button>
         </div>
-        <div class="modal-body">
+        <div class="subpage-header-main">
+          <div class="subpage-title-box">
+            <h2 class="subpage-title">
+              {{ editingDriver ? 'Chỉnh Sửa Hồ Sơ Tài Xế' : 'Thêm Tài Xế Mới' }}
+            </h2>
+            <p class="subpage-subtitle">
+              Cập nhật thông tin mã nhân viên, họ tên, hạng GPLX và hình ảnh bằng lái tài xế
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="subpage-body">
           <div class="grid-2">
             <div class="form-group">
               <label class="form-label">Mã nhân viên (Mã NV)</label>
@@ -2687,43 +2742,56 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
               <img :src="newDriverLicenseImageUrl" alt="License preview" style="max-height: 160px; max-width: 100%; object-fit: contain;" />
             </div>
           </div>
-        </div>
+      </div>
 
-        <div class="modal-footer">
-          <button class="btn btn-secondary" @click="showAddDriverModal = false">Hủy</button>
-          <button class="btn btn-primary" @click="handleSaveDriver">
-            {{ editingDriver ? 'Lưu Thay Đổi' : 'Lưu Hồ Sơ Tài Xế' }}
-          </button>
-        </div>
+      <div class="subpage-footer pt-3 mt-4 border-t flex items-center justify-end gap-2">
+        <button class="btn btn-secondary" @click="showAddDriverModal = false">Hủy</button>
+        <button class="btn btn-primary" @click="handleSaveDriver">
+          <Check :size="16" />
+          <span>{{ editingDriver ? 'Lưu Thay Đổi' : 'Lưu Hồ Sơ Tài Xế' }}</span>
+        </button>
       </div>
     </div>
 
-    <!-- Modal 4: Lập phiếu Mượn Trả / Điều Chuyển / Bàn Giao Hiện Trạng -->
-    <div v-if="showAddHandoverModal" class="modal-backdrop" @click.self="showAddHandoverModal = false">
-      <div class="modal-content" style="max-width: 780px;">
-        <div class="modal-header">
-          <h3 class="modal-title">
-            <template v-if="editingHandover">
-              {{
-                newHandoverWorkflowType === 'BORROW_RETURN'
-                  ? 'Chỉnh Sửa Phiếu Mượn / Trả Xe'
-                  : newHandoverWorkflowType === 'TRANSFER'
-                    ? 'Chỉnh Sửa Quyết Định Điều Chuyển Quyền Quản Lý'
-                    : 'Chỉnh Sửa Biên Bản Bàn Giao Hiện Trạng Xe'
-              }}
-            </template>
-            <template v-else>
-              {{
-                newHandoverWorkflowType === 'BORROW_RETURN'
-                  ? 'Lập Phiếu Mượn Xe Giữa Các Đơn Vị'
-                  : newHandoverWorkflowType === 'TRANSFER'
-                    ? 'Lập Lệnh Điều Chuyển Xe Sang Đơn Vị Mới'
-                    : 'Lập Biên Bản Bàn Giao Hiện Trạng Xe Cho Tài Xế'
-              }}
-            </template>
-          </h3>
+    <!-- Trang Con: Lập phiếu Mượn Trả / Điều Chuyển / Bàn Giao Hiện Trạng -->
+    <div v-if="showAddHandoverModal" class="card mb-4 p-4 shadow-sm subpage-create-card">
+      <div class="subpage-header">
+        <div class="subpage-back-row">
+          <button class="btn btn-outline btn-sm flex items-center gap-1" @click="showAddHandoverModal = false">
+            <ArrowLeft :size="16" />
+            <span>Quay lại danh sách bàn giao</span>
+          </button>
         </div>
-        <div class="modal-body">
+        <div class="subpage-header-main">
+          <div class="subpage-title-box">
+            <h2 class="subpage-title">
+              <template v-if="editingHandover">
+                {{
+                  newHandoverWorkflowType === 'BORROW_RETURN'
+                    ? 'Chỉnh Sửa Phiếu Mượn / Trả Xe'
+                    : newHandoverWorkflowType === 'TRANSFER'
+                      ? 'Chỉnh Sửa Quyết Định Điều Chuyển Quyền Quản Lý'
+                      : 'Chỉnh Sửa Biên Bản Bàn Giao Hiện Trạng Xe'
+                }}
+              </template>
+              <template v-else>
+                {{
+                  newHandoverWorkflowType === 'BORROW_RETURN'
+                    ? 'Lập Phiếu Mượn Xe Giữa Các Đơn Vị'
+                    : newHandoverWorkflowType === 'TRANSFER'
+                      ? 'Lập Lệnh Điều Chuyển Xe Sang Đơn Vị Mới'
+                      : 'Lập Biên Bản Bàn Giao Hiện Trạng Xe Cho Tài Xế'
+                }}
+              </template>
+            </h2>
+            <p class="subpage-subtitle">
+              Trang lập chứng từ & điều chuyển chi tiết theo quy trình quản lý phương tiện công ty
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="subpage-body">
           <!-- 3-Pill Radio Selector for Workflow Types -->
           <div class="form-group mb-4">
             <label class="form-label" style="font-size: 0.875rem; font-weight: 700; color: #1e293b;">
@@ -2790,7 +2858,7 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
 
           <!-- ==================== NHÁNH 1: MƯỢN / TRẢ XE ==================== -->
           <div v-if="newHandoverWorkflowType === 'BORROW_RETURN'" class="handover-branch-box">
-            <div class="p-3 mb-3 rounded border" style="background-color: #f0fdf4; border-color: #bbf7d0; font-size: 0.8125rem; color: #166534;">
+            <div class="handover-guide-alert alert-green">
               <strong>Quy trình mượn / trả xe:</strong> Áp dụng khi đơn vị (Trạm cán / Đội / Nhà máy) bị hỏng xe hoặc tăng tải đột xuất, cần mượn tạm xe từ đơn vị bạn trong vài ngày rồi hoàn trả. <em>Quyền quản lý gốc trên hệ thống không bị thay đổi.</em>
             </div>
 
@@ -2881,7 +2949,7 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
 
           <!-- ==================== NHÁNH 2: ĐIỀU CHUYỂN XE ==================== -->
           <div v-else-if="newHandoverWorkflowType === 'TRANSFER'" class="handover-branch-box">
-            <div class="p-3 mb-3 rounded border" style="background-color: #eff6ff; border-color: #bfdbfe; font-size: 0.8125rem; color: #1e40af;">
+            <div class="handover-guide-alert alert-blue">
               <strong>Quy trình điều chuyển xe:</strong> Chuyển giao hẳn quyền quản lý phương tiện sang đơn vị mới theo quyết định của công ty/tổng công ty. <em>Hệ thống sẽ tự động cập nhật đơn vị phụ trách mới trong danh sách phương tiện.</em>
             </div>
 
@@ -2965,21 +3033,20 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
             </div>
 
             <div class="form-group">
-              <label class="form-label">Hồ sơ, giấy tờ bàn giao kèm theo</label>
-              <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 4px;">
+              <label class="form-label font-bold">Hồ sơ, giấy tờ bàn giao kèm theo</label>
+              <div class="checklist-grid">
                 <label
                   v-for="doc in ['Cà vẹt xe bản chính', 'Sổ chứng nhận kiểm định an toàn kỹ thuật', 'Bảo hiểm TNDS bắt buộc', 'Thẻ nhiên liệu FleetCard', 'Sổ theo dõi lịch sử bảo dưỡng', 'Chìa khóa gốc & phụ']"
                   :key="doc"
-                  class="flex items-center gap-2 p-2 rounded border"
-                  :style="{ backgroundColor: selectedHandoverDocs.includes(doc) ? '#f0fdf4' : '#ffffff', borderColor: selectedHandoverDocs.includes(doc) ? '#86efac' : '#e2e8f0', cursor: 'pointer', fontSize: '0.8125rem' }"
+                  class="checklist-card-item"
+                  :class="{ 'checked': selectedHandoverDocs.includes(doc) }"
                 >
                   <input
                     type="checkbox"
                     :value="doc"
                     v-model="selectedHandoverDocs"
-                    style="accent-color: #15803d; width: 15px; height: 15px;"
                   />
-                  <span>{{ doc }}</span>
+                  <span class="item-text">{{ doc }}</span>
                 </label>
               </div>
             </div>
@@ -2997,7 +3064,7 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
 
           <!-- ==================== NHÁNH 3: BÀN GIAO HIỆN TRẠNG TÀI XẾ ==================== -->
           <div v-else class="handover-branch-box">
-            <div class="p-3 mb-3 rounded border" style="background-color: #faf5ff; border-color: #e9d5ff; font-size: 0.8125rem; color: #6b21a8;">
+            <div class="handover-guide-alert alert-purple">
               <strong>Quy trình bàn giao tài xế:</strong> Lập biên bản kiểm tra hiện trạng kỹ thuật xe khi thay đổi tài xế phụ trách (nghỉ việc, hoán đổi xe, hoặc phân công tài xế mới). <em>Hệ thống sẽ tự động gán tài xế nhận xe làm người phụ trách chính của phương tiện.</em>
             </div>
 
@@ -3078,61 +3145,61 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
 
             <!-- Bảng Checklist kiểm tra hiện trạng xe -->
             <div class="form-group">
-              <label class="form-label" style="font-weight: 700;">
+              <label class="form-label font-bold">
                 Bảng checklist kiểm tra hiện trạng kỹ thuật xe (6 tiêu chí)
               </label>
-              <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 6px;">
+              <div class="checklist-grid">
                 <label
-                  class="flex items-center gap-2 p-2 rounded border"
-                  :style="{ backgroundColor: newHandoverChecklist.bodyAndPaint ? '#f0fdf4' : '#fff1f2', borderColor: newHandoverChecklist.bodyAndPaint ? '#86efac' : '#fca5a5', cursor: 'pointer' }"
+                  class="checklist-card-item"
+                  :class="{ 'checked': newHandoverChecklist.bodyAndPaint }"
                 >
-                  <input type="checkbox" v-model="newHandoverChecklist.bodyAndPaint" style="accent-color: #15803d; width: 16px; height: 16px;" />
-                  <span style="font-size: 0.8125rem;">
+                  <input type="checkbox" v-model="newHandoverChecklist.bodyAndPaint" />
+                  <span class="item-text">
                     <strong>Thân vỏ & sơn:</strong> Không móp méo, trầy xước nặng
                   </span>
                 </label>
                 <label
-                  class="flex items-center gap-2 p-2 rounded border"
-                  :style="{ backgroundColor: newHandoverChecklist.brakesAndLights ? '#f0fdf4' : '#fff1f2', borderColor: newHandoverChecklist.brakesAndLights ? '#86efac' : '#fca5a5', cursor: 'pointer' }"
+                  class="checklist-card-item"
+                  :class="{ 'checked': newHandoverChecklist.brakesAndLights }"
                 >
-                  <input type="checkbox" v-model="newHandoverChecklist.brakesAndLights" style="accent-color: #15803d; width: 16px; height: 16px;" />
-                  <span style="font-size: 0.8125rem;">
+                  <input type="checkbox" v-model="newHandoverChecklist.brakesAndLights" />
+                  <span class="item-text">
                     <strong>Phanh & đèn còi:</strong> Hệ thống an toàn hoạt động chuẩn
                   </span>
                 </label>
                 <label
-                  class="flex items-center gap-2 p-2 rounded border"
-                  :style="{ backgroundColor: newHandoverChecklist.tiresAndSpare ? '#f0fdf4' : '#fff1f2', borderColor: newHandoverChecklist.tiresAndSpare ? '#86efac' : '#fca5a5', cursor: 'pointer' }"
+                  class="checklist-card-item"
+                  :class="{ 'checked': newHandoverChecklist.tiresAndSpare }"
                 >
-                  <input type="checkbox" v-model="newHandoverChecklist.tiresAndSpare" style="accent-color: #15803d; width: 16px; height: 16px;" />
-                  <span style="font-size: 0.8125rem;">
+                  <input type="checkbox" v-model="newHandoverChecklist.tiresAndSpare" />
+                  <span class="item-text">
                     <strong>Lốp xe & lốp dự phòng:</strong> Độ mòn đạt chuẩn, áp suất tốt
                   </span>
                 </label>
                 <label
-                  class="flex items-center gap-2 p-2 rounded border"
-                  :style="{ backgroundColor: newHandoverChecklist.cleanliness ? '#f0fdf4' : '#fff1f2', borderColor: newHandoverChecklist.cleanliness ? '#86efac' : '#fca5a5', cursor: 'pointer' }"
+                  class="checklist-card-item"
+                  :class="{ 'checked': newHandoverChecklist.cleanliness }"
                 >
-                  <input type="checkbox" v-model="newHandoverChecklist.cleanliness" style="accent-color: #15803d; width: 16px; height: 16px;" />
-                  <span style="font-size: 0.8125rem;">
+                  <input type="checkbox" v-model="newHandoverChecklist.cleanliness" />
+                  <span class="item-text">
                     <strong>Vệ sinh cabin & bồn:</strong> Sạch sẽ, gọn gàng
                   </span>
                 </label>
                 <label
-                  class="flex items-center gap-2 p-2 rounded border"
-                  :style="{ backgroundColor: newHandoverChecklist.toolsAndJack ? '#f0fdf4' : '#fff1f2', borderColor: newHandoverChecklist.toolsAndJack ? '#86efac' : '#fca5a5', cursor: 'pointer' }"
+                  class="checklist-card-item"
+                  :class="{ 'checked': newHandoverChecklist.toolsAndJack }"
                 >
-                  <input type="checkbox" v-model="newHandoverChecklist.toolsAndJack" style="accent-color: #15803d; width: 16px; height: 16px;" />
-                  <span style="font-size: 0.8125rem;">
+                  <input type="checkbox" v-model="newHandoverChecklist.toolsAndJack" />
+                  <span class="item-text">
                     <strong>Bộ đồ nghề & con đội:</strong> Đầy đủ kích lốp, tam giác phản quang
                   </span>
                 </label>
                 <label
-                  class="flex items-center gap-2 p-2 rounded border"
-                  :style="{ backgroundColor: newHandoverChecklist.documents ? '#f0fdf4' : '#fff1f2', borderColor: newHandoverChecklist.documents ? '#86efac' : '#fca5a5', cursor: 'pointer' }"
+                  class="checklist-card-item"
+                  :class="{ 'checked': newHandoverChecklist.documents }"
                 >
-                  <input type="checkbox" v-model="newHandoverChecklist.documents" style="accent-color: #15803d; width: 16px; height: 16px;" />
-                  <span style="font-size: 0.8125rem;">
+                  <input type="checkbox" v-model="newHandoverChecklist.documents" />
+                  <span class="item-text">
                     <strong>Giấy tờ & Thẻ nhiên liệu:</strong> Đăng kiểm, bảo hiểm, cà vẹt
                   </span>
                 </label>
@@ -3154,33 +3221,46 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
           <datalist id="unitPresetsList">
             <option v-for="unit in standardUnitPresets" :key="unit" :value="unit" />
           </datalist>
-        </div>
+      </div>
 
-        <div class="modal-footer">
-          <button class="btn btn-secondary" @click="showAddHandoverModal = false">Hủy</button>
-          <button class="btn btn-primary" @click="handleAddHandover">
+      <div class="subpage-footer pt-3 mt-4 border-t flex items-center justify-end gap-2">
+        <button class="btn btn-secondary" @click="showAddHandoverModal = false">Hủy</button>
+        <button class="btn btn-primary" @click="handleAddHandover">
+          <Check :size="16" />
+          <span>
             <template v-if="editingHandover">Lưu Thay Đổi</template>
             <template v-else>
               {{
                 newHandoverWorkflowType === 'BORROW_RETURN'
-                  ? 'Lập Phiếu Mượn Xe'
+                  ? 'Hoàn Tất Lập Phiếu Mượn Xe'
                   : newHandoverWorkflowType === 'TRANSFER'
-                    ? 'Lập Lệnh Điều Chuyển'
-                    : 'Lập Biên Bản Bàn Giao'
+                    ? 'Hoàn Tất Lập Lệnh Điều Chuyển'
+                    : 'Hoàn Tất Lập Biên Bản Bàn Giao'
               }}
             </template>
-          </button>
-        </div>
+          </span>
+        </button>
       </div>
     </div>
 
-    <!-- Modal: Xem chi tiết phiếu bàn giao / điều chuyển / mượn trả -->
-    <div v-if="showHandoverDetailModal && viewingHandover" class="modal-backdrop" @click.self="showHandoverDetailModal = false">
-      <div class="modal-content" style="max-width: 720px;">
-        <div class="modal-header flex-between">
-          <div>
+    <!-- Trang Riêng: Xem chi tiết phiếu bàn giao / điều chuyển / mượn trả -->
+    <div v-if="showHandoverDetailModal && viewingHandover" class="card mb-4 p-4 shadow-sm subpage-create-card">
+      <!-- Header Main Row (Unified Clean Subpage Header) -->
+      <div class="subpage-header-main mb-4 flex-between border-b pb-3">
+        <div>
+          <div class="breadcrumb text-xs text-muted mb-2">
+            <span>Quản lý đội xe</span> <span class="mx-1">/</span> <span>Danh sách bàn giao</span> <span class="mx-1">/</span> <span class="text-slate-700 font-medium">Chi tiết biên bản</span>
+          </div>
+          <div class="flex items-center gap-3 flex-wrap">
+            <button class="btn btn-outline btn-sm flex items-center gap-1" @click="showHandoverDetailModal = false">
+              <ArrowLeft :size="16" />
+              <span>Quay lại danh sách</span>
+            </button>
+            <h2 class="subpage-title" style="margin: 0; font-size: 1.3rem; font-weight: 800;">
+              Chi Tiết {{ getHandoverWorkflowLabel(viewingHandover.workflowType) }} <span class="text-success font-mono">[{{ viewingHandover.vehiclePlate }}]</span>
+            </h2>
             <span
-              class="badge mr-2"
+              class="badge"
               :class="{
                 'badge-success': viewingHandover.workflowType === 'BORROW_RETURN',
                 'badge-info': viewingHandover.workflowType === 'TRANSFER',
@@ -3193,256 +3273,323 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
               {{ getHandoverStatusLabel(viewingHandover.status, viewingHandover.workflowType) }}
             </span>
           </div>
-          <h3 class="modal-title" style="margin-top: 4px;">
-            Chi Tiết {{ getHandoverWorkflowLabel(viewingHandover.workflowType) }} [{{ viewingHandover.vehiclePlate }}]
-          </h3>
+        </div>
+        <button class="btn btn-primary flex items-center gap-2" @click="showHandoverDetailModal = false; openEditHandoverModal(viewingHandover)">
+          <Edit2 :size="16" />
+          <span>Chỉnh sửa biên bản</span>
+        </button>
+      </div>
+
+      <div class="subpage-body">
+        <!-- Common vehicle overview stats grid -->
+        <div class="grid-4 mb-4">
+          <div class="stat-card card-inner p-3 rounded-xl border border-slate-200 bg-slate-50">
+            <div class="stat-icon bg-emerald-100 text-emerald-700 p-2 rounded-lg mb-1 inline-block">
+              <Truck :size="18" />
+            </div>
+            <div class="stat-info">
+              <span class="stat-label text-xs text-slate-500 font-semibold block uppercase">Biển Số Phương Tiện</span>
+              <span class="stat-val text-lg font-black text-emerald-700">{{ viewingHandover.vehiclePlate }}</span>
+            </div>
+          </div>
+
+          <div class="stat-card card-inner p-3 rounded-xl border border-slate-200 bg-slate-50">
+            <div class="stat-icon bg-blue-100 text-blue-700 p-2 rounded-lg mb-1 inline-block">
+              <Gauge :size="18" />
+            </div>
+            <div class="stat-info">
+              <span class="stat-label text-xs text-slate-500 font-semibold block uppercase">ODO Bàn Giao</span>
+              <span class="stat-val text-base font-bold text-slate-800">{{ viewingHandover.handoverOdo.toLocaleString() }} km</span>
+            </div>
+          </div>
+
+          <div class="stat-card card-inner p-3 rounded-xl border border-slate-200 bg-slate-50">
+            <div class="stat-icon bg-amber-100 text-amber-700 p-2 rounded-lg mb-1 inline-block">
+              <Fuel :size="18" />
+            </div>
+            <div class="stat-info">
+              <span class="stat-label text-xs text-slate-500 font-semibold block uppercase">Mức Nhiên Liệu</span>
+              <span class="stat-val text-base font-bold text-slate-800">{{ viewingHandover.fuelLevel || '—' }}</span>
+            </div>
+          </div>
+
+          <div class="stat-card card-inner p-3 rounded-xl border border-slate-200 bg-slate-50">
+            <div class="stat-icon bg-purple-100 text-purple-700 p-2 rounded-lg mb-1 inline-block">
+              <Clock :size="18" />
+            </div>
+            <div class="stat-info">
+              <span class="stat-label text-xs text-slate-500 font-semibold block uppercase">Thời Điểm Tạo</span>
+              <span class="stat-val text-xs font-semibold text-slate-700">{{ viewingHandover.borrowStartAt || viewingHandover.createdAt || '—' }}</span>
+            </div>
+          </div>
         </div>
 
-        <div class="modal-body">
-          <!-- Common vehicle overview -->
-          <div class="p-3 mb-3 bg-light rounded border flex-between">
-            <div>
-              <div style="font-size: 0.75rem; color: #64748b; font-weight: 600;">BIỂN SỐ PHƯƠNG TIỆN</div>
-              <div style="font-size: 1.125rem; font-weight: 800; color: #15803d;">{{ viewingHandover.vehiclePlate }}</div>
-            </div>
-            <div>
-              <div style="font-size: 0.75rem; color: #64748b; font-weight: 600;">ODO BÀN GIAO</div>
-              <div style="font-size: 0.9375rem; font-weight: 700; color: #1e293b;">{{ viewingHandover.handoverOdo.toLocaleString() }} km</div>
-            </div>
-            <div>
-              <div style="font-size: 0.75rem; color: #64748b; font-weight: 600;">MỨC NHIÊN LIỆU</div>
-              <div style="font-size: 0.9375rem; font-weight: 700; color: #1e293b;">{{ viewingHandover.fuelLevel || '—' }}</div>
-            </div>
-            <div>
-              <div style="font-size: 0.75rem; color: #64748b; font-weight: 600;">THỜI ĐIỂM TẠO</div>
-              <div style="font-size: 0.8125rem; color: #475569;">{{ viewingHandover.borrowStartAt || viewingHandover.createdAt || '—' }}</div>
-            </div>
-          </div>
-
-          <!-- BRANCH 1: BORROW_RETURN -->
-          <div v-if="viewingHandover.workflowType === 'BORROW_RETURN'">
-            <div class="grid-2 mb-3">
-              <div class="p-3 rounded border" style="background-color: #f8fafc;">
-                <div style="font-size: 0.75rem; font-weight: 700; color: #64748b; margin-bottom: 4px;">ĐƠN VỊ CHO MƯỢN</div>
-                <div style="font-size: 0.9375rem; font-weight: 700; color: #1e293b;">{{ viewingHandover.fromTeam || '—' }}</div>
-                <div v-if="viewingHandover.fromManagerName" style="font-size: 0.8125rem; color: #64748b; margin-top: 2px;">
-                  Đại diện: <strong>{{ viewingHandover.fromManagerName }}</strong>
-                </div>
+        <!-- BRANCH 1: BORROW_RETURN -->
+        <div v-if="viewingHandover.workflowType === 'BORROW_RETURN'">
+          <!-- Red Box 2 Redesign: Units Cards -->
+          <div class="grid-2 mb-4">
+            <div class="card-inner p-4 rounded-xl border border-slate-200 bg-slate-50 shadow-2xs">
+              <div class="flex items-center gap-2 mb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                <Building2 :size="16" class="text-slate-500" />
+                <span>ĐƠN VỊ CHO MƯỢN</span>
               </div>
-              <div class="p-3 rounded border" style="background-color: #f0fdf4; border-color: #bbf7d0;">
-                <div style="font-size: 0.75rem; font-weight: 700; color: #166534; margin-bottom: 4px;">ĐƠN VỊ MƯỢN XE</div>
-                <div style="font-size: 0.9375rem; font-weight: 700; color: #15803d;">{{ viewingHandover.toTeam || '—' }}</div>
-                <div v-if="viewingHandover.toManagerName" style="font-size: 0.8125rem; color: #166534; margin-top: 2px;">
-                  Đại diện: <strong>{{ viewingHandover.toManagerName }}</strong>
-                </div>
+              <div class="text-base font-extrabold text-slate-800 mb-1">
+                {{ viewingHandover.fromTeam || '—' }}
+              </div>
+              <div v-if="viewingHandover.fromManagerName" class="text-xs text-slate-600 flex items-center gap-1.5 mt-1">
+                <User :size="14" class="text-slate-400" />
+                <span>Đại diện: <strong class="text-slate-800">{{ viewingHandover.fromManagerName }}</strong></span>
               </div>
             </div>
 
-            <div v-if="viewingHandover.replacingVehiclePlate" class="p-3 mb-3 rounded border" style="background-color: #fefce8; border-color: #fef08a;">
-              <div style="font-size: 0.75rem; font-weight: 700; color: #854d0e;">XE BỊ HỎNG CẦN CHI VIỆN THAY THẾ:</div>
-              <div style="font-size: 0.875rem; font-weight: 600; color: #713f12; margin-top: 2px;">{{ viewingHandover.replacingVehiclePlate }}</div>
-            </div>
-
-            <div class="grid-2 mb-3">
-              <div class="form-group">
-                <label class="form-label">Thời điểm dự kiến trả</label>
-                <div class="p-3 bg-light rounded">{{ viewingHandover.expectedReturnAt || 'Không xác định' }}</div>
+            <div class="card-inner p-4 rounded-xl border border-emerald-200 bg-emerald-50/70 shadow-2xs">
+              <div class="flex items-center gap-2 mb-2 text-xs font-bold text-emerald-800 uppercase tracking-wider">
+                <Building2 :size="16" class="text-emerald-600" />
+                <span>ĐƠN VỊ MƯỢN XE</span>
               </div>
-              <div class="form-group">
-                <label class="form-label">Thời điểm hoàn trả thực tế</label>
-                <div class="p-3 bg-light rounded" :style="{ color: viewingHandover.actualReturnAt ? '#15803d' : '#64748b', fontWeight: viewingHandover.actualReturnAt ? 700 : 400 }">
-                  {{ viewingHandover.actualReturnAt || 'Đang mượn xe' }}
-                </div>
+              <div class="text-base font-extrabold text-emerald-800 mb-1">
+                {{ viewingHandover.toTeam || '—' }}
               </div>
-            </div>
-
-            <div v-if="viewingHandover.returnOdo" class="grid-2 mb-3">
-              <div class="form-group">
-                <label class="form-label">ODO khi hoàn trả</label>
-                <div class="p-3 bg-light rounded font-bold">{{ viewingHandover.returnOdo.toLocaleString() }} km (Chạy thêm: {{ (viewingHandover.returnOdo - viewingHandover.handoverOdo).toLocaleString() }} km)</div>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Mức xăng dầu khi hoàn trả</label>
-                <div class="p-3 bg-light rounded font-bold">{{ viewingHandover.returnFuelLevel || '—' }}</div>
+              <div v-if="viewingHandover.toManagerName" class="text-xs text-emerald-800 flex items-center gap-1.5 mt-1">
+                <User :size="14" class="text-emerald-600" />
+                <span>Đại diện: <strong class="text-emerald-950">{{ viewingHandover.toManagerName }}</strong></span>
               </div>
             </div>
           </div>
 
-          <!-- BRANCH 2: TRANSFER -->
-          <div v-else-if="viewingHandover.workflowType === 'TRANSFER'">
-            <div class="p-3 mb-3 rounded border" style="background-color: #eff6ff; border-color: #bfdbfe;">
-              <div class="grid-2">
-                <div>
-                  <div style="font-size: 0.75rem; font-weight: 700; color: #1e40af;">SỐ QUYẾT ĐỊNH ĐIỀU CHUYỂN</div>
-                  <div style="font-size: 1rem; font-weight: 800; color: #1e3a8a;">{{ viewingHandover.decisionNumber || '—' }}</div>
-                </div>
-                <div>
-                  <div style="font-size: 0.75rem; font-weight: 700; color: #1e40af;">NGÀY HIỆU LỰC</div>
-                  <div style="font-size: 0.9375rem; font-weight: 700; color: #1e3a8a;">{{ viewingHandover.effectiveDate || viewingHandover.borrowStartAt?.slice(0, 10) || '—' }}</div>
-                </div>
+          <div v-if="viewingHandover.replacingVehiclePlate" class="p-3 mb-4 rounded-xl border border-amber-200 bg-amber-50 text-amber-900 flex items-center gap-2 text-xs">
+            <AlertTriangle :size="18" class="text-amber-600 flex-shrink-0" />
+            <div>
+              <strong class="font-bold text-amber-900 uppercase">XE BỊ HỎNG CẦN CHI VIỆN THAY THẾ:</strong>
+              <span class="ml-1 font-bold text-amber-950 font-mono">{{ viewingHandover.replacingVehiclePlate }}</span>
+            </div>
+          </div>
+
+          <div class="grid-2 mb-4">
+            <div class="card-inner p-3 rounded-lg border border-slate-200 bg-white">
+              <div class="text-xs text-slate-500 font-semibold mb-1">Thời điểm dự kiến hoàn trả</div>
+              <div class="text-sm font-bold text-slate-800">{{ viewingHandover.expectedReturnAt ? viewingHandover.expectedReturnAt.slice(0, 10) : 'Không xác định' }}</div>
+            </div>
+            <div class="card-inner p-3 rounded-lg border border-slate-200 bg-white">
+              <div class="text-xs text-slate-500 font-semibold mb-1">Thời điểm hoàn trả thực tế</div>
+              <div class="text-sm font-bold" :class="viewingHandover.actualReturnAt ? 'text-emerald-700' : 'text-slate-500 italic'">
+                {{ viewingHandover.actualReturnAt ? viewingHandover.actualReturnAt.slice(0, 10) : 'Đang mượn xe' }}
+              </div>
+            </div>
+          </div>
+
+          <div v-if="viewingHandover.returnOdo" class="grid-2 mb-4">
+            <div class="card-inner p-3 rounded-lg border border-slate-200 bg-white">
+              <div class="text-xs text-slate-500 font-semibold mb-1">ODO khi hoàn trả</div>
+              <div class="text-sm font-bold text-slate-800">{{ viewingHandover.returnOdo.toLocaleString() }} km <span class="text-emerald-700 text-xs font-normal">(Chạy thêm: {{ (viewingHandover.returnOdo - viewingHandover.handoverOdo).toLocaleString() }} km)</span></div>
+            </div>
+            <div class="card-inner p-3 rounded-lg border border-slate-200 bg-white">
+              <div class="text-xs text-slate-500 font-semibold mb-1">Mức xăng dầu khi hoàn trả</div>
+              <div class="text-sm font-bold text-slate-800">{{ viewingHandover.returnFuelLevel || '—' }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- BRANCH 2: TRANSFER -->
+        <div v-else-if="viewingHandover.workflowType === 'TRANSFER'">
+          <div class="p-3 mb-4 rounded-xl border border-blue-200 bg-blue-50">
+            <div class="grid-2">
+              <div>
+                <div class="text-xs font-bold text-blue-800">SỐ QUYẾT ĐỊNH ĐIỀU CHUYỂN</div>
+                <div class="text-base font-extrabold text-blue-950">{{ viewingHandover.decisionNumber || '—' }}</div>
+              </div>
+              <div>
+                <div class="text-xs font-bold text-blue-800">NGÀY HIỆU LỰC</div>
+                <div class="text-sm font-bold text-blue-900">{{ viewingHandover.effectiveDate || viewingHandover.borrowStartAt?.slice(0, 10) || '—' }}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid-2 mb-4">
+            <div class="card-inner p-4 rounded-xl border border-slate-200 bg-slate-50 shadow-2xs">
+              <div class="flex items-center gap-2 mb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                <Building2 :size="16" class="text-slate-500" />
+                <span>ĐƠN VỊ BÀN GIAO (CŨ)</span>
+              </div>
+              <div class="text-base font-extrabold text-slate-800 mb-1">{{ viewingHandover.fromTeam || '—' }}</div>
+              <div v-if="viewingHandover.fromManagerName" class="text-xs text-slate-600 flex items-center gap-1.5 mt-1">
+                <User :size="14" class="text-slate-400" />
+                <span>Đại diện: <strong class="text-slate-800">{{ viewingHandover.fromManagerName }}</strong></span>
               </div>
             </div>
 
-            <div class="grid-2 mb-3">
-              <div class="p-3 rounded border" style="background-color: #f8fafc;">
-                <div style="font-size: 0.75rem; font-weight: 700; color: #64748b; margin-bottom: 4px;">ĐƠN VỊ BÀN GIAO (CŨ)</div>
-                <div style="font-size: 0.9375rem; font-weight: 700; color: #1e293b;">{{ viewingHandover.fromTeam || '—' }}</div>
-                <div v-if="viewingHandover.fromManagerName" style="font-size: 0.8125rem; color: #64748b; margin-top: 2px;">
-                  Đại diện: <strong>{{ viewingHandover.fromManagerName }}</strong>
+            <div class="card-inner p-4 rounded-xl border border-emerald-200 bg-emerald-50/70 shadow-2xs">
+              <div class="flex items-center gap-2 mb-2 text-xs font-bold text-emerald-800 uppercase tracking-wider">
+                <Building2 :size="16" class="text-emerald-600" />
+                <span>ĐƠN VỊ TIẾP NHẬN (MỚI)</span>
+              </div>
+              <div class="text-base font-extrabold text-emerald-800 mb-1">{{ viewingHandover.toTeam || '—' }}</div>
+              <div v-if="viewingHandover.toManagerName" class="text-xs text-emerald-800 flex items-center gap-1.5 mt-1">
+                <User :size="14" class="text-emerald-600" />
+                <span>Đại diện: <strong class="text-emerald-950">{{ viewingHandover.toManagerName }}</strong></span>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="viewingHandover.transferReason" class="form-group mb-4">
+            <label class="form-label font-bold text-slate-700">Lý do điều chuyển quyền quản lý</label>
+            <div class="p-3 bg-slate-50 rounded-lg border border-slate-200 text-sm">{{ viewingHandover.transferReason }}</div>
+          </div>
+
+          <div v-if="viewingHandover.handoverDocuments?.length" class="form-group mb-4">
+            <label class="form-label font-bold text-slate-700">Hồ sơ giấy tờ bàn giao kèm theo ({{ viewingHandover.handoverDocuments.length }})</label>
+            <div class="flex flex-wrap gap-2 mt-1">
+              <span
+                v-for="doc in viewingHandover.handoverDocuments"
+                :key="doc"
+                class="badge badge-secondary"
+                style="font-size: 0.8125rem; padding: 4px 10px;"
+              >
+                ✓ {{ doc }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- BRANCH 3: DRIVER_HANDOVER / HANDOVER -->
+        <div v-else>
+          <div class="p-3 mb-4 rounded-xl border border-purple-200 bg-purple-50">
+            <div class="flex-between">
+              <div>
+                <div class="text-xs font-bold text-purple-800 uppercase">LÝ DO BÀN GIAO TÀI XẾ</div>
+                <div class="text-base font-extrabold text-purple-950">
+                  {{ getReasonTypeLabel(viewingHandover.handoverReasonType) }}
                 </div>
               </div>
-              <div class="p-3 rounded border" style="background-color: #f0fdf4; border-color: #bbf7d0;">
-                <div style="font-size: 0.75rem; font-weight: 700; color: #166534; margin-bottom: 4px;">ĐƠN VỊ TIẾP NHẬN (MỚI)</div>
-                <div style="font-size: 0.9375rem; font-weight: 700; color: #15803d;">{{ viewingHandover.toTeam || '—' }}</div>
-                <div v-if="viewingHandover.toManagerName" style="font-size: 0.8125rem; color: #166534; margin-top: 2px;">
-                  Đại diện: <strong>{{ viewingHandover.toManagerName }}</strong>
+              <div v-if="viewingHandover.handoverChecklist" class="text-right">
+                <div class="text-xs font-bold text-purple-800 uppercase">KẾT QUẢ CHECKLIST</div>
+                <div class="text-base font-extrabold text-emerald-700">
+                  {{ countChecklistItems(viewingHandover.handoverChecklist).passed }} / {{ countChecklistItems(viewingHandover.handoverChecklist).total }} tiêu chí ĐẠT
                 </div>
               </div>
             </div>
+          </div>
 
-            <div v-if="viewingHandover.transferReason" class="form-group mb-3">
-              <label class="form-label">Lý do điều chuyển quyền quản lý</label>
-              <div class="p-3 bg-light rounded">{{ viewingHandover.transferReason }}</div>
+          <div class="grid-2 mb-4">
+            <div class="card-inner p-4 rounded-xl border border-slate-200 bg-slate-50 shadow-2xs">
+              <div class="flex items-center gap-2 mb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                <User :size="16" class="text-slate-500" />
+                <span>TÀI XẾ BÀN GIAO (CŨ)</span>
+              </div>
+              <div class="text-base font-extrabold text-slate-800">
+                {{ viewingHandover.fromDriverName || getDriverNameById(viewingHandover.fromDriverId) || '—' }}
+              </div>
             </div>
 
-            <div v-if="viewingHandover.handoverDocuments?.length" class="form-group mb-3">
-              <label class="form-label">Hồ sơ giấy tờ bàn giao kèm theo ({{ viewingHandover.handoverDocuments.length }})</label>
-              <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;">
-                <span
-                  v-for="doc in viewingHandover.handoverDocuments"
-                  :key="doc"
-                  class="badge badge-secondary"
-                  style="font-size: 0.8125rem; padding: 4px 10px;"
-                >
-                  ✓ {{ doc }}
+            <div class="card-inner p-4 rounded-xl border border-emerald-200 bg-emerald-50/70 shadow-2xs">
+              <div class="flex items-center gap-2 mb-2 text-xs font-bold text-emerald-800 uppercase tracking-wider">
+                <User :size="16" class="text-emerald-600" />
+                <span>TÀI XẾ TIẾP NHẬN (MỚI)</span>
+              </div>
+              <div class="text-base font-extrabold text-emerald-800">
+                {{ viewingHandover.toDriverName || viewingHandover.driverName || '—' }}
+              </div>
+            </div>
+          </div>
+
+          <!-- Bảng checklist 6 tiêu chuẩn trực quan -->
+          <div v-if="viewingHandover.handoverChecklist" class="form-group mb-4">
+            <label class="form-label font-bold text-slate-700">Checklist hiện trạng kỹ thuật bàn giao</label>
+            <div class="grid-2 gap-2 mt-1">
+              <div
+                class="p-2.5 rounded-lg border flex items-center justify-between text-xs"
+                :class="viewingHandover.handoverChecklist.bodyAndPaint ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-rose-50 border-rose-200 text-rose-900'"
+              >
+                <span>Thân vỏ, nước sơn</span>
+                <span class="font-bold" :class="viewingHandover.handoverChecklist.bodyAndPaint ? 'text-emerald-700' : 'text-rose-700'">
+                  {{ viewingHandover.handoverChecklist.bodyAndPaint ? '✓ Đạt chuẩn' : '✗ Có lỗi' }}
+                </span>
+              </div>
+
+              <div
+                class="p-2.5 rounded-lg border flex items-center justify-between text-xs"
+                :class="viewingHandover.handoverChecklist.brakesAndLights ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-rose-50 border-rose-200 text-rose-900'"
+              >
+                <span>Hệ thống phanh, đèn còi</span>
+                <span class="font-bold" :class="viewingHandover.handoverChecklist.brakesAndLights ? 'text-emerald-700' : 'text-rose-700'">
+                  {{ viewingHandover.handoverChecklist.brakesAndLights ? '✓ Đạt chuẩn' : '✗ Có lỗi' }}
+                </span>
+              </div>
+
+              <div
+                class="p-2.5 rounded-lg border flex items-center justify-between text-xs"
+                :class="viewingHandover.handoverChecklist.tiresAndSpare ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-rose-50 border-rose-200 text-rose-900'"
+              >
+                <span>Lốp xe & lốp dự phòng</span>
+                <span class="font-bold" :class="viewingHandover.handoverChecklist.tiresAndSpare ? 'text-emerald-700' : 'text-rose-700'">
+                  {{ viewingHandover.handoverChecklist.tiresAndSpare ? '✓ Đạt chuẩn' : '✗ Có lỗi' }}
+                </span>
+              </div>
+
+              <div
+                class="p-2.5 rounded-lg border flex items-center justify-between text-xs"
+                :class="viewingHandover.handoverChecklist.cleanliness ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-rose-50 border-rose-200 text-rose-900'"
+              >
+                <span>Vệ sinh cabin & bồn</span>
+                <span class="font-bold" :class="viewingHandover.handoverChecklist.cleanliness ? 'text-emerald-700' : 'text-rose-700'">
+                  {{ viewingHandover.handoverChecklist.cleanliness ? '✓ Đạt chuẩn' : '✗ Có lỗi' }}
+                </span>
+              </div>
+
+              <div
+                class="p-2.5 rounded-lg border flex items-center justify-between text-xs"
+                :class="viewingHandover.handoverChecklist.toolsAndJack ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-rose-50 border-rose-200 text-rose-900'"
+              >
+                <span>Bộ đồ nghề, con đội</span>
+                <span class="font-bold" :class="viewingHandover.handoverChecklist.toolsAndJack ? 'text-emerald-700' : 'text-rose-700'">
+                  {{ viewingHandover.handoverChecklist.toolsAndJack ? '✓ Đạt chuẩn' : '✗ Có lỗi' }}
+                </span>
+              </div>
+
+              <div
+                class="p-2.5 rounded-lg border flex items-center justify-between text-xs"
+                :class="viewingHandover.handoverChecklist.documents ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-rose-50 border-rose-200 text-rose-900'"
+              >
+                <span>Đầy đủ hồ sơ giấy tờ xe</span>
+                <span class="font-bold" :class="viewingHandover.handoverChecklist.documents ? 'text-emerald-700' : 'text-rose-700'">
+                  {{ viewingHandover.handoverChecklist.documents ? '✓ Đạt chuẩn' : '✗ Có lỗi' }}
                 </span>
               </div>
             </div>
           </div>
+        </div>
 
-          <!-- BRANCH 3: DRIVER_HANDOVER -->
-          <div v-else>
-            <div class="p-3 mb-3 rounded border" style="background-color: #faf5ff; border-color: #e9d5ff;">
-              <div class="flex-between">
-                <div>
-                  <div style="font-size: 0.75rem; font-weight: 700; color: #6b21a8;">LÝ DO BÀN GIAO TÀI XẾ</div>
-                  <div style="font-size: 0.9375rem; font-weight: 700; color: #581c87;">
-                    {{ getReasonTypeLabel(viewingHandover.handoverReasonType) }}
-                  </div>
-                </div>
-                <div style="text-align: right;">
-                  <div style="font-size: 0.75rem; font-weight: 700; color: #6b21a8;">KẾT QUẢ CHECKLIST</div>
-                  <div style="font-size: 0.9375rem; font-weight: 800; color: #15803d;">
-                    {{ countChecklistItems(viewingHandover.handoverChecklist).passed }} / {{ countChecklistItems(viewingHandover.handoverChecklist).total }} tiêu chí ĐẠT
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="grid-2 mb-3">
-              <div class="p-3 rounded border" style="background-color: #f8fafc;">
-                <div style="font-size: 0.75rem; font-weight: 700; color: #64748b; margin-bottom: 4px;">TÀI XẾ BÀN GIAO (CŨ)</div>
-                <div style="font-size: 0.9375rem; font-weight: 700; color: #1e293b;">
-                  {{ viewingHandover.fromDriverName || getDriverNameById(viewingHandover.fromDriverId) || '—' }}
-                </div>
-              </div>
-              <div class="p-3 rounded border" style="background-color: #f0fdf4; border-color: #bbf7d0;">
-                <div style="font-size: 0.75rem; font-weight: 700; color: #166534; margin-bottom: 4px;">TÀI XẾ TIẾP NHẬN (MỚI)</div>
-                <div style="font-size: 0.9375rem; font-weight: 700; color: #15803d;">
-                  {{ viewingHandover.toDriverName || viewingHandover.driverName || '—' }}
-                </div>
-              </div>
-            </div>
-
-            <!-- Bảng checklist 6 tiêu chuẩn trực quan -->
-            <div v-if="viewingHandover.handoverChecklist" class="form-group mb-3">
-              <label class="form-label" style="font-weight: 700;">Checklist hiện trạng kỹ thuật bàn giao</label>
-              <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 4px;">
-                <div
-                  class="p-2 rounded border flex items-center justify-between"
-                  :style="{ backgroundColor: viewingHandover.handoverChecklist.bodyAndPaint ? '#f0fdf4' : '#fff1f2', borderColor: viewingHandover.handoverChecklist.bodyAndPaint ? '#bbf7d0' : '#fecdd3', fontSize: '0.8125rem' }"
-                >
-                  <span>Thân vỏ, nước sơn</span>
-                  <span :style="{ fontWeight: 700, color: viewingHandover.handoverChecklist.bodyAndPaint ? '#15803d' : '#e11d48' }">
-                    {{ viewingHandover.handoverChecklist.bodyAndPaint ? '✓ Đạt chuẩn' : '✗ Có lỗi' }}
-                  </span>
-                </div>
-                <div
-                  class="p-2 rounded border flex items-center justify-between"
-                  :style="{ backgroundColor: viewingHandover.handoverChecklist.brakesAndLights ? '#f0fdf4' : '#fff1f2', borderColor: viewingHandover.handoverChecklist.brakesAndLights ? '#bbf7d0' : '#fecdd3', fontSize: '0.8125rem' }"
-                >
-                  <span>Hệ thống phanh, đèn còi</span>
-                  <span :style="{ fontWeight: 700, color: viewingHandover.handoverChecklist.brakesAndLights ? '#15803d' : '#e11d48' }">
-                    {{ viewingHandover.handoverChecklist.brakesAndLights ? '✓ Đạt chuẩn' : '✗ Có lỗi' }}
-                  </span>
-                </div>
-                <div
-                  class="p-2 rounded border flex items-center justify-between"
-                  :style="{ backgroundColor: viewingHandover.handoverChecklist.tiresAndSpare ? '#f0fdf4' : '#fff1f2', borderColor: viewingHandover.handoverChecklist.tiresAndSpare ? '#bbf7d0' : '#fecdd3', fontSize: '0.8125rem' }"
-                >
-                  <span>Lốp xe & lốp dự phòng</span>
-                  <span :style="{ fontWeight: 700, color: viewingHandover.handoverChecklist.tiresAndSpare ? '#15803d' : '#e11d48' }">
-                    {{ viewingHandover.handoverChecklist.tiresAndSpare ? '✓ Đạt chuẩn' : '✗ Có lỗi' }}
-                  </span>
-                </div>
-                <div
-                  class="p-2 rounded border flex items-center justify-between"
-                  :style="{ backgroundColor: viewingHandover.handoverChecklist.cleanliness ? '#f0fdf4' : '#fff1f2', borderColor: viewingHandover.handoverChecklist.cleanliness ? '#bbf7d0' : '#fecdd3', fontSize: '0.8125rem' }"
-                >
-                  <span>Vệ sinh cabin & bồn</span>
-                  <span :style="{ fontWeight: 700, color: viewingHandover.handoverChecklist.cleanliness ? '#15803d' : '#e11d48' }">
-                    {{ viewingHandover.handoverChecklist.cleanliness ? '✓ Đạt chuẩn' : '✗ Có lỗi' }}
-                  </span>
-                </div>
-                <div
-                  class="p-2 rounded border flex items-center justify-between"
-                  :style="{ backgroundColor: viewingHandover.handoverChecklist.toolsAndJack ? '#f0fdf4' : '#fff1f2', borderColor: viewingHandover.handoverChecklist.toolsAndJack ? '#bbf7d0' : '#fecdd3', fontSize: '0.8125rem' }"
-                >
-                  <span>Bộ đồ nghề, con đội</span>
-                  <span :style="{ fontWeight: 700, color: viewingHandover.handoverChecklist.toolsAndJack ? '#15803d' : '#e11d48' }">
-                    {{ viewingHandover.handoverChecklist.toolsAndJack ? '✓ Đạt chuẩn' : '✗ Có lỗi' }}
-                  </span>
-                </div>
-                <div
-                  class="p-2 rounded border flex items-center justify-between"
-                  :style="{ backgroundColor: viewingHandover.handoverChecklist.documents ? '#f0fdf4' : '#fff1f2', borderColor: viewingHandover.handoverChecklist.documents ? '#bbf7d0' : '#fecdd3', fontSize: '0.8125rem' }"
-                >
-                  <span>Đầy đủ hồ sơ giấy tờ xe</span>
-                  <span :style="{ fontWeight: 700, color: viewingHandover.handoverChecklist.documents ? '#15803d' : '#e11d48' }">
-                    {{ viewingHandover.handoverChecklist.documents ? '✓ Đạt chuẩn' : '✗ Có lỗi' }}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Common condition notes & image -->
-          <div class="form-group mb-3">
-            <label class="form-label">Hiện trạng phương tiện & Ghi chú thỏa thuận</label>
-            <div class="p-3 bg-light rounded" style="font-size: 0.875rem;">
-              {{ viewingHandover.conditionNotes || viewingHandover.note || 'Không có ghi chú thêm.' }}
-            </div>
-          </div>
-
-          <div v-if="viewingHandover.handoverImageUrl" class="form-group mb-3">
-            <label class="form-label">Hình ảnh hiện trạng xe lúc bàn giao</label>
-            <div class="p-2 bg-light rounded border text-center">
-              <img :src="viewingHandover.handoverImageUrl" alt="Hình ảnh hiện trạng xe" style="max-height: 220px; max-width: 100%; object-fit: contain;" />
-            </div>
+        <!-- Common condition notes & image -->
+        <div class="form-group mb-4">
+          <label class="form-label font-bold text-slate-700">Hiện trạng phương tiện & Ghi chú thỏa thuận</label>
+          <div class="p-3 bg-slate-50 rounded-lg border border-slate-200 text-sm text-slate-800">
+            {{ viewingHandover.conditionNotes || viewingHandover.note || 'Không có ghi chú thêm.' }}
           </div>
         </div>
 
-        <div class="modal-footer flex-between">
-          <div>
-            <button
-              v-if="viewingHandover.workflowType === 'BORROW_RETURN' && viewingHandover.status === 'BORROWING'"
-              class="btn btn-primary btn-sm"
-              @click="showHandoverDetailModal = false; openReturnHandoverModal(viewingHandover, 'RETURN')"
-            >
-              Hoàn Trả Xe Này
-            </button>
+        <div v-if="viewingHandover.handoverImageUrl" class="form-group mb-4">
+          <label class="form-label font-bold text-slate-700">Hình ảnh hiện trạng xe lúc bàn giao</label>
+          <div class="p-2 bg-slate-50 rounded-lg border border-slate-200 text-center">
+            <img :src="viewingHandover.handoverImageUrl" alt="Hình ảnh hiện trạng xe" style="max-height: 220px; max-width: 100%; object-fit: contain;" />
           </div>
-          <button class="btn btn-secondary" @click="showHandoverDetailModal = false">Đóng</button>
+        </div>
+      </div>
+
+      <!-- Subpage Footer -->
+      <div class="subpage-footer flex-between border-t pt-3 mt-4">
+        <button class="btn btn-secondary" @click="showHandoverDetailModal = false">Quay lại danh sách</button>
+        <div class="flex items-center gap-2">
+          <button
+            v-if="viewingHandover?.workflowType === 'BORROW_RETURN' && viewingHandover?.status === 'BORROWING'"
+            class="btn btn-outline-primary"
+            @click="showHandoverDetailModal = false; openReturnHandoverModal(viewingHandover!, 'RETURN')"
+          >
+            Hoàn Trả Xe Này
+          </button>
+          <button class="btn btn-primary flex items-center gap-2" @click="showHandoverDetailModal = false; openEditHandoverModal(viewingHandover!)">
+            <Edit2 :size="16" />
+            <span>Chỉnh sửa biên bản</span>
+          </button>
         </div>
       </div>
     </div>
@@ -3617,6 +3764,7 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
     <VehicleDetailModal
       v-if="selectedVehicleForDetail"
       :vehicle="selectedVehicleForDetail"
+      :is-subpage="true"
       @close="selectedVehicleForDetail = null"
       @edit="openEditVehicleModal"
     />
@@ -3625,6 +3773,7 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
     <DriverDetailModal
       v-if="selectedDriverForDetail"
       :driver="selectedDriverForDetail"
+      :is-subpage="true"
       @close="selectedDriverForDetail = null"
       @edit="openEditDriverModal"
     />
@@ -4574,5 +4723,324 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
 .driver-select-row .form-select {
   flex: 1;
   min-width: 0;
+}
+
+/* ==================== SUB-PAGE CREATION & EDIT CARD PADDING & STYLES ==================== */
+.subpage-create-card {
+  padding: 32px 36px !important;
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 14px !important;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.05) !important;
+  margin-bottom: 32px !important;
+}
+
+.subpage-header {
+  padding-bottom: 22px !important;
+  margin-bottom: 28px !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 16px !important;
+}
+
+.subpage-back-row {
+  display: flex !important;
+  align-items: center !important;
+}
+
+.subpage-header-main {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 20px !important;
+  flex-wrap: wrap !important;
+}
+
+.subpage-title-box {
+  flex: 1;
+  min-width: 280px;
+}
+
+.subpage-title {
+  font-size: 1.45rem !important;
+  font-weight: 800 !important;
+  color: #0f172a !important;
+  letter-spacing: -0.01em;
+  margin: 0 0 4px 0 !important;
+  line-height: 1.25 !important;
+}
+
+.subpage-subtitle {
+  font-size: 0.8125rem !important;
+  color: #64748b !important;
+  margin: 0 !important;
+}
+
+.subpage-action-group {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  flex-shrink: 0 !important;
+}
+
+.subpage-body {
+  padding: 10px 0 18px 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 20px !important;
+}
+
+.subpage-body .form-group,
+.handover-branch-box .form-group {
+  margin-bottom: 20px !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.subpage-body .form-label,
+.handover-branch-box .form-label {
+  display: block !important;
+  margin-bottom: 8px !important;
+  font-size: 0.84rem !important;
+  font-weight: 700 !important;
+  color: #1e293b !important;
+  line-height: 1.3 !important;
+}
+
+.subpage-body .form-input,
+.subpage-body .form-select,
+.handover-branch-box .form-input,
+.handover-branch-box .form-select {
+  padding: 10px 14px !important;
+  font-size: 0.875rem !important;
+  border-radius: 8px !important;
+  border: 1px solid #cbd5e1 !important;
+  background-color: #ffffff;
+  min-height: 42px !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  transition: all 0.15s ease;
+}
+
+.subpage-body .form-input:focus,
+.subpage-body .form-select:focus,
+.handover-branch-box .form-input:focus,
+.handover-branch-box .form-select:focus {
+  border-color: #15803d !important;
+  box-shadow: 0 0 0 3px rgba(21, 128, 61, 0.12) !important;
+}
+
+.subpage-body .grid-2,
+.handover-branch-box .grid-2 {
+  display: grid !important;
+  grid-template-columns: repeat(2, 1fr) !important;
+  gap: 24px !important;
+  margin-bottom: 20px !important;
+}
+
+.subpage-body .grid-2 .form-group,
+.handover-branch-box .grid-2 .form-group {
+  margin-bottom: 0 !important;
+}
+
+.subpage-body .grid-3,
+.handover-branch-box .grid-3 {
+  display: grid !important;
+  grid-template-columns: repeat(3, 1fr) !important;
+  gap: 24px !important;
+  margin-bottom: 20px !important;
+}
+
+.subpage-body .grid-3 .form-group,
+.handover-branch-box .grid-3 .form-group {
+  margin-bottom: 0 !important;
+}
+
+.subpage-body .grid-4,
+.handover-branch-box .grid-4,
+.grid-4 {
+  display: grid !important;
+  grid-template-columns: repeat(4, 1fr) !important;
+  gap: 16px !important;
+  margin-bottom: 20px !important;
+}
+
+@media (max-width: 992px) {
+  .subpage-body .grid-4,
+  .handover-branch-box .grid-4,
+  .grid-4 {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+@media (max-width: 576px) {
+  .subpage-body .grid-4,
+  .handover-branch-box .grid-4,
+  .grid-4 {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+.subpage-footer {
+  padding-top: 24px !important;
+  margin-top: 32px !important;
+  border-top: 1px solid #e2e8f0 !important;
+  gap: 14px !important;
+}
+
+.handover-branch-box {
+  padding: 24px 28px !important;
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 12px !important;
+  margin-top: 12px !important;
+  margin-bottom: 20px !important;
+}
+
+.handover-guide-alert {
+  padding: 14px 18px !important;
+  border-radius: 10px !important;
+  border: 1px solid !important;
+  font-size: 0.85rem !important;
+  line-height: 1.55 !important;
+  margin-bottom: 22px !important;
+}
+
+.handover-guide-alert.alert-green {
+  background-color: #f0fdf4 !important;
+  border-color: #bbf7d0 !important;
+  color: #166534 !important;
+}
+
+.handover-guide-alert.alert-blue {
+  background-color: #eff6ff !important;
+  border-color: #bfdbfe !important;
+  color: #1e40af !important;
+}
+
+.handover-guide-alert.alert-purple {
+  background-color: #faf5ff !important;
+  border-color: #e9d5ff !important;
+  color: #6b21a8 !important;
+}
+
+/* Fleet Subtabs & Table Spacing Enhancements */
+.fleet-subtabs-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.fleet-subtabs-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.fleet-subtab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.fleet-subtab-btn.active {
+  background: #15803d;
+  color: #ffffff;
+  border-color: #15803d;
+  box-shadow: 0 2px 6px rgba(21, 128, 61, 0.2);
+}
+
+.fleet-unit-filter-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.unit-filter-select {
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.table-fleet th,
+.table-fleet td {
+  padding: 14px 16px !important;
+}
+
+/* Checklist Card Items Styling */
+.checklist-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-top: 8px;
+}
+
+@media (max-width: 640px) {
+  .checklist-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.checklist-card-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background-color: #ffffff;
+  cursor: pointer;
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: #334155;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+
+.checklist-card-item:hover {
+  border-color: #15803d;
+  background-color: #f8fafc;
+}
+
+.checklist-card-item.checked {
+  background-color: #f0fdf4;
+  border-color: #86efac;
+  color: #166534;
+  box-shadow: 0 1px 3px rgba(21, 128, 61, 0.08);
+}
+
+.checklist-card-item input[type="checkbox"] {
+  accent-color: #15803d;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.checklist-card-item .item-text {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.4;
 }
 </style>

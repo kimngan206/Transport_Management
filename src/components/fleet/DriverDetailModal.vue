@@ -13,11 +13,18 @@ import {
   AlertTriangle,
   Edit2,
   ShieldCheck,
+  ArrowLeft,
 } from 'lucide-vue-next';
 
-const props = defineProps<{
-  driver: Driver;
-}>();
+const props = withDefaults(
+  defineProps<{
+    driver: Driver;
+    isSubpage?: boolean;
+  }>(),
+  {
+    isSubpage: false,
+  }
+);
 
 const emit = defineEmits<{
   (e: 'close'): void;
@@ -56,7 +63,154 @@ function handleEdit() {
 </script>
 
 <template>
-  <div class="modal-backdrop" @click.self="emit('close')">
+  <!-- TRANG RIÊNG (SUBPAGE) MODE -->
+  <div v-if="isSubpage" class="card mb-4 p-4 shadow-sm subpage-create-card">
+    <div class="subpage-back-row mb-3">
+      <button class="btn btn-outline btn-sm flex items-center gap-1" @click="emit('close')">
+        <ArrowLeft :size="16" />
+        <span>Quay lại danh sách</span>
+      </button>
+    </div>
+
+    <div class="subpage-header-main mb-4 flex-between">
+      <div>
+        <div class="breadcrumb text-xs text-muted mb-1">
+          <span>Quản lý đội xe</span> / <span>Danh sách tài xế</span> / <span>Hồ sơ chi tiết</span>
+        </div>
+        <div class="flex items-center gap-3">
+          <div class="driver-avatar-circle" style="width: 36px; height: 36px;">
+            <User :size="20" class="text-primary" />
+          </div>
+          <h2 class="subpage-title" style="margin: 0; font-size: 1.25rem; font-weight: 800;">Hồ Sơ Tài Xế — {{ driver.fullName }}</h2>
+          <span class="text-xs text-muted">Mã NV: <strong class="text-success">{{ driver.employeeCode || `NV-${String(driver.id).padStart(4, '0')}` }}</strong></span>
+          <span
+            class="status-pill"
+            :class="{
+              'status-active': driver.employmentStatus === 'Active',
+              'status-leave': driver.employmentStatus === 'OnLeave',
+              'status-suspended': driver.employmentStatus === 'Suspended',
+            }"
+          >
+            {{ getEmploymentStatusLabel(driver.employmentStatus) }}
+          </span>
+          <span class="badge" :class="driver.isCurrentlyOnTrip ? 'badge-dispatched' : 'badge-completed'">
+            {{ driver.isCurrentlyOnTrip ? 'Đang chạy chuyến' : 'Đang rảnh sẵn sàng' }}
+          </span>
+        </div>
+      </div>
+      <button class="btn btn-primary flex items-center gap-2" @click="handleEdit">
+        <Edit2 :size="16" />
+        <span>Chỉnh sửa hồ sơ</span>
+      </button>
+    </div>
+
+    <div class="subpage-body">
+      <!-- Cảnh báo nếu GPLX sắp hết hạn -->
+      <div v-if="daysUntilExpiry < 0" class="alert alert-danger mb-4">
+        <AlertTriangle :size="20" class="text-danger flex-shrink-0" />
+        <div>
+          <strong>Giấy phép lái xe đã hết hạn!</strong>
+          <p class="text-xs mt-1">GPLX đã hết hạn từ ngày {{ driver.licenseExpiryDate }}. Cần cập nhật bằng lái mới trước khi điều phối chuyến.</p>
+        </div>
+      </div>
+      <div v-else-if="daysUntilExpiry <= 30" class="alert alert-warning mb-4">
+        <AlertTriangle :size="20" class="text-warning flex-shrink-0" />
+        <div>
+          <strong>Cảnh báo: GPLX sắp hết hạn (Còn {{ daysUntilExpiry }} ngày)</strong>
+          <p class="text-xs mt-1">Hạn GPLX ngày {{ driver.licenseExpiryDate }}. Hãy đôn đốc tài xế gia hạn đổi bằng mới.</p>
+        </div>
+      </div>
+
+      <!-- Khung thông tin cá nhân & bằng lái -->
+      <div class="driver-info-grid">
+        <div class="info-card">
+          <h4 class="card-subtitle">
+            <CreditCard :size="16" />
+            <span>Thông Tin Giấy Phép Lái Xe</span>
+          </h4>
+          <div class="info-list">
+            <div class="info-row">
+              <span class="label">Số bằng lái (GPLX):</span>
+              <span class="value font-mono">{{ driver.licenseNumber }}</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Hạng GPLX:</span>
+              <span class="value"><span class="badge-class">{{ driver.licenseClass }}</span></span>
+            </div>
+            <div class="info-row">
+              <span class="label">Ngày hết hạn:</span>
+              <span class="value" :class="{ 'text-danger font-bold': daysUntilExpiry <= 30 }">
+                {{ driver.licenseExpiryDate }}
+              </span>
+            </div>
+            <div class="info-row">
+              <span class="label">Số CCCD / CMND:</span>
+              <span class="value font-mono">{{ (driver as any).identityCard || 'Chưa cập nhật' }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="info-card">
+          <h4 class="card-subtitle">
+            <Phone :size="16" />
+            <span>Thông Tin Liên Hệ & Nhân Sự</span>
+          </h4>
+          <div class="info-list">
+            <div class="info-row">
+              <span class="label">Số điện thoại:</span>
+              <span class="value font-bold text-success">{{ driver.phone }}</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Email:</span>
+              <span class="value">{{ (driver as any).email || 'Chưa cập nhật' }}</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Ngày vào công ty:</span>
+              <span class="value">{{ (driver as any).joinedDate || '—' }}</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Đơn vị quản lý:</span>
+              <span class="value font-medium">{{ (driver as any).unitName || 'Đội Xe Công Ty' }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Khung thông tin phương tiện đang phụ trách -->
+      <div class="assigned-vehicle-card mt-4">
+        <h4 class="card-subtitle">
+          <Truck :size="16" />
+          <span>Phương Tiện Trực Thuộc Phụ Trách</span>
+        </h4>
+        <div v-if="assignedVehicle" class="vehicle-assigned-box">
+          <div class="veh-info">
+            <span class="plate font-bold text-success">{{ assignedVehicle.licensePlate }}</span>
+            <span class="model text-xs text-muted">{{ assignedVehicle.model }}</span>
+          </div>
+          <div class="veh-details">
+            <span class="badge" :class="assignedVehicle.isExternal ? 'badge-warning' : 'badge-completed'">
+              {{ assignedVehicle.isExternal ? 'Xe thuê ngoài' : 'Xe công ty' }}
+            </span>
+            <span class="text-xs text-muted">ODO hiện tại: <strong>{{ assignedVehicle.currentOdoKm.toLocaleString() }} km</strong></span>
+          </div>
+        </div>
+        <div v-else class="empty-vehicle-box">
+          <p class="text-xs text-muted">Tài xế chưa được gán cố định cho phương tiện nào (Đang thuộc danh sách tài xế điều động linh hoạt).</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="subpage-footer flex-between">
+      <button class="btn btn-secondary" @click="emit('close')">Quay lại danh sách</button>
+      <button class="btn btn-primary flex items-center gap-2" @click="handleEdit">
+        <Edit2 :size="16" />
+        <span>Chỉnh sửa hồ sơ tài xế</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- MODAL BACKDROP POPUP MODE (v-else) -->
+  <div v-else class="modal-backdrop" @click.self="emit('close')">
     <div class="modal-content modal-lg">
       <!-- Modal Header -->
       <div class="modal-header">
@@ -108,7 +262,6 @@ function handleEdit() {
         </div>
 
         <div class="info-grid-2">
-          <!-- Khối 1: Thông tin cá nhân & liên hệ -->
           <div class="info-card">
             <h4 class="card-subtitle">
               <User :size="15" />

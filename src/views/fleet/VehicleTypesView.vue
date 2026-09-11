@@ -220,7 +220,7 @@ function deleteCategory(category: VehicleCategory) {
           <span class="badge-module">Phân Hệ Đội Xe & Cơ Giới</span>
           <span class="badge-count">{{ totalCategories }} Loại xe</span>
         </div>
-        <h1 class="page-title">Danh Sách Loại Xe & Thiết Bị Chuyên Dụng</h1>
+        <h1 class="page-title">Danh Sách Loại Xe</h1>
         <p class="page-subtitle">
           Danh mục chuẩn hóa các loại phương tiện chở mủ nước, mủ đông, xe bán tải kỹ thuật và máy cơ giới nông trường kèm định mức tiêu chuẩn
         </p>

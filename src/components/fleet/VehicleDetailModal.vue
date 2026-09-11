@@ -18,17 +18,29 @@ import {
   Info,
   Edit2,
   UserCog,
+  ArrowLeft,
 } from 'lucide-vue-next';
 
-const props = defineProps<{
-  vehicle: Vehicle;
-}>();
+const props = withDefaults(
+  defineProps<{
+    vehicle: Vehicle;
+    isSubpage?: boolean;
+  }>(),
+  {
+    isSubpage: false,
+  }
+);
 
 const emit = defineEmits<{
   (e: 'close'): void;
   (e: 'openMaintenance', vehicleId: number): void;
   (e: 'edit', vehicle: Vehicle): void;
 }>();
+
+function handleEdit() {
+  emit('close');
+  emit('edit', props.vehicle);
+}
 
 const router = useRouter();
 const fleetStore = useFleetStore();
@@ -314,27 +326,36 @@ function handleGoToMaintenanceTypes() {
                 <span class="spec-label">Định mức không tải (NLP)</span>
                 <span class="spec-val"><strong>{{ vehicle.fuelQuotaEmpty }}</strong> L/km</span>
               </div>
-              <div v-else-if="vehicle.vehicleType !== 'MillingMachine'" class="spec-row">
-                <span class="spec-label">Định mức không tải (NLP)</span>
-                <span class="spec-val"><strong>{{ vehicle.fuelQuotaEmpty }}</strong> L/km</span>
+            </div>
+          </div>
+
+          <div class="card-inner">
+            <h5 class="group-heading">
+              <Fuel :size="15" />
+              <span>Thông Số Nhiên Liệu & Định Mức</span>
+            </h5>
+            <div class="spec-list">
+              <div class="spec-item">
+                <span class="spec-label">Loại nhiên liệu sử dụng</span>
+                <span class="spec-val">{{ (vehicle as any).fuelType === 'Diesel' ? 'Dầu Diesel (DO)' : 'Xăng (RON 95)' }}</span>
               </div>
-              <div v-if="vehicle.vehicleType === 'LatexTruck'" class="spec-row">
-                <span class="spec-label">Định mức có tải (NLC)</span>
-                <span class="spec-val"><strong>{{ vehicle.fuelQuotaLoaded }}</strong> L/tấn.km</span>
+              <div class="spec-item">
+                <span class="spec-label">Dung tích bình nhiên liệu</span>
+                <span class="spec-val">{{ (vehicle as any).tankCapacityLiters || '—' }} lít</span>
               </div>
-              <div v-if="vehicle.vehicleType === 'MillingMachine'" class="spec-row">
-                <span class="spec-label">Định mức giờ máy</span>
-                <span class="spec-val"><strong>{{ vehicle.hourMeterQuota }}</strong> L/giờ</span>
+              <div class="spec-item">
+                <span class="spec-label">Tải trọng cho phép</span>
+                <span class="spec-val">{{ vehicle.capacityTons }} tấn</span>
               </div>
-              <div v-if="vehicle.fuelFormulaText" class="spec-row">
+              <div class="spec-item">
                 <span class="spec-label">Công thức hao phí</span>
-                <span class="spec-val text-xs">{{ vehicle.fuelFormulaText }}</span>
+                <span class="spec-val text-xs">{{ vehicle.fuelFormulaText || '—' }}</span>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- 4. Bảng Lịch Sử Bảo Dưỡng Của Xe (Section 4 - baoduong.md) -->
+        <!-- 4. Bảng Lịch Sử Bảo Dưỡng Của Xe -->
         <div class="history-section card-inner">
           <div class="flex-between mb-3">
             <h5 class="group-heading mb-0">
@@ -441,19 +462,19 @@ function handleGoToMaintenanceTypes() {
               <thead>
                 <tr>
                   <th>Mã Chuyến</th>
-                  <th>Lộ Trình</th>
-                  <th>Thời Gian</th>
-                  <th>Tài Xế</th>
+                  <th>Ngày Thực Hiện</th>
+                  <th>Tuyến Đường Bắt Đầu → Kết Thúc</th>
                   <th>Thứ Tự Trong Ngày</th>
-                  <th>Trạng Thái</th>
+                  <th>Trạng Thái Chuyến</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="t in vehicleTrips" :key="t.id">
-                  <td><strong class="font-mono text-xs">{{ t.tripCode }}</strong></td>
-                  <td class="text-xs">{{ t.routeName }}</td>
-                  <td class="text-xs font-mono">{{ t.scheduledStartTime }}</td>
-                  <td class="text-xs"><strong>{{ t.driverName }}</strong></td>
+                  <td><strong>#{{ t.tripCode || t.id }}</strong></td>
+                  <td><span class="text-xs">{{ (t as any).date || (t as any).scheduledStartTime || '—' }}</span></td>
+                  <td>
+                    <div class="font-medium">{{ (t as any).startLocation || (t as any).routeName || 'N/A' }}</div>
+                  </td>
                   <td>
                     <span class="badge-trip-seq">
                       {{ getTripDaySequence(t, dispatchStore.trips).label }}
@@ -475,7 +496,7 @@ function handleGoToMaintenanceTypes() {
           </button>
         </div>
         <div class="flex-actions">
-          <button class="btn btn-outline" @click="emit('edit', vehicle)">
+          <button class="btn btn-outline" @click="handleEdit">
             <Edit2 :size="14" />
             <span>Sửa Thông Số</span>
           </button>
