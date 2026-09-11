@@ -12,6 +12,7 @@ try {
 } catch (e) {}
 
 // Phòng thủ toàn diện chống lỗi "_latLngToNewLayerPoint of null" khi zoom
+// Phòng thủ toàn diện chống lỗi "_latLngToNewLayerPoint of null" khi zoom
 // Xảy ra khi marker, popup hoặc tooltip đã bị gỡ khỏi map (hoặc trong chu kỳ tái tạo DOM / Vue proxy)
 // nhưng sự kiện zoomanim vẫn phát tín hiệu
 if (typeof L !== 'undefined') {
@@ -19,7 +20,11 @@ if (typeof L !== 'undefined') {
     const origMarkerAnimateZoom = (L.Marker.prototype as any)._animateZoom;
     (L.Marker.prototype as any)._animateZoom = function (opt: any) {
       if (!this._map) return;
-      return origMarkerAnimateZoom.call(this, opt);
+      try {
+        return origMarkerAnimateZoom.call(this, opt);
+      } catch (err) {
+        return;
+      }
     };
   }
 
@@ -27,7 +32,11 @@ if (typeof L !== 'undefined') {
     const origPopupAnimateZoom = (L.Popup.prototype as any)._animateZoom;
     (L.Popup.prototype as any)._animateZoom = function (e: any) {
       if (!this._map) return;
-      return origPopupAnimateZoom.call(this, e);
+      try {
+        return origPopupAnimateZoom.call(this, e);
+      } catch (err) {
+        return;
+      }
     };
   }
 
@@ -35,7 +44,40 @@ if (typeof L !== 'undefined') {
     const origTooltipAnimateZoom = (L.Tooltip.prototype as any)._animateZoom;
     (L.Tooltip.prototype as any)._animateZoom = function (e: any) {
       if (!this._map) return;
-      return origTooltipAnimateZoom.call(this, e);
+      try {
+        return origTooltipAnimateZoom.call(this, e);
+      } catch (err) {
+        return;
+      }
+    };
+  }
+
+  // Bảo vệ chuỗi loop fire('zoomanim'): Không để bất kỳ lỗi nào của 1 listener làm ngắt việc cập nhật vị trí của các pin/marker khác
+  if (L.Evented && (L.Evented.prototype as any).fire) {
+    const origFire = (L.Evented.prototype as any).fire;
+    (L.Evented.prototype as any).fire = function (type: string, data?: any, propagate?: boolean) {
+      if (type === 'zoomanim' && (this as any)._events && (this as any)._events[type]) {
+        const listeners = (this as any)._events[type].slice();
+        (this as any)._firingCount = ((this as any)._firingCount || 0) + 1;
+        const event = (L.Util as any).extend({}, data, {
+          type,
+          target: this,
+          sourceTarget: (data && data.sourceTarget) || this,
+        });
+        for (let i = 0; i < listeners.length; i++) {
+          try {
+            listeners[i].fn.call(listeners[i].ctx, event);
+          } catch (err) {
+            // Cách ly lỗi để đảm bảo toàn bộ marker còn lại vẫn nhận tọa độ mới
+          }
+        }
+        (this as any)._firingCount--;
+        if (propagate && (this as any)._propagateEvent) {
+          (this as any)._propagateEvent(event);
+        }
+        return this;
+      }
+      return origFire.call(this, type, data, propagate);
     };
   }
 }

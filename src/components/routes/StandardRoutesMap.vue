@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
+import { ref, shallowRef, markRaw, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
 import type { HubLocation, RoutePath } from '@/types/map';
 import { ECOTECH_HUBS, ECOTECH_ROUTES, calculateHaversineKm, addEcotechRoute } from '@/mocks/mapData';
 import {
@@ -42,7 +42,7 @@ const dialog = useDialogStore();
 // 1. STATE & COMPUTED
 //=============================================================================
 const mapContainer = ref<HTMLElement | null>(null);
-const mapInstance = ref<any>(null);
+const mapInstance = shallowRef<any>(null);
 const isFullScreen = ref(false);
 const mapStyle = ref<'google_streets' | 'google_hybrid' | 'osm'>('google_streets');
 const searchQuery = ref('');
@@ -332,12 +332,13 @@ function initMap() {
     mapInstance.value = null;
   }
 
-  mapInstance.value = safeInitMap(mapContainer.value, {
+  const rawMap = safeInitMap(mapContainer.value, {
     center: [11.5400, 106.6200],
     zoom: 12,
     zoomControl: false,
     preferCanvas: true,
   });
+  mapInstance.value = markRaw(rawMap);
 
   L.control.zoom({ position: 'bottomright' }).addTo(mapInstance.value);
 
@@ -394,7 +395,8 @@ function renderHubMarkers() {
 
   hubMarkers.forEach((m) => {
     try {
-      mapInstance.value.removeLayer(m);
+      m.unbindPopup?.();
+      m.remove?.();
     } catch (err) {}
   });
   hubMarkers = [];
@@ -414,7 +416,7 @@ function renderHubMarkers() {
       iconAnchor: [0, 0],
     });
 
-    const marker = L.marker([hub.lat, hub.lng], { icon: customIcon }).addTo(mapInstance.value);
+    const marker = markRaw(L.marker([hub.lat, hub.lng], { icon: customIcon }).addTo(mapInstance.value));
 
     const popupContent = `
       <div class="map-popup-card">
@@ -443,7 +445,9 @@ function renderRoutes() {
 
   routePolylines.forEach((layer) => {
     try {
-      mapInstance.value.removeLayer(layer);
+      layer.unbindTooltip?.();
+      layer.unbindPopup?.();
+      layer.remove?.();
     } catch (err) {}
   });
   routePolylines = [];
@@ -475,6 +479,7 @@ function renderRoutes() {
 
       // Đảm bảo đầu và cuối tuyến chiều đi tiếp giáp chính xác 100% với vị trí GPS trạm xuất phát & đích đến
       if (outboundWps && outboundWps.length >= 2) {
+        outboundWps = [...outboundWps];
         outboundWps[0] = [route.from.lat, route.from.lng];
         const lastDest = allDestinations[allDestinations.length - 1];
         if (lastDest) {
@@ -485,22 +490,22 @@ function renderRoutes() {
       // 1. VẼ CHIỀU ĐI (CHUẨN GOOGLE MAPS NAVIGATION: RÕ RÀNG, TINH TẾ, KHÔNG BỊ RỐI NÉT)
       if (outboundWps.length >= 2) {
         // 1.1 Lớp viền đệm trắng bảo vệ đường (Casing) tách bạch nét vẽ với bản đồ nền
-        const outboundCasing = L.polyline(outboundWps, {
+        const outboundCasing = markRaw(L.polyline(outboundWps, {
           color: '#ffffff',
           weight: 7.5,
           opacity: 0.95,
           lineCap: 'round',
           lineJoin: 'round',
-        }).addTo(mapInstance.value);
+        }).addTo(mapInstance.value));
 
         // 1.2 Dải màu xanh lá sắc nét Google Maps
-        const outboundCore = L.polyline(outboundWps, {
+        const outboundCore = markRaw(L.polyline(outboundWps, {
           color: '#16a34a',
           weight: 4.5,
           opacity: 1,
           lineCap: 'round',
           lineJoin: 'round',
-        }).addTo(mapInstance.value);
+        }).addTo(mapInstance.value));
 
         routePolylines.push(outboundCasing, outboundCore);
       }
@@ -508,22 +513,22 @@ function renderRoutes() {
       // 2. VẼ CHIỀU VỀ (NẾU LÀ TUYẾN KHỨ HỒI)
       // Dùng nét đứt màu xanh dương để phân biệt trực quan với chiều đi, loại bỏ hoàn toàn hiện tượng đường đi bị rối nét
       if (returnWps.length >= 2) {
-        const returnCasing = L.polyline(returnWps, {
+        const returnCasing = markRaw(L.polyline(returnWps, {
           color: '#ffffff',
           weight: 6,
           opacity: 0.9,
           lineCap: 'round',
           lineJoin: 'round',
-        }).addTo(mapInstance.value);
+        }).addTo(mapInstance.value));
 
-        const returnCore = L.polyline(returnWps, {
+        const returnCore = markRaw(L.polyline(returnWps, {
           color: '#0284c7',
           weight: 3.5,
           opacity: 0.95,
           dashArray: '7, 7',
           lineCap: 'round',
           lineJoin: 'round',
-        }).addTo(mapInstance.value);
+        }).addTo(mapInstance.value));
 
         routePolylines.push(returnCasing, returnCore);
       }
@@ -546,7 +551,7 @@ function renderRoutes() {
         iconSize: [0, 0],
         iconAnchor: [0, 0],
       });
-      const originMarker = L.marker(originPoint, { icon: originIcon, zIndexOffset: 2500 }).addTo(mapInstance.value);
+      const originMarker = markRaw(L.marker(originPoint, { icon: originIcon, zIndexOffset: 2500 }).addTo(mapInstance.value));
       routePolylines.push(originMarker);
 
       // 4. GHIM PIN CÁC ĐIỂM ĐẾN
@@ -578,7 +583,7 @@ function renderRoutes() {
             iconSize: [0, 0],
             iconAnchor: [0, 0],
           });
-          const destMarker = L.marker(destPoint, { icon: destIcon, zIndexOffset: 2400 }).addTo(mapInstance.value);
+          const destMarker = markRaw(L.marker(destPoint, { icon: destIcon, zIndexOffset: 2400 }).addTo(mapInstance.value));
           routePolylines.push(destMarker);
         });
       }
@@ -594,13 +599,13 @@ function renderRoutes() {
     const colors = ['#0284c7', '#16a34a', '#d97706', '#9333ea', '#e11d48'];
     const lineColor = colors[idx % colors.length];
 
-    const line = L.polyline(r.waypoints, {
+    const line = markRaw(L.polyline(r.waypoints, {
       color: lineColor,
       weight: 4,
       opacity: 0.75,
       dashArray: '6, 6',
       lineCap: 'round',
-    }).addTo(mapInstance.value);
+    }).addTo(mapInstance.value));
 
     line.on('click', () => {
       selectRoute(r.code);

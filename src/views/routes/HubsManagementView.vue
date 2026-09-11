@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, shallowRef, markRaw, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import type { HubLocation, HubType } from '@/types/map';
 import {
   getFreshHubs,
@@ -495,7 +495,7 @@ function handleDeleteHub(hub: HubLocation) {
 
 // Bản đồ xem vị trí các trạm
 const mapContainer = ref<HTMLElement | null>(null);
-const mapInstance = ref<any>(null);
+const mapInstance = shallowRef<any>(null);
 let hubMarkers: any[] = [];
 
 function initMap() {
@@ -508,11 +508,12 @@ function initMap() {
     mapInstance.value = null;
   }
 
-  mapInstance.value = safeInitMap(mapContainer.value, {
+  const rawMap = safeInitMap(mapContainer.value, {
     center: [11.5400, 106.6200],
     zoom: 12,
     zoomControl: false,
   });
+  mapInstance.value = markRaw(rawMap);
 
   L.control.zoom({ position: 'bottomright' }).addTo(mapInstance.value);
 
@@ -533,8 +534,9 @@ function renderHubsOnMap() {
 
   hubMarkers.forEach((m) => {
     try {
-      mapInstance.value.removeLayer(m);
-    } catch (e) {}
+      m.unbindPopup?.();
+      m.remove?.();
+    } catch (err) {}
   });
   hubMarkers = [];
 
@@ -553,7 +555,7 @@ function renderHubsOnMap() {
       iconAnchor: [50, 34],
     });
 
-    const marker = L.marker([hub.lat, hub.lng], { icon: customIcon }).addTo(mapInstance.value);
+    const marker = markRaw(L.marker([hub.lat, hub.lng], { icon: customIcon }).addTo(mapInstance.value));
 
     const popupHtml = `
       <div class="map-popup-card">
