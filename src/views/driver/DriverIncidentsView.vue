@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { useFleetStore } from '@/stores/fleet';
 import { useDialogStore } from '@/stores/dialog';
@@ -19,14 +19,16 @@ import {
   ExternalLink,
   AlertCircle,
   Navigation,
+  Search,
+  RotateCcw,
 } from 'lucide-vue-next';
 
 const authStore = useAuthStore();
 const fleetStore = useFleetStore();
 const dialog = useDialogStore();
 
-interface DriverIncident {
-  id: number;
+export interface DriverIncident {
+  id: string;
   reportCode: string;
   vehiclePlate: string;
   incidentType: 'Tire' | 'Engine' | 'Electrical' | 'Tank' | 'Collision' | 'Other';
@@ -37,30 +39,30 @@ interface DriverIncident {
   gpsAccuracy?: number;
   description: string;
   photoUrl?: string;
-  status: 'REPORTED' | 'IN_REPAIR' | 'RESOLVED';
+  status: 'PENDING' | 'IN_REPAIR' | 'RESOLVED';
   reportedAt: string;
   repairNote?: string;
 }
 
 const defaultIncidents: DriverIncident[] = [
   {
-    id: 1,
+    id: '1',
     reportCode: 'INC-260907-001',
     vehiclePlate: '51C-889.26',
     incidentType: 'Tire',
     severity: 'Medium',
     location: 'Km 24 - ĐT741, gần Trạm thu phí Tân Uyên',
-    latitude: 11.542318,
-    longitude: 106.634120,
+    latitude: 11.542300,
+    longitude: 106.634100,
     gpsAccuracy: 12,
     description: 'Bánh sau bên phụ bị xì lốp, đã gọi vá xe lưu động khẩn cấp để tiếp tục hành trình chở mủ.',
-    photoUrl: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="200" viewBox="0 0 300 200"><rect width="100%" height="100%" fill="%23fee2e2"/><text x="50%" y="45%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="bold" fill="%23dc2626">ẢNH HIỆN TRƯỜNG SỰ CỐ</text><text x="50%" y="65%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="12" fill="%23b91c1c">Xì lốp sau - 51C-889.26</text></svg>',
-    status: 'RESOLVED',
+    photoUrl: 'https://images.unsplash.com/photo-1578844251758-2f71da64c96f?w=600&auto=format&fit=crop&q=80',
+    status: 'IN_REPAIR',
     reportedAt: '2026-09-07 09:30',
-    repairNote: 'Đội kỹ thuật đã xác nhận & tài xế đã kê khai chi phí vá vỏ lưu động 150.000 đ',
+    repairNote: 'Đội kỹ thuật đã nhận thông tin & gửi xe cứu hộ lưu động đến hiện trường.',
   },
   {
-    id: 2,
+    id: '2',
     reportCode: 'INC-260905-002',
     vehiclePlate: '51C-889.26',
     incidentType: 'Electrical',
@@ -77,6 +79,31 @@ const defaultIncidents: DriverIncident[] = [
 ];
 
 const incidents = ref<DriverIncident[]>(mockStorage.getDriverIncidents(defaultIncidents));
+
+// Bộ lọc
+const searchKeyword = ref('');
+const statusFilter = ref<string>('ALL');
+const typeFilter = ref<string>('ALL');
+
+const filteredIncidents = computed(() => {
+  return incidents.value.filter((inc) => {
+    if (searchKeyword.value.trim()) {
+      const kw = searchKeyword.value.trim().toLowerCase();
+      const matchCode = inc.reportCode.toLowerCase().includes(kw);
+      const matchPlate = inc.vehiclePlate.toLowerCase().includes(kw);
+      const matchDesc = inc.description.toLowerCase().includes(kw);
+      const matchLoc = (inc.location || '').toLowerCase().includes(kw);
+      if (!matchCode && !matchPlate && !matchDesc && !matchLoc) return false;
+    }
+    if (statusFilter.value !== 'ALL') {
+      if (inc.status !== statusFilter.value) return false;
+    }
+    if (typeFilter.value !== 'ALL') {
+      if (inc.incidentType !== typeFilter.value) return false;
+    }
+    return true;
+  });
+});
 
 // Form gửi báo cáo mới
 const showCreateModal = ref(false);
@@ -235,7 +262,7 @@ function handleCreateIncident() {
     return;
   }
 
-  const newId = Date.now();
+  const newId = String(Date.now());
   const code = `INC-${new Date().toISOString().slice(2, 10).replace(/-/g, '')}-${String(incidents.value.length + 1).padStart(3, '0')}`;
 
   const newReport: DriverIncident = {
@@ -250,7 +277,7 @@ function handleCreateIncident() {
     gpsAccuracy: gpsAccuracy.value || undefined,
     description: newDescription.value,
     photoUrl: newPhotoUrl.value,
-    status: 'REPORTED',
+    status: 'PENDING',
     reportedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
   };
 
@@ -349,7 +376,45 @@ function getSeverityBadge(sev: DriverIncident['severity']) {
     <!-- Bảng danh sách sự cố -->
     <div class="card">
       <div class="card-header">
-        <h3 class="card-title">Nhật Ký Sự Cố Xe Đã Báo Cáo ({{ incidents.length }})</h3>
+        <h3 class="card-title">Nhật Ký Sự Cố Xe Đã Báo Cáo ({{ filteredIncidents.length }})</h3>
+        <div class="header-filters-group">
+          <div class="filter-search-wrap">
+            <Search :size="15" class="search-ico" />
+            <input
+              v-model="searchKeyword"
+              type="text"
+              class="filter-search-input"
+              placeholder="Tìm mã báo cáo, biển số, mô tả..."
+            />
+            <button v-if="searchKeyword" class="btn-clear-search" @click="searchKeyword = ''" title="Xóa tìm kiếm">
+              <X :size="13" />
+            </button>
+          </div>
+          <select v-model="typeFilter" class="filter-select">
+            <option value="ALL">Tất cả loại sự cố</option>
+            <option value="Tire">Lốp xe / Nổ lốp</option>
+            <option value="Engine">Động cơ / Chết máy</option>
+            <option value="Electrical">Hệ thống điện / Đèn</option>
+            <option value="Tank">Bình mủ / Van xả</option>
+            <option value="Collision">Va quẹt / Tai nạn</option>
+            <option value="Other">Sự cố khác</option>
+          </select>
+          <select v-model="statusFilter" class="filter-select">
+            <option value="ALL">Tất cả trạng thái</option>
+            <option value="PENDING">Đã Tiếp Nhận</option>
+            <option value="IN_REPAIR">Đang Sửa Chữa</option>
+            <option value="RESOLVED">Đã Khắc Phục</option>
+          </select>
+          <button
+            v-if="searchKeyword || statusFilter !== 'ALL' || typeFilter !== 'ALL'"
+            class="btn-reset-filter"
+            title="Đặt lại bộ lọc"
+            @click="searchKeyword = ''; statusFilter = 'ALL'; typeFilter = 'ALL';"
+          >
+            <RotateCcw :size="13" />
+            <span>Đặt lại</span>
+          </button>
+        </div>
       </div>
 
       <div class="table-responsive">
@@ -367,7 +432,12 @@ function getSeverityBadge(sev: DriverIncident['severity']) {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="inc in incidents" :key="inc.id">
+            <tr v-if="filteredIncidents.length === 0">
+              <td colspan="8" class="text-center py-4 text-muted">
+                Không tìm thấy báo cáo sự cố nào phù hợp với bộ lọc hiện tại.
+              </td>
+            </tr>
+            <tr v-for="inc in filteredIncidents" :key="inc.id">
               <td style="white-space: nowrap">
                 <span class="code-badge">{{ inc.reportCode }}</span>
               </td>
@@ -677,6 +747,11 @@ function getSeverityBadge(sev: DriverIncident['severity']) {
 }
 
 /* Table */
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
 .data-table {
   width: 100%;
   border-collapse: collapse;
@@ -968,5 +1043,98 @@ function getSeverityBadge(sev: DriverIncident['severity']) {
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+/* Filter controls */
+.card-header {
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.header-filters-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.filter-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.filter-search-wrap .search-ico {
+  position: absolute;
+  left: 11px;
+  color: #64748b;
+  pointer-events: none;
+}
+.filter-search-input {
+  height: 38px;
+  padding: 0 32px 0 34px;
+  font-size: 0.8125rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  outline: none;
+  width: 240px;
+  background: #ffffff;
+  color: #0f172a;
+  transition: all 0.2s ease;
+}
+.filter-search-input:focus {
+  border-color: #0284c7;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.12);
+}
+.btn-clear-search {
+  position: absolute;
+  right: 8px;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+}
+.btn-clear-search:hover {
+  color: #475569;
+}
+.filter-select {
+  height: 38px;
+  padding: 0 12px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background-color: #ffffff;
+  color: #334155;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.filter-select:focus {
+  border-color: #0284c7;
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.12);
+}
+.btn-reset-filter {
+  height: 38px;
+  padding: 0 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #475569;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.btn-reset-filter:hover {
+  background: #e2e8f0;
+  color: #0f172a;
 }
 </style>

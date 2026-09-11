@@ -385,9 +385,11 @@ input[type="number"] {
 }
 
 /* Tables */
-.table-container {
+.table-container,
+.table-responsive {
   width: 100%;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .table {

@@ -66,30 +66,34 @@ export const useDriverStore = defineStore('driver', () => {
     const currentDriverId = authStore.currentUser.driverId;
     const veh = myVehicle.value;
 
+    let res: TransportTrip[] = [];
+
     // 1. Nếu là tài xế có tài khoản riêng:
     if (currentDriverId) {
-      return dispatchStore.trips.filter((t) => {
-        // Khớp theo xe phụ trách của tài xế
+      res = dispatchStore.trips.filter((t) => {
         if (veh) {
           return t.vehiclePlate === veh.licensePlate || t.vehicleId === veh.id;
         }
         return t.driverId === currentDriverId;
       });
-    }
-
-    // 2. Nếu là Dispatcher / Admin đang xem Không gian tài xế:
-    if (selectedVehiclePlate.value === 'ALL') {
-      return dispatchStore.trips;
-    }
-
-    // Nghiêm ngặt chỉ xem các chuyến của xe đang được chọn (myVehicle)
-    if (veh) {
-      return dispatchStore.trips.filter(
+    } else if (selectedVehiclePlate.value === 'ALL') {
+      // 2. Nếu là Dispatcher / Admin đang xem Không gian tài xế:
+      res = dispatchStore.trips;
+    } else if (veh) {
+      // Nghiêm ngặt chỉ xem các chuyến của xe đang được chọn (myVehicle)
+      res = dispatchStore.trips.filter(
         (t) => t.vehiclePlate === veh.licensePlate || t.vehicleId === veh.id
       );
+    } else {
+      res = dispatchStore.trips;
     }
 
-    return dispatchStore.trips;
+    // Sắp xếp các chuyến theo trình tự thời gian bắt đầu (scheduledStartTime) tăng dần (vd: 7h-9h -> 9h30-11h -> 13h30-16h30)
+    return [...res].sort((a, b) => {
+      const timeA = a.scheduledStartTime ? new Date(a.scheduledStartTime).getTime() : 0;
+      const timeB = b.scheduledStartTime ? new Date(b.scheduledStartTime).getTime() : 0;
+      return timeA - timeB;
+    });
   });
 
   const currentActiveTrip = computed<TransportTrip | undefined>(() => {
