@@ -1,7 +1,6 @@
 <script setup lang="ts">
 // Điều Phối & Ghép Chuyến Xe (Single Trip Dispatch Inline)
 import { ref, computed, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useBookingStore } from '@/stores/booking';
 import { useDispatchStore } from '@/stores/dispatch';
@@ -9,27 +8,28 @@ import { useFleetStore } from '@/stores/fleet';
 import { useDialogStore } from '@/stores/dialog';
 import type { TransportRequest, TransportTrip } from '@/types';
 import StatusBadge from '@/components/common/StatusBadge.vue';
+import TablePagination from '@/components/common/TablePagination.vue';
 import SingleTripDispatchForm from '@/components/dispatch/SingleTripDispatchForm.vue';
 import FleetDispatchMap from '@/components/dispatch/FleetDispatchMap.vue';
 import TripExpensesModal from '@/components/common/TripExpensesModal.vue';
 import EditTripModal from '@/components/dispatch/EditTripModal.vue';
+import { useRoute, useRouter } from 'vue-router';
 import BookingCreateModal from '@/components/booking/BookingCreateModal.vue';
+import { getTripDaySequence } from '@/utils/tripHelpers';
 import {
   Truck,
   AlertCircle,
   Plus,
   CheckCircle2,
-  MapPin,
-  LayoutGrid,
   Receipt,
   Check,
   X,
   Clock,
   Edit2,
+  MapPin,
+  LayoutGrid,
 } from 'lucide-vue-next';
 
-const route = useRoute();
-const router = useRouter();
 const authStore = useAuthStore();
 const bookingStore = useBookingStore();
 const dispatchStore = useDispatchStore();
@@ -37,6 +37,8 @@ const fleetStore = useFleetStore();
 const dialog = useDialogStore();
 const viewExpensesTrip = ref<any>(null);
 const editingTrip = ref<TransportTrip | null>(null);
+const route = useRoute();
+const router = useRouter();
 const editingRequest = ref<TransportRequest | null>(null);
 const fleetMapRef = ref<InstanceType<typeof FleetDispatchMap> | null>(null);
 
@@ -65,6 +67,7 @@ function switchView(mode: 'map' | 'board') {
   }
 }
 
+
 const dispatchingRequest = ref<TransportRequest | null>(null);
 
 // Bộ lọc yêu cầu: 'ALL' | 'PENDING' | 'APPROVED'
@@ -86,6 +89,17 @@ const displayedRequests = computed(() => {
   if (filterReqStatus.value === 'PENDING') return pendingApprovalRequests.value;
   if (filterReqStatus.value === 'APPROVED') return approvedRequests.value;
   return allActionableRequests.value;
+});
+
+// Phân trang danh sách yêu cầu
+const reqPage = ref(1);
+const reqPageSize = ref(5);
+const paginatedRequests = computed(() => {
+  const start = (reqPage.value - 1) * reqPageSize.value;
+  return displayedRequests.value.slice(start, start + reqPageSize.value);
+});
+watch(filterReqStatus, () => {
+  reqPage.value = 1;
 });
 
 // Modal từ chối yêu cầu
@@ -228,6 +242,17 @@ const displayedTrips = computed(() => {
   return trips.value;
 });
 
+// Phân trang danh sách chuyến xe
+const tripPage = ref(1);
+const tripPageSize = ref(8);
+const paginatedTrips = computed(() => {
+  const start = (tripPage.value - 1) * tripPageSize.value;
+  return displayedTrips.value.slice(start, start + tripPageSize.value);
+});
+watch(tripStatusFilter, () => {
+  tripPage.value = 1;
+});
+
 // Chuyển đổi trạng thái xe sang tiếng Việt
 function getVehicleStatusLabel(status: string): string {
   switch (status) {
@@ -260,6 +285,31 @@ function getVehicleTypeLabel(type: string): string {
     default:
       return type;
   }
+}
+
+function getServingTeam(req: TransportRequest): { label: string; isFactory: boolean } {
+  if (req.teamName) {
+    if (req.teamName.toLowerCase().includes('nhà máy') || req.teamName === 'Factory') {
+      return { label: 'Nhà máy', isFactory: true };
+    }
+    return { label: req.teamName, isFactory: false };
+  }
+  if (req.departmentName?.toLowerCase().includes('nhà máy')) {
+    return { label: 'Nhà máy', isFactory: true };
+  }
+  if (req.fromLocation?.includes('Đội 1') || req.toLocation?.includes('Đội 1')) {
+    return { label: 'Đội 1', isFactory: false };
+  }
+  if (req.fromLocation?.includes('Đội 2') || req.toLocation?.includes('Đội 2')) {
+    return { label: 'Đội 2', isFactory: false };
+  }
+  if (req.fromLocation?.includes('Đội 3') || req.toLocation?.includes('Đội 3')) {
+    return { label: 'Đội 3', isFactory: false };
+  }
+  if (req.fromLocation?.includes('Nhà Máy') || req.toLocation?.includes('Nhà Máy')) {
+    return { label: 'Nhà máy', isFactory: true };
+  }
+  return { label: 'Đội 1', isFactory: false };
 }
 </script>
 
@@ -338,32 +388,18 @@ function getVehicleTypeLabel(type: string): string {
         </div>
 
         <div class="requests-header-right">
-          <!-- Bộ lọc tab nhanh -->
-          <div class="req-filter-tabs">
-            <button
-              class="btn-filter-pill"
-              :class="{ active: filterReqStatus === 'ALL' }"
-              @click="filterReqStatus = 'ALL'"
+          <!-- Bộ lọc chọn trạng thái dạng select -->
+          <div class="header-filter-select-box">
+            <label class="header-filter-label" for="filter-req-status-select">Lọc trạng thái:</label>
+            <select
+              id="filter-req-status-select"
+              v-model="filterReqStatus"
+              class="header-filter-select"
             >
-              <span>Tất cả</span>
-              <span class="count-badge">{{ allActionableRequests.length }}</span>
-            </button>
-            <button
-              class="btn-filter-pill pill-amber"
-              :class="{ active: filterReqStatus === 'PENDING' }"
-              @click="filterReqStatus = 'PENDING'"
-            >
-              <span>Chờ duyệt</span>
-              <span class="count-badge count-pending">{{ pendingApprovalRequests.length }}</span>
-            </button>
-            <button
-              class="btn-filter-pill pill-green"
-              :class="{ active: filterReqStatus === 'APPROVED' }"
-              @click="filterReqStatus = 'APPROVED'"
-            >
-              <span>Đã duyệt</span>
-              <span class="count-badge count-approved">{{ approvedRequests.length }}</span>
-            </button>
+              <option value="ALL">Tất cả ({{ allActionableRequests.length }})</option>
+              <option value="PENDING">Chờ duyệt ({{ pendingApprovalRequests.length }})</option>
+              <option value="APPROVED">Đã duyệt ({{ approvedRequests.length }})</option>
+            </select>
           </div>
         </div>
       </div>
@@ -372,19 +408,21 @@ function getVehicleTypeLabel(type: string): string {
         <table class="table requests-data-table">
           <thead>
             <tr>
-              <th style="width: 175px;">Mã Yêu Cầu</th>
-              <th style="min-width: 250px;">Lộ Trình / Tuyến Vận Chuyển</th>
-              <th style="width: 155px;">Thời Gian Cần Xe</th>
-              <th style="width: 110px;">Loại Xe</th>
-              <th style="width: 140px;">Khối Lượng / Người</th>
-              <th style="width: 190px;">Người Đặt & Đơn Vị</th>
-              <th style="min-width: 160px;">Mục Đích</th>
-              <th style="width: 120px;" class="text-center">Thao Tác</th>
+              <th style="width: 145px;">Mã Yêu Cầu</th>
+              <th style="width: 115px;">Trạng Thái</th>
+              <th style="width: 110px;">Đội Phục Vụ</th>
+              <th style="min-width: 220px;">Lộ Trình / Tuyến Vận Chuyển</th>
+              <th style="width: 150px;">Thời Gian Cần Xe</th>
+              <th style="width: 105px;">Loại Xe</th>
+              <th style="width: 135px;">Khối Lượng / Người</th>
+              <th style="width: 175px;">Người Đặt & Đơn Vị</th>
+              <th style="min-width: 140px;">Mục Đích</th>
+              <th style="width: 115px;" class="text-center">Thao Tác</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="displayedRequests.length === 0">
-              <td colspan="8" class="text-center py-6 text-muted">
+              <td colspan="10" class="text-center py-6 text-muted">
                 <div class="empty-state">
                   <CheckCircle2 :size="28" class="text-success mb-1" />
                   <span class="font-medium text-slate-600">Không có yêu cầu nào trong danh mục này!</span>
@@ -394,23 +432,35 @@ function getVehicleTypeLabel(type: string): string {
             </tr>
 
             <tr
-              v-for="req in displayedRequests"
+              v-for="req in paginatedRequests"
               :key="req.id"
               :class="{ 'row-pending-req': req.status === 'PENDING' }"
             >
-              <!-- Mã YC & Trạng thái duyệt -->
+              <!-- Mã YC -->
               <td class="whitespace-nowrap">
-                <div class="req-code-box">
-                  <span class="req-code-text font-mono font-bold">{{ req.requestCode }}</span>
-                  <span v-if="req.status === 'PENDING'" class="status-badge-pending mt-1">
-                    <Clock :size="10" />
-                    <span>Chờ duyệt</span>
-                  </span>
-                  <span v-else class="status-badge-approved mt-1">
-                    <Check :size="10" />
-                    <span>Đã duyệt</span>
-                  </span>
-                </div>
+                <span class="req-code-text font-mono font-bold">{{ req.requestCode }}</span>
+              </td>
+
+              <!-- Trạng thái phê duyệt -->
+              <td class="whitespace-nowrap">
+                <span v-if="req.status === 'PENDING'" class="status-badge-pending">
+                  <Clock :size="11" />
+                  <span>Chờ duyệt</span>
+                </span>
+                <span v-else class="status-badge-approved">
+                  <Check :size="11" />
+                  <span>Đã duyệt</span>
+                </span>
+              </td>
+
+              <!-- Đội phục vụ -->
+              <td>
+                <span v-if="getServingTeam(req).isFactory" class="badge-unit-factory font-bold">
+                  Nhà máy
+                </span>
+                <span v-else class="badge-unit-team font-bold">
+                  {{ getServingTeam(req).label }}
+                </span>
               </td>
 
               <!-- Lộ trình -->
@@ -463,15 +513,7 @@ function getVehicleTypeLabel(type: string): string {
 
               <!-- Thao tác -->
               <td class="text-center whitespace-nowrap">
-                <div class="flex items-center justify-center gap-2">
-                  <button
-                    v-if="authStore.activeRole === 'Dispatcher' || authStore.activeRole === 'Admin'"
-                    class="btn btn-icon btn-sm text-primary hover-btn-edit"
-                    @click="openEditRequest(req)"
-                    title="Sửa yêu cầu đặt xe"
-                  >
-                    <Edit2 :size="15" />
-                  </button>
+                <div class="flex items-center justify-center">
                   <button
                     class="btn-row-batch"
                     @click="openBatchWithDirectApprove(req)"
@@ -486,7 +528,13 @@ function getVehicleTypeLabel(type: string): string {
           </tbody>
         </table>
       </div>
-    </div>
+
+      <TablePagination
+        v-model:currentPage="reqPage"
+        v-model:pageSize="reqPageSize"
+        :totalItems="displayedRequests.length"
+        :pageSizeOptions="[5, 8, 15, 30]"
+      />
     </div>
 
     <!-- Danh sách chuyến xe đã điều phối -->
@@ -496,31 +544,17 @@ function getVehicleTypeLabel(type: string): string {
           <h3 class="card-title">Danh Sách Các Chuyến Xe Đã Phân Công & Ghép Chuyến</h3>
           <span class="text-xs text-muted">Theo dõi lịch trình, lộ trình chuẩn hóa, chi phí chứng từ và trạng thái vận hành</span>
         </div>
-        <div class="trips-filter-tabs">
-          <button
-            class="filter-tab-pill"
-            :class="{ active: tripStatusFilter === 'ALL' }"
-            @click="tripStatusFilter = 'ALL'"
+        <div class="header-filter-select-box">
+          <label class="header-filter-label" for="filter-trip-status-select">Lọc trạng thái:</label>
+          <select
+            id="filter-trip-status-select"
+            v-model="tripStatusFilter"
+            class="header-filter-select"
           >
-            <span>Tất cả</span>
-            <span class="count-badge">{{ trips.length }}</span>
-          </button>
-          <button
-            class="filter-tab-pill pill-active"
-            :class="{ active: tripStatusFilter === 'ACTIVE' }"
-            @click="tripStatusFilter = 'ACTIVE'"
-          >
-            <span>Đang chạy / Chờ chạy</span>
-            <span class="count-badge count-active">{{ activeTripsCount }}</span>
-          </button>
-          <button
-            class="filter-tab-pill pill-completed"
-            :class="{ active: tripStatusFilter === 'COMPLETED' }"
-            @click="tripStatusFilter = 'COMPLETED'"
-          >
-            <span>Đã hoàn thành</span>
-            <span class="count-badge count-completed">{{ completedTripsCount }}</span>
-          </button>
+            <option value="ALL">Tất cả ({{ trips.length }})</option>
+            <option value="ACTIVE">Đang chạy / Chờ chạy ({{ activeTripsCount }})</option>
+            <option value="COMPLETED">Đã hoàn thành ({{ completedTripsCount }})</option>
+          </select>
         </div>
       </div>
 
@@ -554,8 +588,9 @@ function getVehicleTypeLabel(type: string): string {
         <table class="table trips-compact-table">
           <thead>
             <tr>
-              <th style="width: 165px;">Mã Chuyến & Phương Tiện</th>
-              <th style="width: 155px;">Tài Xế Phụ Trách</th>
+              <th style="width: 155px;">Mã Chuyến & Phương Tiện</th>
+              <th style="width: 125px;">Số Lần Vận Chuyển</th>
+              <th style="width: 150px;">Tài Xế Phụ Trách</th>
               <th style="min-width: 175px;">Lộ Trình / Tuyến Quy Chuẩn</th>
               <th style="width: 145px;">Thời Gian</th>
               <th style="width: 135px;">Sản Lượng Mủ</th>
@@ -567,13 +602,13 @@ function getVehicleTypeLabel(type: string): string {
           </thead>
           <tbody>
             <tr v-if="displayedTrips.length === 0">
-              <td colspan="9" class="text-center py-5 text-muted">
+              <td colspan="10" class="text-center py-5 text-muted">
                 Không tìm thấy chuyến xe nào phù hợp với bộ lọc.
               </td>
             </tr>
 
             <tr
-              v-for="t in displayedTrips"
+              v-for="t in paginatedTrips"
               :key="t.id"
               :class="{ 'trip-incident-row': !!getTripIncident(t) }"
             >
@@ -586,6 +621,12 @@ function getVehicleTypeLabel(type: string): string {
                   <strong class="veh-plate-text">{{ t.vehiclePlate }}</strong>
                   <span class="veh-type-text">{{ getVehicleTypeLabel(t.vehicleType) }}</span>
                 </div>
+              </td>
+              <!-- Số lần vận chuyển trong ngày của xe -->
+              <td class="col-trip-seq whitespace-nowrap">
+                <span class="badge-trip-seq" :title="getTripDaySequence(t, trips).fullLabel">
+                  {{ getTripDaySequence(t, trips).label }}
+                </span>
               </td>
               <td class="col-driver">
                 <div class="driver-name-text">{{ t.driverName }}</div>
@@ -661,9 +702,15 @@ function getVehicleTypeLabel(type: string): string {
           </tbody>
         </table>
       </div>
+
+      <TablePagination
+        v-model:currentPage="tripPage"
+        v-model:pageSize="tripPageSize"
+        :totalItems="displayedTrips.length"
+        :pageSizeOptions="[5, 8, 15, 30]"
+      />
     </div>
-
-
+  </div>
 
     <!-- Modal Sửa Chuyến Xe -->
     <EditTripModal
@@ -729,6 +776,58 @@ function getVehicleTypeLabel(type: string): string {
 </template>
 
 <style scoped>
+.view-mode-tabs {
+  display: inline-flex;
+  background: #f1f5f9;
+  padding: 4px;
+  border-radius: var(--radius-md);
+  gap: 4px;
+  border: 1px solid var(--border-card);
+  margin-bottom: 22px;
+}
+.tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: transparent;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.tab-btn:hover {
+  color: var(--text-primary);
+}
+.tab-btn.active {
+  background: #ffffff;
+  color: #15803d;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+.dispatch-alert-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: var(--radius-md);
+  padding: 10px 16px;
+  gap: 12px;
+}
+.alert-banner-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.8125rem;
+  color: #92400e;
+}
+.text-amber {
+  color: #d97706;
+}
+
 .page-header {
   display: flex;
   justify-content: space-between;
@@ -971,37 +1070,6 @@ function getVehicleTypeLabel(type: string): string {
 .mt-4 { margin-top: 16px; }
 .py-5 { padding-top: 40px; padding-bottom: 40px; }
 .text-center { text-align: center; }
-.view-mode-tabs {
-  display: inline-flex;
-  background: #f1f5f9;
-  padding: 4px;
-  border-radius: var(--radius-md);
-  gap: 4px;
-  border: 1px solid var(--border-card);
-  margin-bottom: 22px;
-}
-.tab-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  border-radius: var(--radius-sm);
-  border: none;
-  background: transparent;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-.tab-btn:hover {
-  color: var(--text-primary);
-}
-.tab-btn.active {
-  background: #ffffff;
-  color: #15803d;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-}
 .btn-proof-tag {
   display: inline-flex;
   align-items: center;
@@ -1031,28 +1099,7 @@ function getVehicleTypeLabel(type: string): string {
 .btn-proof-tag.proof-partial:hover {
   background: #fde68a;
 }
-
-/* Dispatch Alert Banner */
-.dispatch-alert-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
-  border-radius: var(--radius-md);
-  padding: 10px 16px;
-  gap: 12px;
-}
-.alert-banner-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 0.8125rem;
-  color: #92400e;
-}
-.text-amber {
-  color: #d97706;
-}
+/* Request Filter Tabs */
 
 /* Request Filter Tabs */
 /* Request Filter Tabs */
@@ -1065,53 +1112,37 @@ function getVehicleTypeLabel(type: string): string {
   border-radius: 8px;
   border: 1px solid var(--border-card);
 }
-.btn-filter-pill {
-  display: inline-flex;
+.header-filter-select-box {
+  display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
-  font-size: 0.75rem;
+  gap: 8px;
+}
+.header-filter-label {
+  font-size: 0.8125rem;
   font-weight: 600;
-  border-radius: 6px;
-  border: none;
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.15s ease;
+  color: #475569;
   white-space: nowrap;
+  margin-bottom: 0;
 }
-.btn-filter-pill:hover {
-  color: var(--text-primary);
+.header-filter-select {
+  padding: 6px 14px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #1e293b;
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 180px;
+  font-family: inherit;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
-.btn-filter-pill.active {
-  background: #ffffff;
-  color: var(--text-primary);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-}
-.btn-filter-pill.pill-amber.active {
-  color: #b45309;
-}
-.btn-filter-pill.pill-green.active {
-  color: #15803d;
-}
-.btn-filter-pill .count-badge {
-  font-size: 0.6875rem;
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: #e2e8f0;
-  color: var(--text-secondary);
-  font-weight: 700;
-}
-.btn-filter-pill.active .count-badge {
-  background: #f1f5f9;
-}
-.btn-filter-pill.pill-amber.active .count-badge {
-  background: #fef3c7;
-  color: #b45309;
-}
-.btn-filter-pill.pill-green.active .count-badge {
-  background: #dcfce7;
-  color: #15803d;
+.header-filter-select:hover,
+.header-filter-select:focus {
+  border-color: #16a34a;
+  box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.15);
 }
 
 /* Pending Card Border & Badges */
@@ -1127,24 +1158,28 @@ function getVehicleTypeLabel(type: string): string {
 .status-badge-pending {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   background: #fef3c7;
   color: #b45309;
-  font-size: 0.625rem;
+  font-size: 0.6875rem;
   font-weight: 700;
-  padding: 1px 6px;
+  padding: 2px 7px;
   border-radius: 4px;
+  border: 1px solid #fde68a;
+  white-space: nowrap;
 }
 .status-badge-approved {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   background: #dcfce7;
   color: #15803d;
-  font-size: 0.625rem;
+  font-size: 0.6875rem;
   font-weight: 700;
-  padding: 1px 6px;
+  padding: 2px 7px;
   border-radius: 4px;
+  border: 1px solid #bbf7d0;
+  white-space: nowrap;
 }
 .req-pending-actions {
   display: flex;
@@ -1498,9 +1533,48 @@ function getVehicleTypeLabel(type: string): string {
   border-radius: 6px;
 }
 
+.badge-unit-team {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 4px;
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+  white-space: nowrap;
+}
+
+.badge-unit-factory {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 4px;
+  background: #f0f9ff;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+  white-space: nowrap;
+}
+
 @keyframes pulse {
   0%, 100% { transform: scale(1); opacity: 1; }
   50% { transform: scale(1.15); opacity: 0.85; }
+}
+
+.badge-trip-seq {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 6px;
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+  white-space: nowrap;
 }
 
 @media (max-width: 1024px) {

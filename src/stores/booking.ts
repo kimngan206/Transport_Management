@@ -308,10 +308,10 @@ export const useBookingStore = defineStore('booking', () => {
     getDepartmentRequests,
     hasScheduleConflict,
     createRequest,
+    updateRequest,
     approveRequest,
     rejectRequest,
     cancelRequest,
-    updateRequest,
     updateRequestStatus,
     saveState,
   };

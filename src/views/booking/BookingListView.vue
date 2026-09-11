@@ -7,30 +7,23 @@ import { useFleetStore } from '@/stores/fleet';
 import type { TransportRequest } from '@/types';
 import { suggestOptimalRoute } from '@/utils/routeMatcher';
 import StatusBadge from '@/components/common/StatusBadge.vue';
+import TablePagination from '@/components/common/TablePagination.vue';
 import BookingCreateModal from '@/components/booking/BookingCreateModal.vue';
 import BookingDetailModal from '@/components/booking/BookingDetailModal.vue';
 import {
   PlusCircle,
   Search,
-  ArrowRight,
   Filter,
-  Calendar,
-  Layers,
-  ChevronRight,
-  Truck,
-  Car,
-  Clock,
-  Building2,
-  Check,
   AlertCircle,
   X,
-  Droplets,
 } from 'lucide-vue-next';
+import { useDialogStore } from '@/stores/dialog';
 
 const route = useRoute();
 const authStore = useAuthStore();
 const bookingStore = useBookingStore();
 const fleetStore = useFleetStore();
+const dialog = useDialogStore();
 
 // Xác định phân hệ hiện tại từ query param: ?type=factory (Nhà máy) vs mặc định (Đội)
 const isFactoryModule = computed(() => route.query.type === 'factory');
@@ -91,7 +84,44 @@ watch(
 );
 
 const showCreateModal = ref(false);
+const editingRequest = ref<TransportRequest | null>(null);
 const selectedRequest = ref<TransportRequest | null>(null);
+
+function openCreateModal() {
+  editingRequest.value = null;
+  showCreateModal.value = true;
+}
+
+function openEditRequest(req: TransportRequest) {
+  editingRequest.value = req;
+  showCreateModal.value = true;
+}
+
+function handleDetailEdit(req: TransportRequest) {
+  selectedRequest.value = null;
+  openEditRequest(req);
+}
+
+function handleQuickCancel(r: TransportRequest) {
+  dialog.showConfirm({
+    title: 'Xác Nhận Hủy Yêu Cầu',
+    message: `Bạn có chắc chắn muốn hủy yêu cầu đặt xe "${r.requestCode}" (${r.fromLocation} ➔ ${r.toLocation}) không?`,
+    confirmText: 'Xác Nhận Hủy',
+    cancelText: 'Quay lại',
+    onConfirm: () => {
+      const res = bookingStore.cancelRequest(
+        r.id,
+        authStore.currentUser.fullName,
+        'Người dùng hủy trực tiếp từ danh sách yêu cầu'
+      );
+      if (res.success) {
+        dialog.showSuccess(res.message, 'Hủy Yêu Cầu Thành Công');
+      } else {
+        dialog.showWarning(res.message, 'Không Thể Hủy Yêu Cầu');
+      }
+    },
+  });
+}
 
 // KPI Stats theo module hiện tại
 const totalLatexKg = computed(() => {
@@ -112,8 +142,12 @@ const filteredRequests = computed(() => {
     if (filterScope.value === 'mine' && r.requesterId !== authStore.currentUser.id) {
       return false;
     }
-    if (filterStatus.value !== 'ALL' && r.status !== filterStatus.value) {
-      return false;
+    if (filterStatus.value !== 'ALL') {
+      if (filterStatus.value === 'PENDING') {
+        if (r.status !== 'PENDING' && r.status !== 'APPROVED') return false;
+      } else if (r.status !== filterStatus.value) {
+        return false;
+      }
     }
     if (filterCargoType.value !== 'ALL') {
       if (filterCargoType.value === 'LATEX_LIQUID' && (!r.estimatedWeightKg || r.vehicleType !== 'LatexTruck')) return false;
@@ -130,6 +164,17 @@ const filteredRequests = computed(() => {
     }
     return true;
   });
+});
+
+// Phân trang danh sách yêu cầu đặt xe
+const bookingPage = ref(1);
+const bookingPageSize = ref(8);
+const paginatedRequests = computed(() => {
+  const start = (bookingPage.value - 1) * bookingPageSize.value;
+  return filteredRequests.value.slice(start, start + bookingPageSize.value);
+});
+watch([filterScope, filterStatus, filterCargoType, searchKeyword, isFactoryModule], () => {
+  bookingPage.value = 1;
 });
 
 function openDetail(req: TransportRequest) {
@@ -156,9 +201,9 @@ function getInitials(name: string): string {
       <div class="header-titles">
         <div class="breadcrumb-strip">
           <span>Hệ Thống Điều Độ</span>
-          <ChevronRight :size="12" class="breadcrumb-sep" />
+          <span class="breadcrumb-sep">/</span>
           <span>{{ isFactoryModule ? 'Nhà Máy Chế Biến Mủ' : 'Nông Trường Cao Su' }}</span>
-          <ChevronRight :size="12" class="breadcrumb-sep" />
+          <span class="breadcrumb-sep">/</span>
           <span class="breadcrumb-current">{{ isFactoryModule ? 'Đặt Xe Nhà Máy' : 'Đặt Xe Đội Nông Trường' }}</span>
         </div>
         <h1 class="page-heading">
@@ -173,7 +218,7 @@ function getInitials(name: string): string {
         </p>
       </div>
 
-      <button class="btn btn-primary btn-create" @click="showCreateModal = true">
+      <button class="btn btn-primary btn-create" @click="openCreateModal">
         <PlusCircle :size="16" />
         <span>{{ isFactoryModule ? 'Tạo Yêu Cầu Đặt Xe Nhà Máy' : 'Tạo Yêu Cầu Đặt Xe Đội' }}</span>
       </button>
@@ -204,15 +249,15 @@ function getInitials(name: string): string {
         <div class="filter-select-box">
           <select v-model="filterCargoType" class="custom-select-input">
             <template v-if="!isFactoryModule">
-              <option value="ALL">📦 Tất cả phương tiện Đội</option>
-              <option value="LATEX_LIQUID">💧 Xe chuyên dùng chở mủ (Bồn / Mui bạt)</option>
-              <option value="MillingMachine">🚜 Xe cơ giới nông trường (Máy xúc / San ủi)</option>
+              <option value="ALL">Tất cả phương tiện Đội</option>
+              <option value="LATEX_LIQUID">Xe chuyên dùng chở mủ (Bồn / Mui bạt)</option>
+              <option value="MillingMachine">Xe cơ giới nông trường (Máy xúc / San ủi)</option>
             </template>
             <template v-else>
-              <option value="ALL">📦 Tất cả phương tiện Nhà máy</option>
-              <option value="LATEX_LIQUID">💧 Xe bồn ly tâm & Xe xuất hàng SVR</option>
-              <option value="PASSENGER">🚗 Xe bán tải kiểm định KCS (5 chỗ)</option>
-              <option value="MillingMachine">🚜 Xe cơ giới nạo vét hồ xử lý</option>
+              <option value="ALL">Tất cả phương tiện Nhà máy</option>
+              <option value="LATEX_LIQUID">Xe bồn ly tâm & Xe xuất hàng SVR</option>
+              <option value="PASSENGER">Xe bán tải kiểm định KCS (5 chỗ)</option>
+              <option value="MillingMachine">Xe cơ giới nạo vét hồ xử lý</option>
             </template>
           </select>
         </div>
@@ -240,12 +285,10 @@ function getInitials(name: string): string {
           <Filter :size="13" class="filter-select-ico" />
           <select v-model="filterStatus" class="custom-select-input">
             <option value="ALL">Tất cả trạng thái</option>
-            <option value="PENDING">Chờ phê duyệt</option>
-            <option value="APPROVED">Đã phê duyệt</option>
+            <option value="PENDING">Chờ ghép chuyến</option>
             <option value="DISPATCHED">Đã điều phối</option>
             <option value="INPROGRESS">Đang vận chuyển</option>
-            <option value="COMPLETED">Đã nhập kho / Hoàn thành</option>
-            <option value="REJECTED">Từ chối</option>
+            <option value="COMPLETED">Hoàn Thành</option>
             <option value="CANCELLED">Đã hủy</option>
           </select>
         </div>
@@ -261,17 +304,20 @@ function getInitials(name: string): string {
               <th class="col-code">Mã Yêu Cầu</th>
               <th class="col-requester">Người Yêu Cầu</th>
               <th class="col-dept">Phòng Ban</th>
+              <th class="col-team">Đơn Vị</th>
               <th class="col-type">Loại Phương Tiện</th>
-              <th class="col-time">Thời Gian Chuyến</th>
+              <th class="col-date">Ngày Vận Chuyển</th>
+              <th class="col-time-start">Giờ Bắt Đầu</th>
+              <th class="col-time-end">Giờ Kết Thúc</th>
               <th class="col-route">Lộ Trình Tuyến</th>
-              <th class="col-payload">Khối Lượng / Khách</th>
+              <th class="col-payload">{{ isFactoryModule ? 'Khối Lượng / Khách' : 'Khối Lượng' }}</th>
               <th class="col-status">Trạng Thái</th>
               <th class="col-action text-right">Thao Tác</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="filteredRequests.length === 0">
-              <td colspan="9" class="empty-cell">
+              <td colspan="12" class="empty-cell">
                 <div class="empty-state-box">
                   <AlertCircle :size="32" class="empty-ico" />
                   <p class="empty-title">Không tìm thấy yêu cầu đặt xe nào</p>
@@ -283,14 +329,20 @@ function getInitials(name: string): string {
             </tr>
 
             <tr
-              v-for="r in filteredRequests"
+              v-for="r in paginatedRequests"
               :key="r.id"
               class="data-row"
               @click="openDetail(r)"
             >
-              <!-- 1. Mã yêu cầu (No wrap, Monospaced) -->
-              <td class="col-code">
-                <span class="code-pill">{{ r.requestCode }}</span>
+              <!-- 1. Mã yêu cầu (Bấm vào mã để xem chi tiết) -->
+              <td class="col-code" @click.stop="openDetail(r)">
+                <button
+                  type="button"
+                  class="code-pill code-pill-clickable"
+                  title="Bấm vào mã để xem chi tiết yêu cầu đặt xe"
+                >
+                  {{ r.requestCode }}
+                </button>
               </td>
 
               <!-- 2. Người yêu cầu kèm Avatar Initials -->
@@ -306,48 +358,45 @@ function getInitials(name: string): string {
                 </div>
               </td>
 
-              <!-- 3. Phòng ban & Đội -->
+              <!-- 3. Phòng ban -->
               <td class="col-dept">
-                <span class="dept-tag">
-                  <Building2 :size="12" class="dept-ico" />
-                  <span>{{ r.departmentName }}</span>
+                <span class="dept-text">{{ r.departmentName }}</span>
+              </td>
+
+              <!-- 4. Đơn vị -->
+              <td class="col-team">
+                <span v-if="r.teamName" class="team-tag-pill">
+                  {{ r.teamName }}
                 </span>
-                <div v-if="r.teamName" class="team-tag-pill">
-                  🌱 {{ r.teamName }}
-                </div>
+                <span v-else class="text-muted text-xs italic">—</span>
               </td>
 
               <!-- 4. Loại xe -->
               <td class="col-type">
                 <span class="type-badge" :class="r.vehicleType.toLowerCase()">
-                  <Truck v-if="r.vehicleType === 'LatexTruck'" :size="12" />
-                  <Car v-else-if="r.vehicleType === 'PassengerCar'" :size="12" />
-                  <Layers v-else :size="12" />
-                  <span>
-                    {{
-                      r.vehicleType === 'LatexTruck'
-                        ? (r.estimatedWeightKg && r.estimatedWeightKg >= 7000 ? 'Xe Bồn Ly Tâm / Xuất Hàng' : 'Xe Chở Mủ Cao Su')
-                        : r.vehicleType === 'PassengerCar'
-                        ? 'Bán Tải KCS'
-                        : 'Xe Cơ Giới'
-                    }}
-                  </span>
+                  {{
+                    r.vehicleType === 'LatexTruck'
+                      ? (r.estimatedWeightKg && r.estimatedWeightKg >= 7000 ? 'Xe Bồn Ly Tâm' : 'Xe Chở Mủ')
+                      : r.vehicleType === 'PassengerCar'
+                      ? 'Bán Tải KCS'
+                      : 'Xe Cơ Giới'
+                  }}
                 </span>
               </td>
 
-              <!-- 5. Thời gian -->
-              <td class="col-time">
-                <div class="time-block">
-                  <div class="time-date-row">
-                    <Calendar :size="11" class="time-ico" />
-                    <span>{{ r.startTime.slice(0, 10) }}</span>
-                  </div>
-                  <div class="time-hours-row">
-                    <strong>{{ r.startTime.slice(11, 16) }}</strong>
-                    <span class="time-sep">→</span>
-                    <span>{{ r.endTime.slice(11, 16) }}</span>
-                  </div>
-                </div>
+              <!-- 5. Ngày vận chuyển -->
+              <td class="col-date">
+                <span class="date-text font-mono">{{ r.startTime.slice(0, 10) }}</span>
+              </td>
+
+              <!-- 6. Giờ bắt đầu -->
+              <td class="col-time-start">
+                <span class="time-text start font-mono">{{ r.startTime.slice(11, 16) }}</span>
+              </td>
+
+              <!-- 7. Giờ kết thúc -->
+              <td class="col-time-end">
+                <span class="time-text end font-mono">{{ r.endTime.slice(11, 16) }}</span>
               </td>
 
               <!-- 6. Lộ trình trực quan & Tuyến quy chuẩn gợi ý -->
@@ -357,9 +406,7 @@ function getInitials(name: string): string {
                     <span class="point-dot dot-green"></span>
                     <span class="location-name">{{ r.fromLocation }}</span>
                   </div>
-                  <div class="route-arrow-line">
-                    <ArrowRight :size="11" class="route-arrow" />
-                  </div>
+                  <span class="route-arrow-sep">➔</span>
                   <div class="route-point to">
                     <span class="point-dot dot-blue"></span>
                     <span class="location-name">{{ r.toLocation }}</span>
@@ -375,19 +422,14 @@ function getInitials(name: string): string {
 
               <!-- 7. Khối lượng mủ / Khách / Giờ máy -->
               <td class="col-payload">
-                <div v-if="r.estimatedWeightKg" class="payload-chip payload-latex">
-                  <Droplets :size="11" class="latex-drop-ico" />
-                  <span class="payload-val">{{ r.estimatedWeightKg.toLocaleString() }}</span>
-                  <span class="payload-unit">kg mủ</span>
+                <div v-if="r.estimatedWeightKg" class="payload-latex">
+                  <strong>{{ r.estimatedWeightKg.toLocaleString() }}</strong> <span class="payload-unit">kg mủ</span>
                 </div>
-                <div v-else-if="r.operatingHours" class="payload-chip payload-hours">
-                  <Clock :size="11" class="hours-ico" />
-                  <span class="payload-val">{{ r.operatingHours }}</span>
-                  <span class="payload-unit">giờ máy</span>
+                <div v-else-if="r.operatingHours" class="payload-hours">
+                  <strong>{{ r.operatingHours }}</strong> <span class="payload-unit">giờ máy</span>
                 </div>
-                <div v-else-if="r.passengersCount" class="payload-chip payload-passengers">
-                  <span class="payload-val">{{ r.passengersCount }}</span>
-                  <span class="payload-unit">cán bộ</span>
+                <div v-else-if="r.passengersCount" class="payload-passengers">
+                  <strong>{{ r.passengersCount }}</strong> <span class="payload-unit">cán bộ</span>
                 </div>
                 <span v-else class="text-muted">—</span>
               </td>
@@ -399,21 +441,47 @@ function getInitials(name: string): string {
 
               <!-- 9. Thao tác -->
               <td class="col-action text-right" @click.stop>
-                <button class="btn-action-view" @click="openDetail(r)" title="Xem chi tiết yêu cầu">
-                  <span>Chi tiết</span>
-                  <ChevronRight :size="13" class="action-arr" />
-                </button>
+                <div v-if="r.status === 'PENDING' || r.status === 'APPROVED'" class="action-buttons-group">
+                  <!-- Chỉnh sửa (khi chờ ghép chuyến) -->
+                  <button
+                    type="button"
+                    class="btn-action-pill btn-action-edit"
+                    @click="openEditRequest(r)"
+                    title="Chỉnh sửa thông tin yêu cầu khi đang chờ ghép chuyến"
+                  >
+                    <span>Sửa</span>
+                  </button>
+
+                  <!-- Hủy yêu cầu (khi chờ ghép chuyến) -->
+                  <button
+                    type="button"
+                    class="btn-action-pill btn-action-cancel"
+                    @click="handleQuickCancel(r)"
+                    title="Hủy yêu cầu đặt xe này"
+                  >
+                    <span>Hủy</span>
+                  </button>
+                </div>
+                <span v-else class="text-muted text-xs">—</span>
               </td>
             </tr>
           </tbody>
         </table>
       </div>
+
+      <TablePagination
+        v-model:currentPage="bookingPage"
+        v-model:pageSize="bookingPageSize"
+        :totalItems="filteredRequests.length"
+        :pageSizeOptions="[5, 8, 15, 30]"
+      />
     </div>
 
     <!-- Modals -->
     <BookingCreateModal
       v-if="showCreateModal"
       :module-type="isFactoryModule ? 'factory' : 'team'"
+      :editing-request="editingRequest"
       @close="showCreateModal = false"
       @created="showCreateModal = false"
     />
@@ -422,6 +490,7 @@ function getInitials(name: string): string {
       v-if="selectedRequest"
       :request="selectedRequest"
       @close="selectedRequest = null"
+      @edit="handleDetailEdit"
     />
   </div>
 </template>
@@ -764,6 +833,22 @@ function getInitials(name: string): string {
   white-space: nowrap;
 }
 
+.code-pill-clickable {
+  cursor: pointer;
+  background: #f0fdf4;
+  color: #15803d;
+  border-color: #86efac;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.code-pill-clickable:hover {
+  background: #15803d;
+  color: #ffffff;
+  border-color: #15803d;
+  box-shadow: 0 2px 6px rgba(21, 128, 61, 0.25);
+  transform: translateY(-1px);
+}
+
 /* Requester Cell */
 .col-requester {
   min-width: 160px;
@@ -828,16 +913,22 @@ function getInitials(name: string): string {
   color: #94a3b8;
 }
 
+/* Team / Unit Cell */
+.col-team {
+  white-space: nowrap;
+}
+
 .team-tag-pill {
-  display: inline-block;
-  font-size: 0.6875rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
   font-weight: 700;
   color: #166534;
   background: #dcfce7;
   border: 1px solid #bbf7d0;
-  padding: 1px 6px;
+  padding: 3px 10px;
   border-radius: 9999px;
-  margin-top: 3px;
   white-space: nowrap;
 }
 
@@ -873,38 +964,44 @@ function getInitials(name: string): string {
   border-color: #fde68a;
 }
 
-/* Time Cell */
-.col-time {
+/* Date & Time Cells */
+.col-date,
+.col-time-start,
+.col-time-end {
   white-space: nowrap;
 }
 
-.time-block {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.time-date-row {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.6875rem;
-  color: #64748b;
+.dept-text {
+  font-size: 0.8125rem;
   font-weight: 500;
+  color: #334155;
+  white-space: nowrap;
 }
 
-.time-ico {
+.date-text {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #334155;
+  white-space: nowrap;
+}
+
+.time-text {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.time-text.start {
+  color: #0369a1;
+}
+
+.time-text.end {
+  color: #64748b;
+}
+
+.route-arrow-sep {
   color: #94a3b8;
-}
-
-.time-hours-row {
   font-size: 0.75rem;
-  color: #0f172a;
-}
-
-.time-sep {
-  margin: 0 4px;
-  color: #94a3b8;
 }
 
 /* Route Display */
@@ -965,24 +1062,24 @@ function getInitials(name: string): string {
 }
 
 .payload-latex {
-  background: #ecfdf5;
+  font-size: 0.8125rem;
+  font-weight: 700;
   color: #047857;
-  border: 1px solid #a7f3d0;
+  white-space: nowrap;
 }
 
 .payload-hours {
-  background: #fffbeb;
+  font-size: 0.8125rem;
+  font-weight: 700;
   color: #b45309;
-  border: 1px solid #fde68a;
-}
-.hours-ico {
-  color: #d97706;
+  white-space: nowrap;
 }
 
 .payload-passengers {
-  background: #eef2ff;
+  font-size: 0.8125rem;
+  font-weight: 700;
   color: #4338ca;
-  border: 1px solid #c7d2fe;
+  white-space: nowrap;
 }
 
 .payload-unit {
@@ -999,42 +1096,63 @@ function getInitials(name: string): string {
 /* Action Cell */
 .col-action {
   white-space: nowrap;
+  min-width: 120px;
 }
 
 .text-right {
   text-align: right;
 }
 
-.btn-action-view {
+.action-buttons-group {
   display: inline-flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 5px;
-  background: white;
-  border: 1px solid #cbd5e1;
-  color: #334155;
-  padding: 6px 12px;
-  border-radius: 7px;
+  flex-wrap: nowrap;
+}
+
+.btn-action-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 6px;
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
   font-family: inherit;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  line-height: 1.2;
 }
 
-.btn-action-view:hover {
-  background: #059669;
-  color: white;
-  border-color: #059669;
-  box-shadow: 0 2px 6px rgba(5, 150, 105, 0.25);
-  transform: translateX(2px);
+.btn-action-edit {
+  background: #f0fdf4;
+  border-color: #86efac;
+  color: #15803d;
 }
 
-.action-arr {
-  transition: transform 0.2s ease;
+.btn-action-edit:hover {
+  background: #15803d;
+  border-color: #15803d;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(21, 128, 61, 0.25);
+  transform: translateY(-1px);
 }
 
-.btn-action-view:hover .action-arr {
-  transform: translateX(2px);
+.btn-action-cancel {
+  background: #fff1f2;
+  border-color: #fecdd3;
+  color: #e11d48;
+}
+
+.btn-action-cancel:hover {
+  background: #e11d48;
+  border-color: #e11d48;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(225, 29, 72, 0.25);
+  transform: translateY(-1px);
 }
 
 /* Empty State */

@@ -2,6 +2,12 @@
 import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
 import type { HubLocation, RoutePath } from '@/types/map';
 import { ECOTECH_HUBS, ECOTECH_ROUTES, calculateHaversineKm, addEcotechRoute } from '@/mocks/mapData';
+import {
+  getRoadRouteBetweenHubs,
+  getHubRoadDistanceKm,
+  getMultiStopRoadRoute,
+  fetchLiveRoadRoute,
+} from '@/services/routingService';
 import { useFleetStore } from '@/stores/fleet';
 import { useDialogStore } from '@/stores/dialog';
 import {
@@ -38,7 +44,7 @@ const dialog = useDialogStore();
 const mapContainer = ref<HTMLElement | null>(null);
 const mapInstance = ref<any>(null);
 const isFullScreen = ref(false);
-const mapStyle = ref<'osm' | 'topo'>('osm');
+const mapStyle = ref<'google_streets' | 'google_hybrid' | 'osm'>('google_streets');
 const searchQuery = ref('');
 const selectedRouteCode = ref<string | null>(props.initialSelectedRouteCode || null);
 
@@ -123,7 +129,7 @@ function addDestination() {
 
   const prevHubId = newDestinations.value.length > 0 ? newDestinations.value[newDestinations.value.length - 1].hubId : newFromHubId.value;
   const prevHub = ECOTECH_HUBS.find((h) => h.id === prevHubId) || ECOTECH_HUBS[0];
-  const estKm = calculateHaversineKm(prevHub.lat, prevHub.lng, nextHub.lat, nextHub.lng);
+  const estKm = getHubRoadDistanceKm(prevHub.code, nextHub.code) || calculateHaversineKm(prevHub.lat, prevHub.lng, nextHub.lat, nextHub.lng);
 
   newDestinations.value.push({
     hubId: nextHub.id,
@@ -151,7 +157,7 @@ function recalculateRouteInfo() {
   newDestinations.value.forEach((d) => {
     const currHub = ECOTECH_HUBS.find((h) => h.id === d.hubId);
     if (currHub) {
-      const legKm = calculateHaversineKm(runningHub.lat, runningHub.lng, currHub.lat, currHub.lng);
+      const legKm = getHubRoadDistanceKm(runningHub.code, currHub.code) || calculateHaversineKm(runningHub.lat, runningHub.lng, currHub.lat, currHub.lng);
       d.distanceKm = legKm;
       totalKm += legKm;
       runningHub = currHub;
@@ -160,7 +166,7 @@ function recalculateRouteInfo() {
 
   if (newIsRoundTrip.value && destHubs.length > 0) {
     const lastHub = destHubs[destHubs.length - 1];
-    const returnKm = calculateHaversineKm(lastHub.lat, lastHub.lng, fromHub.lat, fromHub.lng);
+    const returnKm = getHubRoadDistanceKm(lastHub.code, fromHub.code) || calculateHaversineKm(lastHub.lat, lastHub.lng, fromHub.lat, fromHub.lng);
     totalKm += returnKm;
   }
 
@@ -175,6 +181,49 @@ function recalculateRouteInfo() {
   newRouteName.value = `${fromHub.shortName} ➔ ${destNames}${returnName}`;
 }
 
+const returnLegInfo = computed(() => {
+  if (!newIsRoundTrip.value || newDestinations.value.length === 0) return null;
+  const fromHub = ECOTECH_HUBS.find((h) => h.id === newFromHubId.value) || ECOTECH_HUBS[0];
+  const lastDest = newDestinations.value[newDestinations.value.length - 1];
+  const lastHub = ECOTECH_HUBS.find((h) => h.id === lastDest.hubId) || ECOTECH_HUBS[0];
+  const returnKm = getHubRoadDistanceKm(lastHub.code, fromHub.code) || calculateHaversineKm(lastHub.lat, lastHub.lng, fromHub.lat, fromHub.lng);
+  const outboundKm = newDestinations.value.reduce((acc, d) => acc + (Number(d.distanceKm) || 0), 0);
+  return {
+    fromName: lastHub.shortName,
+    toName: fromHub.shortName,
+    distanceKm: returnKm,
+    outboundKm: Number(outboundKm.toFixed(1)),
+    totalKm: Number((outboundKm + returnKm).toFixed(1)),
+  };
+});
+
+// Thống kê phân tách chặng đi và chặng về của tuyến đang chọn trên bản đồ
+const selectedRouteLegs = computed(() => {
+  if (!selectedRoute.value) return null;
+  const r = selectedRoute.value;
+  if (!r.isRoundTrip) {
+    return {
+      isRoundTrip: false,
+      outboundKm: r.distanceKm,
+      returnKm: 0,
+      totalKm: r.distanceKm,
+    };
+  }
+  const allDests = r.destinations && r.destinations.length > 0 ? r.destinations : (r.to ? [r.to] : []);
+  if (allDests.length === 0) {
+    return { isRoundTrip: true, outboundKm: r.distanceKm, returnKm: 0, totalKm: r.distanceKm };
+  }
+  const lastDest = allDests[allDests.length - 1];
+  const returnKm = getHubRoadDistanceKm(lastDest.code, r.from.code) || calculateHaversineKm(lastDest.lat, lastDest.lng, r.from.lat, r.from.lng);
+  const outboundKm = Number(Math.max(0, r.distanceKm - returnKm).toFixed(1));
+  return {
+    isRoundTrip: true,
+    outboundKm,
+    returnKm,
+    totalKm: r.distanceKm,
+  };
+});
+
 function onLegDistanceChange() {
   const fromHub = ECOTECH_HUBS.find((h) => h.id === newFromHubId.value) || ECOTECH_HUBS[0];
   const destHubs = newDestinations.value.map((d) => ECOTECH_HUBS.find((h) => h.id === d.hubId) || ECOTECH_HUBS[0]);
@@ -182,7 +231,7 @@ function onLegDistanceChange() {
   let sum = newDestinations.value.reduce((acc, cur) => acc + (Number(cur.distanceKm) || 0), 0);
   if (newIsRoundTrip.value && destHubs.length > 0) {
     const lastHub = destHubs[destHubs.length - 1];
-    sum += calculateHaversineKm(lastHub.lat, lastHub.lng, fromHub.lat, fromHub.lng);
+    sum += getHubRoadDistanceKm(lastHub.code, fromHub.code) || calculateHaversineKm(lastHub.lat, lastHub.lng, fromHub.lat, fromHub.lng);
   }
   newTotalDistanceKm.value = Number(sum.toFixed(1));
 }
@@ -190,7 +239,7 @@ function onLegDistanceChange() {
 function openAddRouteModal() {
   newFromHubId.value = ECOTECH_HUBS[0].id;
   newDestinations.value = [
-    { hubId: ECOTECH_HUBS[1]?.id || '', distanceKm: 26.0 },
+    { hubId: ECOTECH_HUBS[1]?.id || '', distanceKm: getHubRoadDistanceKm(ECOTECH_HUBS[0].code, ECOTECH_HUBS[1]?.code) || 10.7 },
   ];
   newIsRoundTrip.value = false;
   newDescription.value = 'Tuyến quy chuẩn vận tải mủ cao su đa điểm đến';
@@ -198,7 +247,7 @@ function openAddRouteModal() {
   showAddModal.value = true;
 }
 
-function handleSaveNewRoute() {
+async function handleSaveNewRoute() {
   if (!newRouteCode.value.trim() || !newRouteName.value.trim()) {
     dialog.showWarning('Vui lòng nhập đầy đủ mã tuyến và tên tuyến quy chuẩn!', 'Thiếu Thông Tin Tuyến', 'Kiểm tra lại');
     return;
@@ -213,26 +262,25 @@ function handleSaveNewRoute() {
     allStops.push(fromHub);
   }
 
-  const generatedWaypoints: [number, number][] = [];
-  for (let s = 0; s < allStops.length - 1; s++) {
-    const pStart = allStops[s];
-    const pEnd = allStops[s + 1];
+  // Thu thập tọa độ đường bộ thực tế quy chuẩn (Google Maps / OSRM Driving Navigation)
+  const hubCodes = allStops.map((h) => h.code);
+  let roadResult = getMultiStopRoadRoute(hubCodes, newIsRoundTrip.value);
+  let generatedWaypoints: [number, number][] = roadResult.waypoints;
 
-    if (s === 0) {
-      generatedWaypoints.push([pStart.lat, pStart.lng]);
+  if (!generatedWaypoints || generatedWaypoints.length < 2) {
+    const coords: [number, number][] = allStops.map((s) => [s.lat, s.lng]);
+    const liveRes = await fetchLiveRoadRoute(coords);
+    if (liveRes.waypoints && liveRes.waypoints.length >= 2) {
+      generatedWaypoints = liveRes.waypoints;
     }
-
-    const midLat1 = pStart.lat + (pEnd.lat - pStart.lat) * 0.35 + (Math.random() - 0.5) * 0.005;
-    const midLng1 = pStart.lng + (pEnd.lng - pStart.lng) * 0.35 + (Math.random() - 0.5) * 0.005;
-    const midLat2 = pStart.lat + (pEnd.lat - pStart.lat) * 0.7 + (Math.random() - 0.5) * 0.005;
-    const midLng2 = pStart.lng + (pEnd.lng - pStart.lng) * 0.7 + (Math.random() - 0.5) * 0.005;
-
-    generatedWaypoints.push(
-      [Number(midLat1.toFixed(4)), Number(midLng1.toFixed(4))],
-      [Number(midLat2.toFixed(4)), Number(midLng2.toFixed(4))],
-      [pEnd.lat, pEnd.lng]
-    );
   }
+
+  // Nếu vẫn không có đường bộ (trường hợp trạm ngoại tuyến hoàn toàn)
+  if (!generatedWaypoints || generatedWaypoints.length < 2) {
+    generatedWaypoints = allStops.map((s) => [s.lat, s.lng]);
+  }
+
+  const finalDistKm = Number(newTotalDistanceKm.value) || roadResult.distanceKm || 10.0;
 
   const newRouteObj: RoutePath = {
     id: Date.now(),
@@ -247,7 +295,7 @@ function handleSaveNewRoute() {
       distanceKm: d.distanceKm,
     })),
     isRoundTrip: newIsRoundTrip.value,
-    distanceKm: Number(newTotalDistanceKm.value),
+    distanceKm: finalDistKm,
     waypoints: generatedWaypoints,
     description: newDescription.value.trim(),
   };
@@ -410,45 +458,93 @@ function renderRoutes() {
   if (selectedRouteCode.value) {
     const route = ECOTECH_ROUTES.find((r) => r.code === selectedRouteCode.value);
     if (route && route.waypoints && route.waypoints.length > 0) {
-      const activeWaypoints: [number, number][] = route.waypoints.map((wp) => [wp[0], wp[1]]);
+      // Phân tách lộ trình chiều đi và chiều về (nếu là tuyến khứ hồi)
+      // Giúp hiển thị trực quan, hoàn toàn không bị chồng lấn hay rối nét trên các đoạn đường đi chung
+      let outboundWps: [number, number][] = [];
+      let returnWps: [number, number][] = [];
 
-      // 1. Viền sáng phát quang (Glow)
-      const glowLine = L.polyline(activeWaypoints, {
-        color: '#22c55e',
-        weight: 12,
-        opacity: 0.45,
-        lineCap: 'round',
-      }).addTo(mapInstance.value);
+      const allDestinations = route.destinations && route.destinations.length > 0
+        ? route.destinations
+        : (route.to ? [route.to] : []);
 
-      // 2. Tuyến đường chính
-      const mainLine = L.polyline(activeWaypoints, {
-        color: '#15803d',
-        weight: 6,
-        opacity: 1,
-        lineCap: 'round',
-      }).addTo(mapInstance.value);
+      if (route.isRoundTrip && allDestinations.length > 0) {
+        const outboundHubCodes = [route.from.code, ...allDestinations.map((d) => d.code)];
+        const outboundRes = getMultiStopRoadRoute(outboundHubCodes, false);
+        outboundWps = outboundRes.waypoints && outboundRes.waypoints.length >= 2 ? outboundRes.waypoints : route.waypoints;
 
-      // 3. Vạch chỉ hướng đứt đoạn trắng
-      const animatedLine = L.polyline(activeWaypoints, {
-        color: '#ffffff',
-        weight: 2.5,
-        opacity: 0.95,
-        dashArray: '10, 14',
-        lineCap: 'round',
-      }).addTo(mapInstance.value);
+        const lastDest = allDestinations[allDestinations.length - 1];
+        const returnRes = getRoadRouteBetweenHubs(lastDest.code, route.from.code);
+        returnWps = returnRes.waypoints && returnRes.waypoints.length >= 2 ? returnRes.waypoints : [];
+      } else {
+        outboundWps = route.waypoints;
+      }
 
-      routePolylines.push(glowLine, mainLine, animatedLine);
+      // Đảm bảo đầu và cuối tuyến chiều đi tiếp giáp chính xác 100% với vị trí GPS trạm xuất phát & đích đến
+      if (outboundWps && outboundWps.length >= 2) {
+        outboundWps[0] = [route.from.lat, route.from.lng];
+        const lastDest = allDestinations[allDestinations.length - 1];
+        if (lastDest) {
+          outboundWps[outboundWps.length - 1] = [lastDest.lat, lastDest.lng];
+        }
+      }
 
-      // 4. PIN ĐIỂM ĐẦU (A - XUẤT PHÁT) - Ghim chính xác đầu mút đầu tiên của tuyến
-      const originPoint = activeWaypoints[0];
-      const originShort = route.from?.shortName || 'Điểm Đi';
+      // 1. VẼ CHIỀU ĐI (CHUẨN GOOGLE MAPS NAVIGATION: RÕ RÀNG, TINH TẾ, KHÔNG BỊ RỐI NÉT)
+      if (outboundWps.length >= 2) {
+        // 1.1 Lớp viền đệm trắng bảo vệ đường (Casing) tách bạch nét vẽ với bản đồ nền
+        const outboundCasing = L.polyline(outboundWps, {
+          color: '#ffffff',
+          weight: 7.5,
+          opacity: 0.95,
+          lineCap: 'round',
+          lineJoin: 'round',
+        }).addTo(mapInstance.value);
+
+        // 1.2 Dải màu xanh lá sắc nét Google Maps
+        const outboundCore = L.polyline(outboundWps, {
+          color: '#16a34a',
+          weight: 4.5,
+          opacity: 1,
+          lineCap: 'round',
+          lineJoin: 'round',
+        }).addTo(mapInstance.value);
+
+        routePolylines.push(outboundCasing, outboundCore);
+      }
+
+      // 2. VẼ CHIỀU VỀ (NẾU LÀ TUYẾN KHỨ HỒI)
+      // Dùng nét đứt màu xanh dương để phân biệt trực quan với chiều đi, loại bỏ hoàn toàn hiện tượng đường đi bị rối nét
+      if (returnWps.length >= 2) {
+        const returnCasing = L.polyline(returnWps, {
+          color: '#ffffff',
+          weight: 6,
+          opacity: 0.9,
+          lineCap: 'round',
+          lineJoin: 'round',
+        }).addTo(mapInstance.value);
+
+        const returnCore = L.polyline(returnWps, {
+          color: '#0284c7',
+          weight: 3.5,
+          opacity: 0.95,
+          dashArray: '7, 7',
+          lineCap: 'round',
+          lineJoin: 'round',
+        }).addTo(mapInstance.value);
+
+        routePolylines.push(returnCasing, returnCore);
+      }
+
+      // 3. GHIM PIN ĐIỂM XUẤT PHÁT
+      const originPoint = outboundWps[0] || [route.from.lat, route.from.lng];
+      const originShort = route.from?.shortName || 'Xuất phát';
       const originIcon = L.divIcon({
         className: 'route-endpoint-divicon',
         html: `
           <div class="route-pin-node is-start">
             <div class="pin-pill">
-              <span class="pin-letter">A</span>
+              <span class="pin-letter">Đi</span>
               <span class="pin-text">Xuất phát: <strong>${originShort}</strong></span>
+              ${route.isRoundTrip ? '<span class="pin-round-tag">Khứ hồi</span>' : ''}
             </div>
             <div class="pin-anchor-dot"></div>
           </div>
@@ -459,19 +555,28 @@ function renderRoutes() {
       const originMarker = L.marker(originPoint, { icon: originIcon, zIndexOffset: 2500 }).addTo(mapInstance.value);
       routePolylines.push(originMarker);
 
-      // 5. PIN CÁC ĐIỂM ĐẾN (Hỗ trợ 1 điểm đi -> Nhiều điểm đến)
-      if (route.destinations && route.destinations.length > 0) {
-        route.destinations.forEach((destHub, idx) => {
-          const isLast = idx === route.destinations!.length - 1;
-          const letter = isLast && !route.isRoundTrip ? 'B' : String(idx + 1);
+      // 4. GHIM PIN CÁC ĐIỂM ĐẾN
+      if (allDestinations.length > 0) {
+        allDestinations.forEach((destHub, idx) => {
+          const isLast = idx === allDestinations.length - 1;
+          const letter = isLast && !route.isRoundTrip ? 'Đến' : `T${idx + 1}`;
           const pinClass = isLast && !route.isRoundTrip ? 'is-end' : 'is-mid';
+          const labelPrefix = isLast && !route.isRoundTrip
+            ? 'Đích đến'
+            : (isLast && route.isRoundTrip ? `Điểm ${idx + 1} (quay về)` : `Điểm ${idx + 1}`);
+
+          // Đảm bảo ghim chính xác tọa độ điểm mút của Polyline
+          const destPoint: [number, number] = (isLast && outboundWps.length > 0)
+            ? outboundWps[outboundWps.length - 1]
+            : [destHub.lat, destHub.lng];
+
           const destIcon = L.divIcon({
             className: 'route-endpoint-divicon',
             html: `
               <div class="route-pin-node ${pinClass}">
                 <div class="pin-pill">
                   <span class="pin-letter">${letter}</span>
-                  <span class="pin-text">Đến: <strong>${destHub.shortName}</strong></span>
+                  <span class="pin-text">${labelPrefix}: <strong>${destHub.shortName}</strong></span>
                 </div>
                 <div class="pin-anchor-dot"></div>
               </div>
@@ -479,50 +584,9 @@ function renderRoutes() {
             iconSize: [0, 0],
             iconAnchor: [0, 0],
           });
-          const destMarker = L.marker([destHub.lat, destHub.lng], { icon: destIcon, zIndexOffset: 2400 }).addTo(mapInstance.value);
+          const destMarker = L.marker(destPoint, { icon: destIcon, zIndexOffset: 2400 }).addTo(mapInstance.value);
           routePolylines.push(destMarker);
         });
-      } else {
-        // Tuyến đơn 1 điểm đến (B)
-        const destPoint = activeWaypoints[activeWaypoints.length - 1];
-        const destShort = route.to?.shortName || 'Điểm Đến';
-        const destIcon = L.divIcon({
-          className: 'route-endpoint-divicon',
-          html: `
-            <div class="route-pin-node is-end">
-              <div class="pin-pill">
-                <span class="pin-letter">B</span>
-                <span class="pin-text">Điểm đến: <strong>${destShort}</strong></span>
-              </div>
-              <div class="pin-anchor-dot"></div>
-            </div>
-          `,
-          iconSize: [0, 0],
-          iconAnchor: [0, 0],
-        });
-        const destMarker = L.marker(destPoint, { icon: destIcon, zIndexOffset: 2500 }).addTo(mapInstance.value);
-        routePolylines.push(destMarker);
-      }
-
-      // 6. CÁC MŨI TÊN CHỈ HƯỚNG DI CHUYỂN DỌC TUYẾN ĐƯỜNG (›)
-      for (let i = 0; i < activeWaypoints.length - 1; i++) {
-        const p1 = activeWaypoints[i];
-        const p2 = activeWaypoints[i + 1];
-        const midLat = (p1[0] + p2[0]) / 2;
-        const midLng = (p1[1] + p2[1]) / 2;
-
-        const dLng = p2[1] - p1[1];
-        const dLat = p2[0] - p1[0];
-        const angleDeg = (Math.atan2(-dLat, dLng) * 180) / Math.PI;
-
-        const arrowIcon = L.divIcon({
-          className: 'route-arrow-divicon',
-          html: `<div class="route-direction-arrow" style="transform: rotate(${angleDeg}deg);">›</div>`,
-          iconSize: [0, 0],
-          iconAnchor: [0, 0],
-        });
-        const arrowMarker = L.marker([midLat, midLng], { icon: arrowIcon, zIndexOffset: 1200 }).addTo(mapInstance.value);
-        routePolylines.push(arrowMarker);
       }
     }
     return;
@@ -669,22 +733,31 @@ onUnmounted(() => {
 
       <div class="top-bar-right">
         <!-- Chế độ bản đồ -->
+        <!-- Nút chuyển đổi kiểu bản đồ Google Maps -->
         <div class="layer-toggle">
+          <button
+            class="btn-layer"
+            :class="{ active: mapStyle === 'google_streets' }"
+            @click="mapStyle = 'google_streets'"
+            title="Bản đồ giao thông đường bộ Google Maps"
+          >
+            Đường Bộ
+          </button>
+          <button
+            class="btn-layer"
+            :class="{ active: mapStyle === 'google_hybrid' }"
+            @click="mapStyle = 'google_hybrid'"
+            title="Bản đồ ảnh vệ tinh Google Maps"
+          >
+            Vệ Tinh
+          </button>
           <button
             class="btn-layer"
             :class="{ active: mapStyle === 'osm' }"
             @click="mapStyle = 'osm'"
-            title="Bản đồ giao thông OSM"
+            title="Bản đồ OpenStreetMap"
           >
-            Giao thông
-          </button>
-          <button
-            class="btn-layer"
-            :class="{ active: mapStyle === 'topo' }"
-            @click="mapStyle = 'topo'"
-            title="Bản đồ địa hình nông trường"
-          >
-            Địa hình
+            Bản Đồ Mở
           </button>
         </div>
 
@@ -712,12 +785,16 @@ onUnmounted(() => {
           <span>Mã tuyến: <strong>{{ selectedRoute.code }}</strong></span>
         </span>
         <span class="active-veh-route">
-          📍 <strong>{{ selectedRoute.from.shortName }}</strong>
-          ➔
-          🏁 <strong>{{ selectedRoute.to.shortName }}</strong>
+          📍 <strong>{{ selectedRoute.name || `${selectedRoute.from.shortName} ➔ ${selectedRoute.to.shortName}` }}</strong>
         </span>
+        <span v-if="selectedRoute.isRoundTrip" class="pin-round-tag">Khứ hồi</span>
         <span class="active-veh-km">
-          (Cự ly quy chuẩn: <strong>{{ selectedRoute.distanceKm }} km</strong> — {{ selectedRoute.waypoints.length }} mốc GPS)
+          <template v-if="selectedRouteLegs?.isRoundTrip">
+            (Tổng cự ly: <strong>{{ selectedRoute.distanceKm }} km</strong> — Đi {{ selectedRouteLegs.outboundKm }} km + Về {{ selectedRouteLegs.returnKm }} km)
+          </template>
+          <template v-else>
+            (Cự ly quy chuẩn: <strong>{{ selectedRoute.distanceKm }} km</strong>)
+          </template>
         </span>
       </div>
       <button class="btn-clear-selection" @click="resetMapView">
@@ -754,16 +831,35 @@ onUnmounted(() => {
       <div v-else class="map-legend-card single-vehicle-legend">
         <h5 class="legend-title">Sơ Đồ Tuyến {{ selectedRoute.code }}</h5>
         <div class="legend-item">
-          <span class="legend-icon icon-start-pin">A</span>
-          <span>Điểm đi: <strong>{{ selectedRoute.from.shortName }}</strong></span>
+          <span class="legend-icon icon-start-pin">Đi</span>
+          <span>Xuất phát: <strong>{{ selectedRoute.from.shortName }}</strong></span>
         </div>
-        <div class="legend-item">
-          <span class="legend-icon icon-end-pin">B</span>
-          <span>Điểm đến: <strong>{{ selectedRoute.to.shortName }}</strong></span>
+        <div
+          v-for="(dest, idx) in (selectedRoute.destinations && selectedRoute.destinations.length > 0 ? selectedRoute.destinations : [selectedRoute.to])"
+          :key="idx"
+          class="legend-item"
+        >
+          <span
+            class="legend-icon"
+            :class="idx === (selectedRoute.destinations?.length || 1) - 1 && !selectedRoute.isRoundTrip ? 'icon-end-pin' : 'icon-mid-pin'"
+          >
+            {{ idx === (selectedRoute.destinations?.length || 1) - 1 && !selectedRoute.isRoundTrip ? 'Đến' : `T${idx + 1}` }}
+          </span>
+          <span>{{ idx === (selectedRoute.destinations?.length || 1) - 1 && !selectedRoute.isRoundTrip ? 'Đích đến' : `Điểm ${idx + 1}` }}: <strong>{{ dest.shortName }}</strong></span>
         </div>
-        <div class="legend-item">
+        <div v-if="selectedRoute.isRoundTrip" class="legend-item">
+          <span class="legend-icon icon-return-pin">Về</span>
+          <span>Quay về: <strong>{{ selectedRoute.from.shortName }}</strong></span>
+        </div>
+        <div class="legend-divider"></div>
+        <div v-if="selectedRouteLegs?.isRoundTrip" class="legend-leg-info">
+          <div class="leg-row"><span class="leg-indicator green"></span> Chiều đi: <strong>{{ selectedRouteLegs.outboundKm }} km</strong></div>
+          <div class="leg-row"><span class="leg-indicator blue-dash"></span> Chiều về: <strong>{{ selectedRouteLegs.returnKm }} km</strong></div>
+          <div class="leg-row total"><span class="leg-indicator dark"></span> Toàn tuyến: <strong>{{ selectedRouteLegs.totalKm }} km</strong></div>
+        </div>
+        <div v-else class="legend-item">
           <span class="legend-line line-running"></span>
-          <span>Cự ly quy chuẩn ({{ selectedRoute.distanceKm }} km)</span>
+          <span>Cự ly quy chuẩn: <strong>{{ selectedRoute.distanceKm }} km</strong></span>
         </div>
       </div>
 
@@ -979,7 +1075,10 @@ onUnmounted(() => {
                   <span v-else class="badge badge-secondary">Một chiều</span>
                 </div>
                 <div class="roundtrip-hint">
-                  Sau khi đến điểm cuối, xe quay về lại điểm xuất phát ban đầu (<strong>{{ getHubShort(newFromHubId) }}</strong>) để hoàn tất một vòng vận chuyển.
+                  Sau khi đến điểm cuối (<strong>{{ returnLegInfo ? returnLegInfo.fromName : '' }}</strong>), xe quay về lại điểm xuất phát ban đầu (<strong>{{ getHubShort(newFromHubId) }}</strong>) để hoàn tất một vòng vận chuyển.
+                  <div v-if="newIsRoundTrip && returnLegInfo" class="mt-1 text-success fw-bold" style="font-size: 0.8125rem;">
+                    ➔ Chặng quay về: <strong>{{ returnLegInfo.fromName }} ➔ {{ returnLegInfo.toName }}</strong> (+<strong>{{ returnLegInfo.distanceKm }} km</strong>)
+                  </div>
                 </div>
               </div>
             </label>
@@ -1018,7 +1117,12 @@ onUnmounted(() => {
                     />
                     <span class="unit-tag font-bold">km</span>
                   </div>
-                  <div class="summary-field-hint">Tổng cộng cự ly tất cả các chặng</div>
+                  <div class="summary-field-hint">
+                    <span v-if="newIsRoundTrip && returnLegInfo" class="text-success fw-medium">
+                      Chiều đi {{ returnLegInfo.outboundKm }} km + Chiều về {{ returnLegInfo.distanceKm }} km = {{ newTotalDistanceKm }} km
+                    </span>
+                    <span v-else>Tổng cộng cự ly tất cả các chặng</span>
+                  </div>
                 </div>
               </div>
 
@@ -1540,6 +1644,76 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.icon-mid-pin {
+  background: #0d9488;
+  font-weight: 800;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-return-pin {
+  background: #ea580c;
+  font-weight: 800;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.legend-divider {
+  height: 1px;
+  background: #e2e8f0;
+  margin: 4px 0;
+}
+
+.legend-leg-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.leg-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.6875rem;
+  color: #475569;
+}
+
+.leg-row.total {
+  font-weight: 700;
+  color: #0f172a;
+  border-top: 1px dashed #cbd5e1;
+  padding-top: 3px;
+  margin-top: 2px;
+}
+
+.leg-indicator {
+  width: 14px;
+  height: 4px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.leg-indicator.green {
+  background: #16a34a;
+}
+
+.leg-indicator.blue-dash {
+  background: #0284c7;
+  border-top: 1px dashed #ffffff;
+}
+
+.leg-indicator.dark {
+  background: #0f172a;
 }
 
 .single-vehicle-legend {

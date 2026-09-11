@@ -3,10 +3,13 @@ import { ref, watch, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useFleetStore } from '@/stores/fleet';
+import { useDispatchStore } from '@/stores/dispatch';
 import { useDialogStore } from '@/stores/dialog';
+import { getVehicleDailyTrips, getDriverDailyTrips } from '@/utils/tripHelpers';
 import { mockStorage } from '@/services/mockStorage';
 import type { Vehicle, Driver, VehicleCategory, HandoverRecord, HandoverStatus, HandoverWorkflowType } from '@/types';
 import StatusBadge from '@/components/common/StatusBadge.vue';
+import TablePagination from '@/components/common/TablePagination.vue';
 import FormulaBuilder from '@/components/common/FormulaBuilder.vue';
 import VehicleDetailModal from '@/components/fleet/VehicleDetailModal.vue';
 import DriverDetailModal from '@/components/fleet/DriverDetailModal.vue';
@@ -20,24 +23,82 @@ import {
   Building2,
   Info,
   CheckCircle2,
+  Search,
+  Filter,
+  X,
+  RotateCcw,
+  AlertTriangle,
 } from 'lucide-vue-next';
 
 const route = useRoute();
 const authStore = useAuthStore();
 const fleetStore = useFleetStore();
+const dispatchStore = useDispatchStore();
 const dialog = useDialogStore();
 const activeTab = ref<'vehicles' | 'types' | 'drivers' | 'handover'>('vehicles');
 const activeVehicleFilter = ref<'internal' | 'external'>('internal');
+const filterUnitType = ref<'ALL' | 'Team' | 'Factory'>('ALL');
+
+const todayDateStr = computed(() => new Date().toISOString().slice(0, 10));
+
+function getVehicleTodayTrips(vehicleId: number) {
+  const todayTrips = getVehicleDailyTrips(vehicleId, todayDateStr.value, dispatchStore.trips);
+  if (todayTrips.length > 0) return todayTrips;
+  // Fallback nếu mock data chạy trên ngày khác
+  const allVehicleTrips = dispatchStore.trips.filter((t) => t.vehicleId === vehicleId && t.status !== 'CANCELLED');
+  if (allVehicleTrips.length === 0) return [];
+  const latestDate = allVehicleTrips[0].scheduledStartTime.slice(0, 10);
+  return getVehicleDailyTrips(vehicleId, latestDate, dispatchStore.trips);
+}
+
+function getDriverTodayTrips(driverId: number) {
+  const todayTrips = getDriverDailyTrips(driverId, todayDateStr.value, dispatchStore.trips);
+  if (todayTrips.length > 0) return todayTrips;
+  const allDriverTrips = dispatchStore.trips.filter((t) => t.driverId === driverId && t.status !== 'CANCELLED');
+  if (allDriverTrips.length === 0) return [];
+  const latestDate = allDriverTrips[0].scheduledStartTime.slice(0, 10);
+  return getDriverDailyTrips(driverId, latestDate, dispatchStore.trips);
+}
 
 const internalCount = computed(() => fleetStore.vehicles.filter(v => !v.isExternal).length);
 const externalCount = computed(() => fleetStore.vehicles.filter(v => v.isExternal).length);
 
 const filteredVehicles = computed(() => {
-  if (activeVehicleFilter.value === 'external') {
-    return fleetStore.vehicles.filter(v => v.isExternal);
+  let list = activeVehicleFilter.value === 'external'
+    ? fleetStore.vehicles.filter(v => v.isExternal)
+    : fleetStore.vehicles.filter(v => !v.isExternal);
+
+  if (filterUnitType.value !== 'ALL') {
+    list = list.filter(v => {
+      const unit = v.operatingUnitType || (v.teamName ? 'Team' : 'Factory');
+      return unit === filterUnitType.value;
+    });
   }
-  return fleetStore.vehicles.filter(v => !v.isExternal);
+  return list;
 });
+
+// Phân trang danh sách phương tiện
+const vehCurrentPage = ref(1);
+const vehPageSize = ref(8);
+const paginatedVehicles = computed(() => {
+  const start = (vehCurrentPage.value - 1) * vehPageSize.value;
+  return filteredVehicles.value.slice(start, start + vehPageSize.value);
+});
+watch([activeVehicleFilter, filterUnitType], () => {
+  vehCurrentPage.value = 1;
+});
+
+// Phân trang danh sách tài xế
+const driverCurrentPage = ref(1);
+const driverPageSize = ref(8);
+const paginatedDrivers = computed(() => {
+  const start = (driverCurrentPage.value - 1) * driverPageSize.value;
+  return fleetStore.drivers.slice(start, start + driverPageSize.value);
+});
+
+// Phân trang danh sách bàn giao
+const handoverCurrentPage = ref(1);
+const handoverPageSize = ref(8);
 
 // Modal chi tiết phương tiện & chu kỳ bảo dưỡng (Section 4 - baoduong.md)
 const selectedVehicleForDetail = ref<Vehicle | null>(null);
@@ -98,28 +159,67 @@ const defaultHandovers: HandoverRecord[] = [
     id: 2,
     vehicleId: 3,
     vehiclePlate: '51A-992.34',
-    workflowType: 'TRANSFER',
-    fromTeam: 'Nhà máy',
-    toTeam: 'Trạm Cán 2',
-    fromStation: 'Nhà máy trung tâm',
-    toStation: 'Trạm Cán 2',
-    transferReason: 'Xe chính hỏng máy, cần mượn xe dự phòng trong 7 ngày để tiếp tục thu gom mủ',
-    replacingVehiclePlate: '51D-334.01',
+    workflowType: 'HANDOVER',
+    fromTeam: 'Đội 1',
+    toTeam: 'Đội 3',
     driverName: 'Lê Văn Tài',
-    fromDriverId: 103,
+    fromDriverId: 102,
     borrowStartAt: '2026-09-06 13:00',
     expectedReturnAt: '2026-09-06 17:30',
     actualReturnAt: '2026-09-06 17:30',
     handoverOdo: 89400,
     returnOdo: 89480,
     fuelLevel: '90%',
-    conditionNotes: 'Đã trả xe nguyên trạng về bãi đỗ văn phòng công ty',
+    conditionNotes: 'Đã bàn giao xe theo biên bản kiểm tra tình trạng xe',
     status: 'RETURNED',
     createdAt: '2026-09-06 13:00',
+  },
+  {
+    id: 3,
+    vehicleId: 2,
+    vehiclePlate: '70C-123.45',
+    workflowType: 'TRANSFER',
+    fromTeam: 'Nông trường 1',
+    toTeam: 'Nông trường 3',
+    fromStation: 'Trạm 1',
+    toStation: 'Trạm 3',
+    transferReason: 'Điều chuyển xe bồn chi viện thu gom mủ đợt cao điểm',
+    driverName: 'Trần Văn Vận',
+    fromDriverId: 101,
+    borrowStartAt: '2026-09-08 08:00',
+    expectedReturnAt: '2026-09-15 17:00',
+    handoverOdo: 146800,
+    fuelLevel: '95%',
+    conditionNotes: 'Điều chuyển mượn xe bồn chở mủ trong 7 ngày',
+    status: 'BORROWING',
+    createdAt: '2026-09-08 08:00',
+  },
+  {
+    id: 4,
+    vehicleId: 4,
+    vehiclePlate: '60C-567.89',
+    workflowType: 'TRANSFER',
+    fromTeam: 'Nhà máy chế biến',
+    toTeam: 'Nông trường 2',
+    fromStation: 'Nhà máy',
+    toStation: 'Nông trường 2',
+    transferReason: 'Điều chuyển máy đào làm đường lô vườn cây',
+    driverName: 'Đỗ Văn Máy',
+    fromDriverId: 104,
+    borrowStartAt: '2026-09-02 07:00',
+    expectedReturnAt: '2026-09-05 17:00',
+    actualReturnAt: '2026-09-05 16:30',
+    handoverOdo: 4820,
+    returnOdo: 4850,
+    fuelLevel: '80%',
+    conditionNotes: 'Đã hoàn thành đợt điều chuyển và bàn giao lại cho nhà máy',
+    status: 'RETURNED',
+    createdAt: '2026-09-02 07:00',
   },
 ];
 const handoverList = ref<HandoverRecord[]>(mockStorage.getHandovers(defaultHandovers));
 const handoverStatusFilter = ref<'ALL' | HandoverStatus>('ALL');
+const searchHandoverKeyword = ref('');
 const handoverSectionTab = ref<'HANDOVER' | 'TRANSFER'>('HANDOVER');
 const isDriverRole = computed(() => authStore.activeRole === 'Driver');
 const isDispatcherRole = computed(() => authStore.activeRole === 'Dispatcher' || authStore.activeRole === 'Admin');
@@ -150,7 +250,30 @@ const filteredHandovers = computed(() => {
     result = result.filter((h) => h.status === handoverStatusFilter.value);
   }
 
+  if (searchHandoverKeyword.value.trim()) {
+    const q = searchHandoverKeyword.value.trim().toLowerCase();
+    result = result.filter((h) => {
+      return (
+        h.vehiclePlate?.toLowerCase().includes(q) ||
+        h.driverName?.toLowerCase().includes(q) ||
+        h.fromTeam?.toLowerCase().includes(q) ||
+        h.toTeam?.toLowerCase().includes(q) ||
+        h.conditionNotes?.toLowerCase().includes(q) ||
+        h.note?.toLowerCase().includes(q)
+      );
+    });
+  }
+
   return result;
+});
+
+const paginatedHandovers = computed(() => {
+  const start = (handoverCurrentPage.value - 1) * handoverPageSize.value;
+  return filteredHandovers.value.slice(start, start + handoverPageSize.value);
+});
+
+watch([handoverSectionTab, handoverStatusFilter, searchHandoverKeyword], () => {
+  handoverCurrentPage.value = 1;
 });
 
 const handoverSummary = computed(() => {
@@ -307,9 +430,37 @@ function getVehicleStatusLabel(status: string): string {
       return 'Đang bảo dưỡng';
     case 'Broken':
       return 'Sự cố / Hỏng hóc';
+    case 'DueForMaintenance':
+      return 'Chờ bảo dưỡng';
     default:
       return status;
   }
+}
+
+// Xác định trạng thái vận hành hiệu lực thực tế (tự động đồng bộ với tình trạng bảo dưỡng)
+function getEffectiveVehicleStatus(v: Vehicle): { code: string; label: string; badgeClass: string } {
+  if (v.status === 'UnderMaintenance') {
+    return { code: 'UnderMaintenance', label: 'Đang bảo dưỡng', badgeClass: 'status-undermaintenance' };
+  }
+  if (v.status === 'Broken') {
+    return { code: 'Broken', label: 'Sự cố / Hỏng hóc', badgeClass: 'status-broken' };
+  }
+  if (v.status === 'OnTrip') {
+    return { code: 'OnTrip', label: 'Đang chạy chuyến', badgeClass: 'status-ontrip' };
+  }
+
+  // Nếu xe chưa chạy chuyến nhưng đã đến hạn / vượt ngưỡng bảo dưỡng quy định
+  const threshold = getThreshold(v);
+  const distanceSinceLast = v.currentOdoKm - v.lastMaintenanceOdo;
+  const isDue = (v.vehicleType !== 'MillingMachine' && distanceSinceLast >= threshold)
+    || v.maintenanceStatus === 'Due'
+    || v.maintenanceStatus === 'Overdue';
+
+  if (isDue) {
+    return { code: 'DueForMaintenance', label: 'Chờ bảo dưỡng', badgeClass: 'status-duemaintenance' };
+  }
+
+  return { code: 'Available', label: 'Sẵn sàng', badgeClass: 'status-available' };
 }
 
 // Chuyển đổi loại xe sang tiếng Việt
@@ -358,6 +509,7 @@ const newVehType = ref<'LatexTruck' | 'PassengerCar' | 'MillingMachine'>('LatexT
 const newVehModel = ref('');
 const newVehCapacity = ref(5.0);
 const newVehSeats = ref<number | undefined>(undefined);
+const standardSeatOptions = [2, 3, 4, 5, 7, 9, 16, 29, 34, 35, 45];
 const newVehEmptyQuota = ref(0.25);
 const newVehLoadedQuota = ref(0.02);
 const newVehFormulaText = ref('');
@@ -365,7 +517,9 @@ const newVehOdo = ref(10000);
 const newVehDriverId = ref<number | ''>('');
 const newVehDriverName = ref('');
 const newVehDriverPhone = ref('');
-const newVehTeamName = ref('');
+const newVehOperatingUnitType = ref<'Team' | 'Factory'>('Team');
+const newVehTeamName = ref('Đội 1');
+const newVehNotes = ref('');
 const newVehIsExternal = ref(false);
 const showVehFormulaModal = ref(false);
 const vehFormulaDraft = ref('');
@@ -384,7 +538,9 @@ function openAddVehicleModal() {
   newVehDriverId.value = '';
   newVehDriverName.value = '';
   newVehDriverPhone.value = '';
-  newVehTeamName.value = '';
+  newVehOperatingUnitType.value = 'Team';
+  newVehTeamName.value = 'Đội 1';
+  newVehNotes.value = '';
   newVehIsExternal.value = activeVehicleFilter.value === 'external';
   showAddVehModal.value = true;
 }
@@ -403,7 +559,9 @@ function openEditVehicleModal(vehicle: Vehicle) {
   newVehDriverId.value = vehicle.assignedDriverId || '';
   newVehDriverName.value = vehicle.assignedDriverName || '';
   newVehDriverPhone.value = vehicle.assignedDriverPhone || '';
-  newVehTeamName.value = vehicle.teamName || '';
+  newVehOperatingUnitType.value = vehicle.operatingUnitType || (vehicle.teamName ? 'Team' : 'Factory');
+  newVehTeamName.value = vehicle.teamName || 'Đội 1';
+  newVehNotes.value = vehicle.notes || '';
   newVehIsExternal.value = !!vehicle.isExternal;
   if (selectedVehicleForDetail.value) {
     selectedVehicleForDetail.value = null;
@@ -462,7 +620,9 @@ function handleSaveVehicle() {
       fuelQuotaLoaded: Number(newVehLoadedQuota.value),
       fuelFormulaText: newVehFormulaText.value.trim() || undefined,
       currentOdoKm: Number(newVehOdo.value),
-      teamName: newVehType.value === 'LatexTruck' ? newVehTeamName.value.trim() : undefined,
+      operatingUnitType: newVehOperatingUnitType.value,
+      teamName: newVehOperatingUnitType.value === 'Team' ? (newVehTeamName.value.trim() || 'Đội 1') : undefined,
+      notes: newVehNotes.value.trim() || undefined,
       isExternal: isExt,
       assignedDriverId: driverIdToSave,
       assignedDriverName: driverNameToSave,
@@ -486,7 +646,9 @@ function handleSaveVehicle() {
       fuelQuotaLoaded: Number(newVehLoadedQuota.value),
       fuelFormulaText: newVehFormulaText.value.trim() || undefined,
       currentOdoKm: Number(newVehOdo.value),
-      teamName: newVehType.value === 'LatexTruck' ? newVehTeamName.value.trim() : undefined,
+      operatingUnitType: newVehOperatingUnitType.value,
+      teamName: newVehOperatingUnitType.value === 'Team' ? (newVehTeamName.value.trim() || 'Đội 1') : undefined,
+      notes: newVehNotes.value.trim() || undefined,
       isExternal: isExt,
       assignedDriverId: driverIdToSave,
       assignedDriverName: driverNameToSave,
@@ -509,6 +671,7 @@ function handleSaveVehicle() {
   newVehDriverId.value = '';
   newVehDriverName.value = '';
   newVehDriverPhone.value = '';
+  newVehNotes.value = '';
 }
 
 function handleDeleteVehicle(vehicle: Vehicle) {
@@ -855,8 +1018,8 @@ function resetHandoverForm() {
   newHandoverPlate.value = firstVehicle?.licensePlate || '';
   newHandoverFromDriver.value = firstVehicle?.assignedDriverName || firstDriver?.fullName || '';
   newHandoverDriver.value = firstDriver?.fullName || '';
-  newHandoverVehicleTeam.value = firstVehicle?.teamName || '';
-  newHandoverFromTeam.value = '';
+  newHandoverVehicleTeam.value = firstVehicle?.teamName || 'Đội 1';
+  newHandoverFromTeam.value = firstVehicle?.teamName || '';
   newHandoverToTeam.value = '';
   newHandoverFromStation.value = 'Nhà máy';
   newHandoverToStation.value = 'Trạm Cán 1';
@@ -869,6 +1032,22 @@ function resetHandoverForm() {
   newHandoverReturnOdo.value = undefined;
   newHandoverFuel.value = '90%';
   newHandoverNotes.value = 'Xe sạch, áp suất lốp đủ, phanh hoạt động tốt, đầy đủ giấy tờ';
+}
+
+function onHandoverVehicleChange() {
+  const v = fleetStore.vehicles.find((veh) => veh.licensePlate === newHandoverPlate.value);
+  if (!v) return;
+
+  if (v.assignedDriverName) {
+    newHandoverFromDriver.value = v.assignedDriverName;
+  }
+  if (v.teamName) {
+    newHandoverVehicleTeam.value = v.teamName;
+    newHandoverFromTeam.value = v.teamName;
+  }
+  if (v.currentOdoKm) {
+    newHandoverOdo.value = v.currentOdoKm;
+  }
 }
 
 function openAddHandoverModal() {
@@ -1132,7 +1311,7 @@ function handleDeleteHandover(record: HandoverRecord) {
         </button>
       </div>
 
-      <!-- Sub-tabs Phân Loại Xe Công Ty / Thuê Ngoài -->
+      <!-- Sub-tabs Phân Loại Xe Công Ty / Thuê Ngoài & Lọc Đối Tượng Sử Dụng -->
       <div class="fleet-subtabs-bar">
         <div class="fleet-subtabs-nav">
           <button 
@@ -1156,6 +1335,16 @@ function handleDeleteHandover(record: HandoverRecord) {
             <span class="fleet-subtab-badge" :class="{ 'badge-empty': externalCount === 0 }">{{ externalCount }}</span>
           </button>
         </div>
+
+        <!-- Bộ lọc đối tượng sử dụng: Đội hay Nhà máy -->
+        <div class="fleet-unit-filter-box">
+          <label class="unit-filter-label" for="fleet-unit-filter-select">Đối tượng sử dụng:</label>
+          <select id="fleet-unit-filter-select" v-model="filterUnitType" class="unit-filter-select">
+            <option value="ALL">Tất cả đối tượng (Đội & Nhà máy)</option>
+            <option value="Team">Chỉ xe Đội</option>
+            <option value="Factory">Chỉ xe Nhà máy chế biến</option>
+          </select>
+        </div>
       </div>
 
       <div class="table-container">
@@ -1164,27 +1353,31 @@ function handleDeleteHandover(record: HandoverRecord) {
             <tr>
               <th style="min-width: 105px;">Biển Số Xe</th>
               <th style="min-width: 80px;">Loại Xe</th>
+              <th style="min-width: 135px;">Đơn Vị Sử Dụng</th>
               <th style="min-width: 170px;">Model / Dòng Xe</th>
               <th style="min-width: 155px;">Tài Xế Trực Thuộc</th>
+              <th style="min-width: 120px;">Số Điện Thoại</th>
               <th style="min-width: 90px;">Tải Trọng</th>
               <th style="min-width: 80px;">Số Chỗ</th>
               <th style="min-width: 140px;">Định Mức Nhiên Liệu</th>
               <th style="min-width: 155px;">Chỉ Số Vận Hành (ODO)</th>
               <th style="min-width: 110px;">Trạng Thái Xe</th>
-              <th style="min-width: 115px;">Chu Kỳ Bảo Dưỡng</th>
-              <th class="text-center sticky-action-col" style="min-width: 90px; width: 90px;">Hành Động</th>
+              <th style="min-width: 145px;">Số Lần Vận Chuyển</th>
+              <th style="min-width: 130px;">Chu Kỳ Bảo Dưỡng</th>
+              <th style="min-width: 140px;">Ghi Chú</th>
+              <th class="text-center sticky-action-col" style="min-width: 100px; width: 100px;">Hành Động</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="filteredVehicles.length === 0">
-              <td colspan="11" class="text-center py-5">
+              <td colspan="15" class="text-center py-5">
                 <div class="empty-state-subtab">
                   <Truck :size="36" class="text-muted opacity-40 mb-2" />
-                  <p class="text-sm text-muted font-medium">Chưa có phương tiện nào thuộc danh mục {{ activeVehicleFilter === 'external' ? 'xe thuê ngoài' : 'xe công ty' }}.</p>
+                  <p class="text-sm text-muted font-medium">Chưa có phương tiện nào phù hợp với bộ lọc.</p>
                 </div>
               </td>
             </tr>
-            <tr v-for="v in filteredVehicles" :key="v.id" class="veh-row">
+            <tr v-for="v in paginatedVehicles" :key="v.id" class="veh-row">
               <td>
                 <button class="btn-plate-link" @click="openVehicleDetail(v)" title="Xem hồ sơ & chi tiết chu kỳ bảo dưỡng xe">
                   <strong>{{ v.licensePlate }}</strong>
@@ -1192,22 +1385,22 @@ function handleDeleteHandover(record: HandoverRecord) {
               </td>
               <td>
                 <span class="type-pill">{{ getVehicleTypeLabel(v.vehicleType, v) }}</span>
-                <div v-if="v.teamName" class="text-xs text-muted mt-1 font-medium">{{ v.teamName }}</div>
-                <div v-if="v.isExternal" class="text-xs text-primary mt-1 font-medium">Xe ngoài (Thuê/Dịch vụ)</div>
+              </td>
+              <!-- Cột Đơn Vị / Đối Tượng Sử Dụng -->
+              <td>
+                <span v-if="v.operatingUnitType === 'Factory'" class="badge-unit-factory">Nhà máy</span>
+                <span v-else class="badge-unit-team">{{ v.teamName || 'Đội' }}</span>
               </td>
               <td>{{ v.model }}</td>
               <td>
-                <div v-if="v.assignedDriverName" class="driver-direct-cell">
-                  <div class="driver-mini-icon">
-                    <UserCheck :size="14" :class="v.isExternal ? 'text-amber-600' : 'text-success'" />
-                  </div>
-                  <div class="driver-mini-info">
-                    <strong>{{ v.assignedDriverName }}</strong>
-                    <span v-if="v.isExternal" class="text-xs text-amber-600 font-semibold">(Tài xế thuê ngoài)</span>
-                    <span v-if="v.assignedDriverPhone" class="text-xs text-muted">{{ v.assignedDriverPhone }}</span>
-                  </div>
-                </div>
+                <strong v-if="v.assignedDriverName">{{ v.assignedDriverName }}</strong>
                 <span v-else class="text-muted text-xs italic">{{ v.isExternal ? '— Chưa nhập tên tài xế —' : '— Chưa phân công —' }}</span>
+              </td>
+              <td>
+                <span v-if="v.assignedDriverPhone || fleetStore.drivers.find(d => d.id === v.assignedDriverId)?.phone" class="text-xs font-mono">
+                  {{ v.assignedDriverPhone || fleetStore.drivers.find(d => d.id === v.assignedDriverId)?.phone }}
+                </span>
+                <span v-else class="text-muted text-xs italic">—</span>
               </td>
               <td>
                 <span v-if="v.capacityTons">{{ v.capacityTons }} Tấn</span>
@@ -1235,7 +1428,6 @@ function handleDeleteHandover(record: HandoverRecord) {
                     :class="(v.currentOdoKm - v.lastMaintenanceOdo) >= getThreshold(v) ? 'text-danger' : 'text-success'"
                   >
                     Đã chạy: {{ (v.currentOdoKm - v.lastMaintenanceOdo).toLocaleString() }} km
-                    <span v-if="(v.currentOdoKm - v.lastMaintenanceOdo) >= getThreshold(v)" class="badge-overdue-pill">! Cần bảo dưỡng</span>
                   </span>
                 </div>
                 <div v-else-if="v.isExternal" class="flex-col text-xs text-muted italic">
@@ -1246,14 +1438,56 @@ function handleDeleteHandover(record: HandoverRecord) {
                   <span class="text-muted">Giờ máy tích lũy</span>
                 </div>
               </td>
+              <!-- Trạng thái xe -->
               <td>
-                <span class="veh-status-badge" :class="`status-${v.status.toLowerCase()}`">
-                  {{ getVehicleStatusLabel(v.status) }}
+                <span class="veh-status-badge" :class="getEffectiveVehicleStatus(v).badgeClass">
+                  {{ getEffectiveVehicleStatus(v).label }}
+                </span>
+              </td>
+              <!-- Số lần vận chuyển trong ngày -->
+              <td>
+                <span class="badge" :class="getVehicleTodayTrips(v.id).length > 0 ? 'badge-trip-stat-active' : 'badge-trip-stat-zero'">
+                  {{ getVehicleTodayTrips(v.id).length }} chuyến hôm nay
                 </span>
               </td>
               <td>
-                <StatusBadge v-if="!v.isExternal" :status="v.maintenanceStatus" type="maintenance" />
+                <StatusBadge
+                  v-if="!v.isExternal"
+                  :status="v.status === 'UnderMaintenance' ? 'UnderMaintenance' : ((v.currentOdoKm - v.lastMaintenanceOdo) >= getThreshold(v) && v.vehicleType !== 'MillingMachine') ? 'Due' : v.maintenanceStatus"
+                  type="maintenance"
+                />
                 <span v-else class="text-muted text-xs italic">Miễn bảo trì</span>
+              </td>
+              <td>
+                <div class="flex-col gap-1 text-xs">
+                  <div
+                    v-if="(v.currentOdoKm - v.lastMaintenanceOdo) >= getThreshold(v) && v.vehicleType !== 'MillingMachine'"
+                    class="note-overdue-box"
+                    title="Chi tiết quãng đường vận hành so với định mức bảo dưỡng"
+                  >
+                    <span class="note-overdue-highlight">
+                      {{ (v.currentOdoKm - v.lastMaintenanceOdo - getThreshold(v)) > 0
+                        ? `Vượt ${(v.currentOdoKm - v.lastMaintenanceOdo - getThreshold(v)).toLocaleString()} km định mức`
+                        : `Đạt mốc định mức bảo dưỡng`
+                      }}
+                    </span>
+                    <span class="note-overdue-sub">
+                      ({{ (v.currentOdoKm - v.lastMaintenanceOdo).toLocaleString() }} / {{ getThreshold(v).toLocaleString() }} km)
+                    </span>
+                  </div>
+                  <span v-else-if="v.status === 'UnderMaintenance'" class="badge-maintenance-note">
+                    Đang bảo dưỡng tại xưởng
+                  </span>
+                  <span v-if="v.notes" class="text-slate-700 font-medium">
+                    {{ v.notes }}
+                  </span>
+                  <span
+                    v-if="!((v.currentOdoKm - v.lastMaintenanceOdo) >= getThreshold(v)) && !v.notes && v.status !== 'UnderMaintenance'"
+                    class="text-muted italic"
+                  >
+                    —
+                  </span>
+                </div>
               </td>
               <td class="text-center sticky-action-col">
                 <div class="actions-group">
@@ -1277,6 +1511,12 @@ function handleDeleteHandover(record: HandoverRecord) {
           </tbody>
         </table>
       </div>
+      <TablePagination
+        v-model:currentPage="vehCurrentPage"
+        v-model:pageSize="vehPageSize"
+        :totalItems="filteredVehicles.length"
+        :pageSizeOptions="[5, 8, 15, 30]"
+      />
     </div>
 
     <!-- 2. Bảng Loại xe (Categories) -->
@@ -1376,13 +1616,14 @@ function handleDeleteHandover(record: HandoverRecord) {
               <th>Số Giấy Phép Lái Xe</th>
               <th>Hạng Bằng Lái</th>
               <th>Ngày Hết Hạn</th>
+              <th>Số Lần Vận Chuyển</th>
               <th>Tình Trạng Hoạt Động</th>
               <th>Trạng Thái Chuyến</th>
               <th class="text-center sticky-action-col" style="min-width: 90px; width: 90px;">Hành Động</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="d in fleetStore.drivers" :key="d.id">
+            <tr v-for="d in paginatedDrivers" :key="d.id">
               <td>
                 <button
                   class="btn-code-link"
@@ -1401,11 +1642,18 @@ function handleDeleteHandover(record: HandoverRecord) {
               <td>
                 <span>{{ d.licenseExpiryDate }}</span>
               </td>
+              <!-- Số lần vận chuyển trong ngày -->
+              <td>
+                <span class="badge" :class="getDriverTodayTrips(d.id).length > 0 ? 'badge-trip-stat-active' : 'badge-trip-stat-zero'">
+                  {{ getDriverTodayTrips(d.id).length }} chuyến hôm nay
+                </span>
+              </td>
               <td>
                 <span class="driver-status-badge" :class="`status-${d.employmentStatus.toLowerCase()}`">
                   {{ getDriverEmploymentStatusLabel(d.employmentStatus) }}
                 </span>
               </td>
+              <!-- Trạng thái chuyến -->
               <td>
                 <span class="badge" :class="d.isCurrentlyOnTrip ? 'badge-dispatched' : 'badge-completed'">
                   {{ d.isCurrentlyOnTrip ? 'Đang chạy chuyến' : 'Đang rảnh' }}
@@ -1433,6 +1681,12 @@ function handleDeleteHandover(record: HandoverRecord) {
           </tbody>
         </table>
       </div>
+      <TablePagination
+        v-model:currentPage="driverCurrentPage"
+        v-model:pageSize="driverPageSize"
+        :totalItems="fleetStore.drivers.length"
+        :pageSizeOptions="[5, 8, 15, 30]"
+      />
     </div>
 
     <!-- 4. Bảng Bàn giao xe (US-28) -->
@@ -1449,35 +1703,58 @@ function handleDeleteHandover(record: HandoverRecord) {
         </button>
       </div>
 
-      <div class="card-header flex-between" style="margin-bottom: 12px;">
-        <div class="flex-actions" style="gap: 10px; flex-wrap: wrap;">
+      <!-- Thanh chuyển đổi phân hệ: Bàn giao xe vs Điều chuyển & Bộ lọc -->
+      <div class="handover-toolbar">
+        <!-- Segmented Tab Toggle -->
+        <div class="segmented-control">
           <button
             type="button"
-            class="btn btn-small"
-            :class="handoverSectionTab === 'HANDOVER' ? 'btn-primary' : 'btn-outline'"
+            class="segmented-tab"
+            :class="{ active: handoverSectionTab === 'HANDOVER' }"
             @click="handoverSectionTab = 'HANDOVER'"
           >
-            Bàn giao ca
+            Bàn giao xe
           </button>
           <button
             type="button"
-            class="btn btn-small"
-            :class="handoverSectionTab === 'TRANSFER' ? 'btn-primary' : 'btn-outline'"
+            class="segmented-tab"
+            :class="{ active: handoverSectionTab === 'TRANSFER' }"
             @click="handoverSectionTab = 'TRANSFER'"
           >
             Điều chuyển
           </button>
         </div>
 
-        <div class="filter-item">
-          <span class="filter-label">Trạng thái:</span>
-          <select v-model="handoverStatusFilter" class="filter-select">
-            <option value="ALL">Tất cả</option>
-            <option value="BORROWING">Đang mượn (đợt còn hiệu lực)</option>
-            <option value="RETURNED">Đã trả (đợt đã đóng)</option>
-            <option value="OVERDUE">Quá hạn (cần xử lý)</option>
-            <option value="CANCELLED">Đã hủy</option>
-          </select>
+        <!-- Cụm Tìm kiếm & Bộ lọc kế bên nhau -->
+        <div class="handover-toolbar-right">
+          <div class="handover-search-wrap">
+            <Search :size="15" class="handover-search-ico" />
+            <input
+              v-model="searchHandoverKeyword"
+              type="text"
+              class="handover-search-input"
+              placeholder="Tìm biển số, tài xế, đội..."
+            />
+            <button
+              v-if="searchHandoverKeyword"
+              class="btn-clear-search"
+              @click="searchHandoverKeyword = ''"
+              title="Xóa tìm kiếm"
+            >
+              <X :size="13" />
+            </button>
+          </div>
+
+          <div class="handover-filter-item">
+            <span class="filter-label">Trạng thái:</span>
+            <select v-model="handoverStatusFilter" class="filter-select-input">
+              <option value="ALL">Tất cả ({{ handoverSummary.total }})</option>
+              <option value="BORROWING">Đang mượn / còn hiệu lực ({{ handoverSummary.borrowing }})</option>
+              <option value="RETURNED">Đã trả / đã đóng đợt ({{ handoverSummary.returned }})</option>
+              <option value="OVERDUE">Quá hạn / cần xử lý ({{ handoverSummary.overdue }})</option>
+              <option value="CANCELLED">Đã hủy ({{ handoverSummary.cancelled }})</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -1506,9 +1783,11 @@ function handleDeleteHandover(record: HandoverRecord) {
             <tr>
               <th>Phương Tiện</th>
               <th>Loại</th>
-              <th v-if="!isDriverRole">Đội Gửi / Nhận</th>
-              <th v-if="!isDriverRole && handoverSectionTab === 'HANDOVER'">Người Nhận / Tài Xế</th>
-              <th>Thời Gian Mượn</th>
+              <template v-if="!isDriverRole">
+                <th>{{ handoverSectionTab === 'TRANSFER' ? 'Tài Xế Sở Hữu' : 'Tài Xế Cũ' }}</th>
+                <th>{{ handoverSectionTab === 'TRANSFER' ? 'Tài Xế Tạm Thời' : 'Tài Xế Hiện Tại' }}</th>
+              </template>
+              <th>{{ handoverSectionTab === 'TRANSFER' ? 'Thời Gian Mượn' : 'Thời Gian Bàn Giao' }}</th>
               <th>Thời Gian Trả</th>
               <th>ODO Bàn Giao</th>
               <th>Mức Nhiên Liệu</th>
@@ -1519,26 +1798,33 @@ function handleDeleteHandover(record: HandoverRecord) {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="h in filteredHandovers" :key="h.id">
+            <tr v-if="filteredHandovers.length === 0">
+              <td :colspan="isDriverRole ? 8 : 11" class="text-center py-5">
+                <div class="empty-state-subtab">
+                  <Truck :size="36" class="text-muted opacity-40 mb-2" />
+                  <p class="text-sm text-muted font-medium">Không tìm thấy biên bản bàn giao nào phù hợp với bộ lọc hiện tại.</p>
+                  <button v-if="handoverStatusFilter !== 'ALL' || searchHandoverKeyword" class="btn btn-outline btn-sm mt-2" @click="resetHandoverFilters">
+                    <RotateCcw :size="13" />
+                    <span>Xem tất cả biên bản</span>
+                  </button>
+                </div>
+              </td>
+            </tr>
+            <tr v-for="h in paginatedHandovers" :key="h.id">
               <td>
-                <strong>{{ h.vehiclePlate }}</strong>
+                <button class="btn-plate-link" @click="openHandoverDetailModal(h)" title="Xem chi tiết phiếu bàn giao / điều chuyển">
+                  <strong>{{ h.vehiclePlate }}</strong>
+                </button>
               </td>
               <td>
                 <span class="badge badge-secondary">
                   {{ getHandoverWorkflowLabel(h.workflowType) }}
                 </span>
               </td>
-              <td v-if="!isDriverRole">
-                <div v-if="h.workflowType === 'TRANSFER'" class="text-sm">
-                  <div><strong>Từ:</strong> {{ h.fromTeam || '—' }}</div>
-                  <div><strong>Đến:</strong> {{ h.toTeam || '—' }}</div>
-                </div>
-                <div v-else class="text-sm">
-                  <div><strong>Tài xế cũ:</strong> {{ getDriverNameById(h.fromDriverId) || '—' }}</div>
-                  <div><strong>Tài xế mới:</strong> {{ h.driverName || '—' }}</div>
-                </div>
-              </td>
-              <td v-if="!isDriverRole && handoverSectionTab === 'HANDOVER'">{{ h.driverName }}</td>
+              <template v-if="!isDriverRole">
+                <td>{{ getDriverNameById(h.fromDriverId) || h.fromTeam || '—' }}</td>
+                <td>{{ h.driverName || h.toTeam || '—' }}</td>
+              </template>
               <td>{{ h.borrowStartAt }}</td>
               <td>{{ h.actualReturnAt || h.expectedReturnAt || '—' }}</td>
               <td><strong>{{ h.handoverOdo.toLocaleString() }} km</strong></td>
@@ -1555,13 +1841,6 @@ function handleDeleteHandover(record: HandoverRecord) {
               </td>
               <td class="text-center">
                 <div v-if="isDriverRole" class="actions-group">
-                  <button
-                    class="btn-action btn-edit"
-                    @click="openHandoverDetailModal(h)"
-                    title="Xem chi tiết phiếu"
-                  >
-                    <Info :size="14" />
-                  </button>
                   <button
                     v-if="currentDriverId && h.fromDriverId === currentDriverId && h.status === 'BORROWING'"
                     class="btn-action btn-primary"
@@ -1583,9 +1862,6 @@ function handleDeleteHandover(record: HandoverRecord) {
                   <button class="btn-action btn-edit" @click="openEditHandoverModal(h)" title="Chỉnh sửa phiếu bàn giao">
                     <Edit2 :size="14" />
                   </button>
-                  <button class="btn-action btn-primary" @click="handleReturnHandover(h)" title="Xác nhận trả xe">
-                    <Info :size="14" />
-                  </button>
                   <button class="btn-action btn-delete" @click="handleDeleteHandover(h)" title="Xóa phiếu bàn giao">
                     <Trash2 :size="14" />
                   </button>
@@ -1595,6 +1871,12 @@ function handleDeleteHandover(record: HandoverRecord) {
           </tbody>
         </table>
       </div>
+      <TablePagination
+        v-model:currentPage="handoverCurrentPage"
+        v-model:pageSize="handoverPageSize"
+        :totalItems="filteredHandovers.length"
+        :pageSizeOptions="[5, 8, 15, 30]"
+      />
     </div>
 
     <!-- Modal 1: Thêm xe -->
@@ -1673,25 +1955,110 @@ function handleDeleteHandover(record: HandoverRecord) {
             </div>
           </div>
 
+          <div class="form-group mb-3">
+            <label class="form-label font-semibold">Đối tượng / Đơn vị sử dụng <span class="required">*</span></label>
+            <div class="unit-type-selection-grid">
+              <label class="unit-check-card" :class="{ 'selected': newVehOperatingUnitType === 'Team' }">
+                <input
+                  type="radio"
+                  name="operatingUnitType"
+                  value="Team"
+                  v-model="newVehOperatingUnitType"
+                  class="unit-radio"
+                />
+                <div class="unit-info">
+                  <div class="unit-title font-bold text-emerald-800">Đội</div>
+                  <span class="unit-desc">Phương tiện phục vụ các Đội</span>
+                </div>
+              </label>
+
+              <label class="unit-check-card" :class="{ 'selected': newVehOperatingUnitType === 'Factory' }">
+                <input
+                  type="radio"
+                  name="operatingUnitType"
+                  value="Factory"
+                  v-model="newVehOperatingUnitType"
+                  class="unit-radio"
+                />
+                <div class="unit-info">
+                  <div class="unit-title font-bold text-sky-800">Nhà Máy</div>
+                  <span class="unit-desc">Phương tiện phục vụ Nhà máy</span>
+                </div>
+              </label>
+            </div>
+
+            <!-- Nếu chọn Đội: Cho phép chọn Đội chi tiết -->
+            <div v-if="newVehOperatingUnitType === 'Team'" class="team-select-subform mt-2">
+              <label class="form-label text-xs">Đội chi tiết phụ trách phương tiện:</label>
+              <select v-model="newVehTeamName" class="form-select font-semibold">
+                <option value="Đội 1">Đội 1</option>
+                <option value="Đội 2">Đội 2</option>
+                <option value="Đội 3">Đội 3</option>
+                <option value="Đội 4">Đội 4</option>
+                <option value="Đội 5">Đội 5</option>
+                <option value="Toàn đội">Toàn đội (Dùng chung)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Row 4: Tải trọng & Chỉ số ODO (2 cột đối xứng tuyệt đối) -->
           <div class="grid-2">
             <div class="form-group">
               <label class="form-label">Tải trọng (Tấn)</label>
-              <input v-model.number="newVehCapacity" type="number" step="0.5" class="form-input" />
+              <input v-model.number="newVehCapacity" type="number" step="0.5" min="0" class="form-input" placeholder="Ví dụ: 5.0" />
             </div>
             <div class="form-group">
-              <label class="form-label">Số chỗ ngồi</label>
-              <input v-model.number="newVehSeats" type="number" step="1" class="form-input" />
+              <label class="form-label">Chỉ số ODO hiện tại (km)</label>
+              <input v-model.number="newVehOdo" type="number" min="0" class="form-input" placeholder="Ví dụ: 25000" />
+            </div>
+          </div>
+
+          <!-- Row 5: Khối chọn Số chỗ ngồi quy chuẩn đăng kiểm (Trải ngang thanh thoát, không lệch cột) -->
+          <div class="form-group seat-selection-card">
+            <div class="seat-card-header">
+              <span class="seat-card-label">Số chỗ ngồi (Quy chuẩn đăng kiểm)</span>
+              <div v-if="newVehSeats" class="seat-selected-badge">
+                <span>Đã chọn: <strong>{{ newVehSeats }} chỗ ngồi</strong></span>
+                <button type="button" class="btn-clear-seat-badge" @click="newVehSeats = undefined" title="Bỏ chọn số chỗ">
+                  <X :size="12" />
+                </button>
+              </div>
+              <div v-else class="seat-none-badge">
+                Chưa chọn số chỗ
+              </div>
+            </div>
+
+            <div class="seat-row-pills" :class="{ 'has-twelve': newVehSeats === 1 || newVehType === 'MillingMachine' }">
+              <button
+                v-if="newVehSeats === 1 || newVehType === 'MillingMachine'"
+                type="button"
+                class="btn-seat-pill"
+                :class="{ active: newVehSeats === 1 }"
+                @click="newVehSeats = (newVehSeats === 1 ? undefined : 1)"
+              >
+                1 chỗ
+              </button>
+              <button
+                v-for="seat in standardSeatOptions"
+                :key="seat"
+                type="button"
+                class="btn-seat-pill"
+                :class="{ active: newVehSeats === seat }"
+                @click="newVehSeats = (newVehSeats === seat ? undefined : seat)"
+              >
+                {{ seat }} chỗ
+              </button>
             </div>
           </div>
 
           <div class="grid-2">
             <div class="form-group">
               <label class="form-label">NLP (L/km)</label>
-              <input v-model.number="newVehEmptyQuota" type="number" step="0.01" class="form-input" />
+              <input v-model.number="newVehEmptyQuota" type="number" step="0.01" min="0" class="form-input" />
             </div>
             <div class="form-group">
               <label class="form-label">NLC / Định mức có tải</label>
-              <input v-model.number="newVehLoadedQuota" type="number" step="0.005" class="form-input" />
+              <input v-model.number="newVehLoadedQuota" type="number" step="0.005" min="0" class="form-input" />
             </div>
           </div>
 
@@ -1710,33 +2077,27 @@ function handleDeleteHandover(record: HandoverRecord) {
             </div>
           </div>
 
-          <div class="grid-2">
-            <div class="form-group">
-              <label class="form-label">Chỉ số ODO hiện tại (km)</label>
-              <input v-model.number="newVehOdo" type="number" class="form-input" />
-            </div>
+          <!-- Phân công tài xế phụ trách -->
+          <!-- Nếu là Xe công ty: Chọn tài xế nội bộ -->
+          <div v-if="!newVehIsExternal" class="form-group">
+            <label class="form-label">Tài xế nội bộ phụ trách</label>
+            <select v-model="newVehDriverId" class="form-select">
+              <option :value="''">-- Chưa gán tài xế / Chọn sau --</option>
+              <option v-for="d in fleetStore.drivers" :key="d.id" :value="d.id">
+                {{ d.fullName }} ({{ d.licenseClass }} - SĐT: {{ d.phone }})
+              </option>
+            </select>
+          </div>
 
-            <!-- Nếu là Xe công ty: Chọn tài xế nội bộ -->
-            <div v-if="!newVehIsExternal" class="form-group">
-              <label class="form-label">Tài xế nội bộ phụ trách</label>
-              <select v-model="newVehDriverId" class="form-select">
-                <option :value="''">-- Chưa gán tài xế / Chọn sau --</option>
-                <option v-for="d in fleetStore.drivers" :key="d.id" :value="d.id">
-                  {{ d.fullName }} ({{ d.licenseClass }} - SĐT: {{ d.phone }})
-                </option>
-              </select>
-            </div>
-
-            <!-- Nếu là Xe thuê ngoài: Nhập trực tiếp tên tài xế đối tác/thuê ngoài -->
-            <div v-else class="form-group">
-              <label class="form-label">Họ tên tài xế thuê ngoài / đối tác</label>
-              <input
-                v-model="newVehDriverName"
-                type="text"
-                class="form-input"
-                placeholder="Nhập họ tên tài xế xe thuê (VD: Bùi Quốc Hợp, Nguyễn Văn A...)"
-              />
-            </div>
+          <!-- Nếu là Xe thuê ngoài: Nhập trực tiếp tên tài xế đối tác/thuê ngoài -->
+          <div v-else class="form-group">
+            <label class="form-label">Họ tên tài xế thuê ngoài / đối tác</label>
+            <input
+              v-model="newVehDriverName"
+              type="text"
+              class="form-input"
+              placeholder="Nhập họ tên tài xế xe thuê (VD: Bùi Quốc Hợp, Nguyễn Văn A...)"
+            />
           </div>
 
           <!-- Nhập SĐT tài xế thuê ngoài nếu là xe thuê ngoài -->
@@ -1751,6 +2112,17 @@ function handleDeleteHandover(record: HandoverRecord) {
             <span class="text-xs text-muted mt-1 block">
               💡 Xe thuê ngoài chỉ cần nhập tên tài xế đối tác, không cần chọn tài xế nội bộ và không quản lý trong danh sách tài xế công ty.
             </span>
+          </div>
+
+          <!-- Ghi chú phương tiện -->
+          <div class="form-group mt-3">
+            <label class="form-label">Ghi chú phương tiện / Cảnh báo bảo dưỡng</label>
+            <textarea
+              v-model="newVehNotes"
+              class="form-input"
+              rows="2"
+              placeholder="Nhập ghi chú tình trạng xe, lịch hẹn bảo dưỡng, lưu ý vận hành..."
+            ></textarea>
           </div>
         </div>
 
@@ -1956,52 +2328,70 @@ function handleDeleteHandover(record: HandoverRecord) {
         <div class="modal-body">
           <div class="form-group">
             <label class="form-label">Loại biên bản <span class="required">*</span></label>
-            <div class="flex gap-5">
-              <label class="flex items-center gap-2 px-3 py-2 rounded border border-slate-300 bg-white flex-1 cursor-pointer" :class="{ 'border-emerald-500 bg-emerald-50': newHandoverWorkflowType === 'HANDOVER' }">
+            <div class="workflow-radio-group">
+              <label class="radio-pill-item" :class="{ active: newHandoverWorkflowType === 'HANDOVER' }">
                 <input v-model="newHandoverWorkflowType" type="radio" value="HANDOVER" />
                 <span>Bàn giao xe</span>
               </label>
-              <label class="flex items-center gap-2 px-3 py-2 rounded border border-slate-300 bg-white flex-1 cursor-pointer" :class="{ 'border-emerald-500 bg-emerald-50': newHandoverWorkflowType === 'TRANSFER' }">
+              <label class="radio-pill-item" :class="{ active: newHandoverWorkflowType === 'TRANSFER' }">
                 <input v-model="newHandoverWorkflowType" type="radio" value="TRANSFER" />
                 <span>Điều chuyển xe</span>
               </label>
             </div>
           </div>
 
-          <div class="form-group">
-            <label class="form-label">
-              {{ newHandoverWorkflowType === 'TRANSFER' ? 'Phương tiện mượn / xe chi viện' : 'Phương tiện bàn giao' }}
-              <span class="required">*</span>
-            </label>
-            <select v-model="newHandoverPlate" class="form-select">
-              <option v-for="v in fleetStore.vehicles" :key="v.id" :value="v.licensePlate">
-                {{ v.licensePlate }} - {{ v.model }} ({{ v.vehicleType }})
-              </option>
-            </select>
-          </div>
+          <div class="grid-3">
+            <div class="form-group">
+              <label class="form-label">
+                {{ newHandoverWorkflowType === 'TRANSFER' ? 'Biển số xe chi viện' : 'Phương tiện bàn giao' }}
+                <span class="required">*</span>
+              </label>
+              <select v-model="newHandoverPlate" class="form-select" @change="onHandoverVehicleChange">
+                <option v-for="v in fleetStore.vehicles" :key="v.id" :value="v.licensePlate">
+                  {{ v.licensePlate }}
+                </option>
+              </select>
+            </div>
 
-          <div v-if="newHandoverWorkflowType === 'HANDOVER'" class="form-group">
-            <label class="form-label">Đội của xe</label>
-            <input
-              v-model="newHandoverVehicleTeam"
-              type="text"
-              class="form-input"
-              placeholder="Ví dụ: Đội 3"
-            />
+            <div class="form-group">
+              <label class="form-label">Dòng xe / Tên phương tiện</label>
+              <input
+                :value="selectedHandoverVehicle?.model || '—'"
+                type="text"
+                class="form-input"
+                readonly
+                style="background-color: #f8fafc; font-weight: 600; color: #1e293b;"
+              />
+            </div>
+
+            <div v-if="newHandoverWorkflowType === 'HANDOVER'" class="form-group">
+              <label class="form-label">Đội của xe</label>
+              <input
+                v-model="newHandoverVehicleTeam"
+                type="text"
+                class="form-input"
+                placeholder="Ví dụ: Đội 3"
+              />
+            </div>
+
+            <div v-else class="form-group">
+              <label class="form-label">Đơn vị / đội gửi</label>
+              <input v-model="newHandoverFromTeam" type="text" class="form-input" placeholder="Ví dụ: Nhà máy" />
+            </div>
           </div>
 
           <div v-if="newHandoverWorkflowType === 'HANDOVER'" class="grid-2">
             <div class="form-group">
               <label class="form-label">Tài xế trả xe <span class="required">*</span></label>
-              <div class="flex gap-2 items-center">
-                <select v-model="newHandoverFromDriver" class="form-select" style="flex: 1; min-width: 0;">
+              <div class="driver-select-row">
+                <select v-model="newHandoverFromDriver" class="form-select">
                   <option v-for="d in fleetStore.drivers" :key="d.id" :value="d.fullName">
                     {{ d.fullName }} ({{ d.licenseClass }})
                   </option>
                 </select>
                 <button
                   type="button"
-                  class="btn btn-outline btn-small"
+                  class="btn btn-secondary btn-sm"
                   :disabled="!newHandoverFromDriver"
                   @click="openDriverDetailByName(newHandoverFromDriver)"
                 >
@@ -2011,15 +2401,15 @@ function handleDeleteHandover(record: HandoverRecord) {
             </div>
             <div class="form-group">
               <label class="form-label">Tài xế nhận xe</label>
-              <div class="flex gap-2 items-center">
-                <select v-model="newHandoverDriver" class="form-select" style="flex: 1; min-width: 0;">
+              <div class="driver-select-row">
+                <select v-model="newHandoverDriver" class="form-select">
                   <option v-for="d in fleetStore.drivers" :key="d.id" :value="d.fullName">
                     {{ d.fullName }} ({{ d.licenseClass }})
                   </option>
                 </select>
                 <button
                   type="button"
-                  class="btn btn-outline btn-small"
+                  class="btn btn-secondary btn-sm"
                   :disabled="!newHandoverDriver"
                   @click="openDriverDetailByName(newHandoverDriver)"
                 >
@@ -2029,15 +2419,9 @@ function handleDeleteHandover(record: HandoverRecord) {
             </div>
           </div>
 
-          <div v-else class="grid-2">
-            <div class="form-group">
-              <label class="form-label">Đơn vị / đội gửi</label>
-              <input v-model="newHandoverFromTeam" type="text" class="form-input" placeholder="Ví dụ: Nhà máy" />
-            </div>
-            <div class="form-group">
-              <label class="form-label">Đơn vị / đội nhận</label>
-              <input v-model="newHandoverToTeam" type="text" class="form-input" placeholder="Ví dụ: Trạm Cán 2" />
-            </div>
+          <div v-else class="form-group">
+            <label class="form-label">Đơn vị / đội nhận</label>
+            <input v-model="newHandoverToTeam" type="text" class="form-input" placeholder="Ví dụ: Trạm Cán 2" />
           </div>
 
           <div v-if="newHandoverWorkflowType === 'TRANSFER'" class="form-group">
@@ -2052,7 +2436,7 @@ function handleDeleteHandover(record: HandoverRecord) {
 
           <div class="grid-2">
             <div class="form-group">
-              <label class="form-label">Thời điểm bàn giao / mượn</label>
+              <label class="form-label">{{ newHandoverWorkflowType === 'TRANSFER' ? 'Thời điểm mượn' : 'Thời điểm bàn giao' }}</label>
               <input v-model="newHandoverBorrowTime" type="datetime-local" class="form-input" />
             </div>
             <div class="form-group">
@@ -2115,7 +2499,7 @@ function handleDeleteHandover(record: HandoverRecord) {
 
           <div class="grid-2">
             <div class="form-group">
-              <label class="form-label">Thời điểm bàn giao / mượn</label>
+              <label class="form-label">{{ viewingHandover.workflowType === 'TRANSFER' ? 'Thời điểm mượn' : 'Thời điểm bàn giao' }}</label>
               <div class="p-3 bg-light rounded">{{ viewingHandover.borrowStartAt || '—' }}</div>
             </div>
             <div class="form-group">
@@ -2448,7 +2832,9 @@ function handleDeleteHandover(record: HandoverRecord) {
 }
 .veh-status-badge.status-available { background: #dcfce7; color: #15803d; }
 .veh-status-badge.status-ontrip { background: #e0f2fe; color: #0369a1; }
+.veh-status-badge.status-duemaintenance { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
 .veh-status-badge.status-undermaintenance { background: #fee2e2; color: #b91c1c; }
+.veh-status-badge.status-broken { background: #fee2e2; color: #b91c1c; }
 
 .flex-between {
   display: flex;
@@ -2499,12 +2885,44 @@ function handleDeleteHandover(record: HandoverRecord) {
 .badge-overdue-pill {
   background: #fee2e2;
   color: #dc2626;
+  border: 1px solid #fca5a5;
   font-size: 0.6875rem;
   font-weight: 800;
-  padding: 1px 6px;
+  padding: 2px 7px;
   border-radius: 4px;
-  margin-left: 4px;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  width: fit-content;
+}
+
+.badge-maintenance-note {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fcd34d;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  width: fit-content;
+}
+
+.note-overdue-box {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.note-overdue-highlight {
+  font-weight: 700;
+  color: #b91c1c;
+  font-size: 0.75rem;
+}
+.note-overdue-sub {
+  color: #64748b;
+  font-size: 0.6875rem;
 }
 
 .flex-actions {
@@ -2634,21 +3052,10 @@ function handleDeleteHandover(record: HandoverRecord) {
   transform: translateY(-1px);
 }
 
-/* Sticky Action Column */
+/* Action Column - Normal Flow */
 .table th.sticky-action-col,
 .table td.sticky-action-col {
-  position: sticky !important;
-  right: 0 !important;
-  background-color: #ffffff !important;
-  z-index: 4;
-  box-shadow: -4px 0 10px rgba(15, 23, 42, 0.08);
-}
-.table th.sticky-action-col {
-  background-color: #f8fafc !important;
-  z-index: 5;
-}
-.table tbody tr:hover td.sticky-action-col {
-  background-color: #f8fafc !important;
+  position: static;
 }
 
 /* Compact fleet table styling */
@@ -2666,10 +3073,45 @@ function handleDeleteHandover(record: HandoverRecord) {
 .fleet-subtabs-bar {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
   padding: 12px 20px;
   background: #f8fafc;
   border-bottom: 1px solid var(--border-card, #d6e4d7);
+}
+
+.fleet-unit-filter-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.unit-filter-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #475569;
+  white-space: nowrap;
+}
+
+.unit-filter-select {
+  padding: 6px 12px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #1e293b;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.unit-filter-select:hover,
+.unit-filter-select:focus {
+  border-color: #059669;
+  box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.15);
 }
 
 .fleet-subtabs-nav {
@@ -2810,7 +3252,432 @@ function handleDeleteHandover(record: HandoverRecord) {
   margin-top: 6px;
 }
 
+/* Đơn vị sử dụng (Đội / Nhà máy) trong bảng */
+.unit-target-box {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+}
+
+.badge-unit-team {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  border-radius: 4px;
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.badge-unit-factory {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  border-radius: 4px;
+  background: #f0f9ff;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.unit-subtext {
+  font-size: 0.75rem;
+  line-height: 1.2;
+}
+
+/* Chọn đơn vị sử dụng trong modal thêm/sửa xe */
+.unit-type-selection-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.unit-check-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: var(--radius-md, 8px);
+  background: #f8fafc;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.unit-check-card:hover {
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+}
+
+.unit-check-card.selected {
+  border-color: #059669;
+  background: #ecfdf5;
+}
+
+.unit-radio {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: #059669;
+  cursor: pointer;
+}
+
+.unit-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.unit-title {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.unit-desc {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.team-select-subform {
+  background: #f0fdf4;
+  border: 1px dashed #86efac;
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
 .text-amber-600 {
   color: #d97706;
+}
+
+/* Handover Toolbar Redesign */
+.handover-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 12px 20px;
+  background: #f8fafc;
+  border-bottom: 1px solid var(--border-subtle, #edf4ed);
+}
+
+.segmented-control {
+  display: inline-flex;
+  background: #e2e8f0;
+  padding: 3px;
+  border-radius: 8px;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.segmented-tab {
+  padding: 6px 14px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: #475569;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.segmented-tab.active {
+  background: #15803d;
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.segmented-tab:hover:not(.active) {
+  color: #0f172a;
+}
+
+.handover-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.handover-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 260px;
+}
+
+.handover-search-ico {
+  position: absolute;
+  left: 12px;
+  color: #94a3b8;
+  pointer-events: none;
+}
+
+.handover-search-input {
+  width: 100%;
+  padding: 7px 32px 7px 34px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background-color: #ffffff;
+  font-size: 0.8125rem;
+  color: #0f172a;
+  outline: none;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.handover-search-input:focus {
+  border-color: #15803d;
+  box-shadow: 0 0 0 2px rgba(21, 128, 61, 0.15);
+}
+
+.handover-filter-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.handover-filter-item .filter-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #475569;
+  white-space: nowrap;
+}
+
+.filter-select-input {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background-color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #0f172a;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.filter-select-input:focus {
+  border-color: #15803d;
+  box-shadow: 0 0 0 2px rgba(21, 128, 61, 0.15);
+}
+
+.btn-clear-search {
+  position: absolute;
+  right: 8px;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 2px;
+}
+.btn-clear-search:hover { color: #475569; }
+
+/* Card chọn số chỗ ngồi quy chuẩn trải ngang đẹp mắt */
+.seat-selection-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: var(--radius-md, 8px);
+  padding: 12px 14px;
+  margin-top: 4px;
+  margin-bottom: 16px;
+}
+
+.seat-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.seat-card-label {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.seat-selected-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ecfdf5;
+  color: #15803d;
+  border: 1px solid #a7f3d0;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.seat-none-badge {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.btn-clear-seat-badge {
+  background: transparent;
+  border: none;
+  color: #15803d;
+  cursor: pointer;
+  padding: 1px;
+  display: flex;
+  align-items: center;
+  border-radius: 50%;
+  line-height: 1;
+}
+.btn-clear-seat-badge:hover {
+  background: #dcfce7;
+  color: #b91c1c;
+}
+
+.seat-row-pills {
+  display: grid;
+  grid-template-columns: repeat(11, 1fr);
+  gap: 6px;
+  align-items: center;
+}
+
+.seat-row-pills.has-twelve {
+  grid-template-columns: repeat(12, 1fr);
+}
+
+.btn-seat-pill {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 2px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+  font-size: 0.775rem;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+  font-family: inherit;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.btn-seat-pill:hover {
+  border-color: #059669;
+  background: #f0fdf4;
+  color: #15803d;
+  transform: translateY(-1px);
+}
+
+.btn-seat-pill.active {
+  background: #15803d;
+  color: #ffffff;
+  border-color: #15803d;
+  box-shadow: 0 2px 5px rgba(21, 128, 61, 0.25);
+  font-weight: 700;
+  transform: translateY(-1px);
+}
+
+@media (max-width: 640px) {
+  .seat-row-pills {
+    grid-template-columns: repeat(6, 1fr);
+  }
+  .seat-row-pills.has-twelve {
+    grid-template-columns: repeat(6, 1fr);
+  }
+}
+
+.badge-trip-stat-active {
+  display: inline-flex;
+  align-items: center;
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.badge-trip-stat-zero {
+  display: inline-flex;
+  align-items: center;
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+/* Radio Pill Selector for Handover Modal */
+.workflow-radio-group {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.radio-pill-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background-color: #ffffff;
+  flex: 1;
+  cursor: pointer;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #334155;
+  transition: all 0.15s ease;
+}
+
+.radio-pill-item:hover {
+  border-color: #15803d;
+  background-color: #f8fafc;
+}
+
+.radio-pill-item.active {
+  border-color: #15803d;
+  background-color: #f0fdf4;
+  color: #166534;
+}
+
+.radio-pill-item input[type="radio"] {
+  accent-color: #15803d;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.driver-select-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.driver-select-row .form-select {
+  flex: 1;
+  min-width: 0;
 }
 </style>

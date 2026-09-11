@@ -28,6 +28,11 @@ export const useDriverStore = defineStore('driver', () => {
       );
     }
 
+    // Nếu là Dispatcher / Admin đang chọn xem tất cả xe:
+    if (selectedVehiclePlate.value === 'ALL') {
+      return null;
+    }
+
     // Nếu là Dispatcher / Admin đang xem Không gian tài xế:
     if (selectedVehiclePlate.value) {
       const found = fleetStore.vehicles.find((v) => v.licensePlate === selectedVehiclePlate.value);
@@ -73,6 +78,10 @@ export const useDriverStore = defineStore('driver', () => {
     }
 
     // 2. Nếu là Dispatcher / Admin đang xem Không gian tài xế:
+    if (selectedVehiclePlate.value === 'ALL') {
+      return dispatchStore.trips;
+    }
+
     // Nghiêm ngặt chỉ xem các chuyến của xe đang được chọn (myVehicle)
     if (veh) {
       return dispatchStore.trips.filter(

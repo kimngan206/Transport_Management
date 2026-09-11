@@ -225,6 +225,16 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: 0 0 0 3px var(--primary-glow);
 }
 
+/* Ẩn nút tăng giảm số mặc định của trình duyệt để tránh bấm nhầm và giao diện phẳng gọn gàng */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
 .form-hint {
   font-size: 0.75rem;
   color: var(--text-light);
@@ -357,6 +367,11 @@ h1, h2, h3, h4, h5, h6 {
   color: #991b1b;
   border-color: #fecaca;
   animation: pulse-border 2s infinite;
+}
+.badge-undermaintenance {
+  background-color: #fffbeb;
+  color: #b45309;
+  border-color: #fde68a;
 }
 
 @keyframes pulse-border {

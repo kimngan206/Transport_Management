@@ -2,6 +2,8 @@
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useFleetStore } from '@/stores/fleet';
+import { useDispatchStore } from '@/stores/dispatch';
+import { getTripDaySequence } from '@/utils/tripHelpers';
 import type { Vehicle } from '@/types';
 import StatusBadge from '@/components/common/StatusBadge.vue';
 import {
@@ -63,6 +65,13 @@ const vehicleMaintenanceHistory = computed(() => {
 // Lịch sử phân công tài xế
 const driverAssignmentHistory = computed(() => {
   return fleetStore.getDriverAssignmentsByVehicleId(props.vehicle.id);
+});
+
+const dispatchStore = useDispatchStore();
+const vehicleTrips = computed(() => {
+  return dispatchStore.trips
+    .filter((t) => t.vehicleId === props.vehicle.id && t.status !== 'CANCELLED')
+    .sort((a, b) => new Date(b.scheduledStartTime).getTime() - new Date(a.scheduledStartTime).getTime());
 });
 
 // Dịch loại xe sang tiếng Việt
@@ -258,9 +267,24 @@ function handleGoToMaintenanceTypes() {
             <div class="spec-table">
               <div class="spec-row">
                 <span class="spec-label">Hình thức sở hữu</span>
-                <span class="spec-val font-semibold" :class="vehicle.isExternal ? 'text-warning' : 'text-success'">
-                  {{ vehicle.isExternal ? '🚚 Xe thuê ngoài' : '🏢 Xe công ty' }}
+                <span class="spec-val font-semibold" :class="vehicle.isExternal ? 'text-amber-700' : 'text-success'">
+                  {{ vehicle.isExternal ? 'Xe thuê ngoài' : 'Xe công ty' }}
                 </span>
+              </div>
+              <div class="spec-row">
+                <span class="spec-label">Đơn vị sử dụng</span>
+                <span class="spec-val font-semibold">
+                  <span v-if="vehicle.operatingUnitType === 'Factory'" class="badge-unit-factory">
+                    Nhà máy
+                  </span>
+                  <span v-else class="badge-unit-team">
+                    {{ vehicle.teamName || 'Đội' }}
+                  </span>
+                </span>
+              </div>
+              <div v-if="vehicle.notes" class="spec-row">
+                <span class="spec-label">Ghi chú</span>
+                <span class="spec-val text-xs text-muted">{{ vehicle.notes }}</span>
               </div>
               <div class="spec-row">
                 <span class="spec-label">Chủng loại xe</span>
@@ -392,6 +416,50 @@ function handleGoToMaintenanceTypes() {
                   </td>
                   <td><strong>{{ assign.driverName || '—' }}</strong></td>
                   <td class="text-muted text-xs">{{ assign.notes || '—' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 6. Lịch Trình & Nhật Ký Chuyến Xe -->
+        <div class="history-section card-inner mt-4">
+          <div class="flex-between mb-3">
+            <h5 class="group-heading mb-0">
+              <Truck :size="15" />
+              <span>Nhật Ký & Lịch Trình Chuyến Xe ({{ vehicleTrips.length }})</span>
+            </h5>
+          </div>
+
+          <div v-if="vehicleTrips.length === 0" class="empty-history text-muted">
+            <Info :size="16" />
+            <span>Chưa có chuyến xe nào được gán cho xe {{ vehicle.licensePlate }}.</span>
+          </div>
+
+          <div v-else class="table-container">
+            <table class="table table-sm">
+              <thead>
+                <tr>
+                  <th>Mã Chuyến</th>
+                  <th>Lộ Trình</th>
+                  <th>Thời Gian</th>
+                  <th>Tài Xế</th>
+                  <th>Thứ Tự Trong Ngày</th>
+                  <th>Trạng Thái</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="t in vehicleTrips" :key="t.id">
+                  <td><strong class="font-mono text-xs">{{ t.tripCode }}</strong></td>
+                  <td class="text-xs">{{ t.routeName }}</td>
+                  <td class="text-xs font-mono">{{ t.scheduledStartTime }}</td>
+                  <td class="text-xs"><strong>{{ t.driverName }}</strong></td>
+                  <td>
+                    <span class="badge-trip-seq">
+                      {{ getTripDaySequence(t, dispatchStore.trips).label }}
+                    </span>
+                  </td>
+                  <td><StatusBadge :status="t.status" /></td>
                 </tr>
               </tbody>
             </table>
@@ -699,5 +767,46 @@ function handleGoToMaintenanceTypes() {
   gap: 10px;
   background: #f8fafc;
   border-radius: 0 0 12px 12px;
+}
+
+.badge-unit-team {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 4px;
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.badge-unit-factory {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 4px;
+  background: #f0f9ff;
+  color: #0369a1;
+  border: 1px solid #bae6fd;
+}
+
+.text-amber-700 {
+  color: #b45309;
+}
+
+.badge-trip-seq {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  border-radius: 4px;
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+  white-space: nowrap;
 }
 </style>

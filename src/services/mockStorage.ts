@@ -26,6 +26,8 @@ import type {
   MaintenanceRecord,
   MaintenanceType,
   VehicleAssignmentHistory,
+  VehicleTripSetting,
+  TripSettingsConfig,
 } from '@/types';
 import type { HubLocation } from '@/types/map';
 
@@ -50,6 +52,7 @@ export const STORAGE_KEYS = {
   DRIVER_ASSIGNMENTS: 'qldv_driver_assignments',
   VEHICLE_MAP_STATES: 'qldv_vehicle_map_states',
   DRIVER_NOTIFICATIONS: 'qldv_driver_notifications',
+  TRIP_SETTINGS: 'qldv_trip_settings',
   DATA_VERSION: 'qldv_data_version',
 } as const;
 
@@ -377,9 +380,31 @@ export const mockStorage = {
         }
       }
 
+      // Tự động đồng bộ đơn vị sử dụng (operatingUnitType: Team | Factory)
+      if (!v.operatingUnitType) {
+        v.operatingUnitType = initV?.operatingUnitType || (v.teamName ? 'Team' : 'Factory');
+        modified = true;
+      }
+      if (v.teamName === 'Toàn nông trường') {
+        v.teamName = 'Toàn đội';
+        modified = true;
+      }
+
       // Đảm bảo xe thuê ngoài không giữ ID tài xế nội bộ
       if (v.isExternal && v.assignedDriverId) {
         v.assignedDriverId = undefined;
+        modified = true;
+      }
+
+      // Khắc phục số ODO lần trước bị sai dẫn đến âm số km đã chạy ở xe 1
+      if (v.id === 1 && v.lastMaintenanceOdo > v.currentOdoKm) {
+        v.lastMaintenanceOdo = 25000;
+        modified = true;
+      }
+
+      // Tự động đồng bộ trạng thái bảo dưỡng nếu xe đang UnderMaintenance
+      if (v.status === 'UnderMaintenance' && v.maintenanceStatus === 'Normal') {
+        v.maintenanceStatus = 'UnderMaintenance';
         modified = true;
       }
     });
@@ -462,6 +487,24 @@ export const mockStorage = {
       saveToStorage(STORAGE_KEYS.REQUESTS, initialRequests);
       return [...initialRequests];
     }
+    let modified = false;
+    res.forEach((r: any) => {
+      if (!r.teamName) {
+        if (r.fromLocation && r.fromLocation.includes('Đội 1')) r.teamName = 'Đội 1';
+        else if (r.fromLocation && r.fromLocation.includes('Đội 2')) r.teamName = 'Đội 2';
+        else if (r.fromLocation && r.fromLocation.includes('Đội 3')) r.teamName = 'Đội 3';
+        else if (r.toLocation && r.toLocation.includes('Đội 1')) r.teamName = 'Đội 1';
+        else if (r.toLocation && r.toLocation.includes('Đội 2')) r.teamName = 'Đội 2';
+        else if (r.toLocation && r.toLocation.includes('Đội 3')) r.teamName = 'Đội 3';
+        else if (r.departmentName && r.departmentName.includes('Nhà máy')) r.teamName = 'Nhà máy';
+        else if (r.fromLocation && r.fromLocation.includes('Nhà Máy')) r.teamName = 'Nhà máy';
+        else r.teamName = 'Đội 1';
+        modified = true;
+      }
+    });
+    if (modified) {
+      saveToStorage(STORAGE_KEYS.REQUESTS, res);
+    }
     return res;
   },
   saveRequests(data: TransportRequest[]) {
@@ -476,6 +519,17 @@ export const mockStorage = {
     }
     // Auto-migration: nạp receiptImages cho các khoản chi nếu dữ liệu cũ chưa có
     let modified = false;
+
+    // Đảm bảo chuyến mẫu nhiều lần trong ngày (trip 1004) có mặt trong bộ nhớ
+    const hasTrip1004 = res.some((t) => t.id === 1004);
+    if (!hasTrip1004) {
+      const trip1004 = initialTrips.find((t) => t.id === 1004);
+      if (trip1004) {
+        res.push({ ...trip1004 });
+        modified = true;
+      }
+    }
+
     res.forEach((t) => {
       if (t.expenses && t.expenses.length > 0) {
         t.expenses.forEach((e) => {
@@ -590,9 +644,27 @@ export const mockStorage = {
       saveToStorage(STORAGE_KEYS.HUBS, fallback);
       return [...fallback];
     }
-    // Tự động chuẩn hóa nếu dữ liệu lưu cũ còn từ 'Nông Trường Đội' hoặc 'NT Đội'
+    // Tự động chuẩn hóa tên và tọa độ trạm chính xác theo mạng lưới giao thông đường bộ Google Maps
     let modified = false;
+    const roadCoords: Record<string, { lat: number; lng: number }> = {
+      TC1: { lat: 11.51138, lng: 106.60247 },
+      D1: { lat: 11.56658, lng: 106.63256 },
+      D2: { lat: 11.58909, lng: 106.56799 },
+      D3: { lat: 11.62039, lng: 106.67075 },
+      NM: { lat: 11.48501, lng: 106.62013 },
+      VP: { lat: 11.47200, lng: 106.61504 },
+    };
+
     hubs = hubs.map((h: any) => {
+      const code = h.code || h.id;
+      if (code && roadCoords[code]) {
+        const rc = roadCoords[code];
+        if (Math.abs(h.lat - rc.lat) > 0.00005 || Math.abs(h.lng - rc.lng) > 0.00005) {
+          h.lat = rc.lat;
+          h.lng = rc.lng;
+          modified = true;
+        }
+      }
       if (h && typeof h.name === 'string' && (h.name.includes('Nông Trường Đội') || h.name.includes('Nông trường Đội'))) {
         h.name = h.name.replace(/Nông\s*Trường\s*Đội/gi, 'Đội');
         modified = true;
@@ -619,7 +691,56 @@ export const mockStorage = {
       saveToStorage(STORAGE_KEYS.HANDOVERS, defaultHandovers);
       return [...defaultHandovers];
     }
-    return res;
+    // Tự động chuẩn hóa dữ liệu cũ (backward compatibility & self-healing)
+    const hasTransfer = res.some((h: any) => h.workflowType === 'TRANSFER');
+    if (!hasTransfer && initialHandovers && initialHandovers.length > 0) {
+      saveToStorage(STORAGE_KEYS.HANDOVERS, initialHandovers);
+      return [...initialHandovers] as T[];
+    }
+
+    let modified = false;
+    const normalized = res.map((h: any) => {
+      let status = h.status;
+      if (status === 'Đang mượn') { status = 'BORROWING'; modified = true; }
+      else if (status === 'Đã trả') { status = 'RETURNED'; modified = true; }
+      else if (status === 'Quá hạn') { status = 'OVERDUE'; modified = true; }
+      else if (status === 'Đã hủy') { status = 'CANCELLED'; modified = true; }
+      else if (!status) { status = 'BORROWING'; modified = true; }
+
+      let workflowType = h.workflowType;
+      if (!workflowType) {
+        workflowType = (h.id % 2 === 0) ? 'TRANSFER' : 'HANDOVER';
+        modified = true;
+      }
+
+      const borrowStartAt = h.borrowStartAt || h.borrowTime || '2026-09-07 07:30';
+      const expectedReturnAt = h.expectedReturnAt || h.returnTime || '2026-09-07 11:30';
+      const actualReturnAt = h.actualReturnAt || (status === 'RETURNED' ? (h.returnTime || expectedReturnAt) : undefined);
+      const fromTeam = h.fromTeam || (h.id === 1 ? 'Đội 1' : 'Đội công ty');
+      const toTeam = h.toTeam || (h.id === 1 ? 'Đội 2' : 'Đội kỹ thuật');
+
+      if (!h.fromTeam || !h.toTeam || !h.borrowStartAt || !h.workflowType) modified = true;
+
+      return {
+        ...h,
+        workflowType,
+        status,
+        fromTeam,
+        toTeam,
+        borrowStartAt,
+        expectedReturnAt,
+        actualReturnAt,
+        driverName: h.driverName || h.driver || 'Phạm Văn Tài',
+        handoverOdo: Number(h.handoverOdo) || 0,
+        fuelLevel: h.fuelLevel || '85%',
+        conditionNotes: h.conditionNotes || h.notes || '',
+      };
+    });
+
+    if (modified) {
+      saveToStorage(STORAGE_KEYS.HANDOVERS, normalized);
+    }
+    return normalized as T[];
   },
   saveHandovers<T = any>(data: T[]) {
     saveToStorage(STORAGE_KEYS.HANDOVERS, data);
@@ -662,6 +783,65 @@ export const mockStorage = {
       }
       return [...defaultStates];
     }
+    // Cập nhật tọa độ trên đường bộ thực tế cho các xe mẫu nếu đang mang tọa độ lệch cũ
+    if (Array.isArray(res)) {
+      let modified = false;
+      const roadCoords: Record<string, { lat: number; lng: number }> = {
+        TC1: { lat: 11.51138, lng: 106.60247 },
+        D1: { lat: 11.56658, lng: 106.63256 },
+        D2: { lat: 11.58909, lng: 106.56799 },
+        D3: { lat: 11.62039, lng: 106.67075 },
+        NM: { lat: 11.48501, lng: 106.62013 },
+        VP: { lat: 11.47200, lng: 106.61504 },
+      };
+
+      res.forEach((v: any) => {
+        // Đồng bộ tọa độ fromHub và toHub
+        if (v.fromHub && roadCoords[v.fromHub.code || v.fromHub.id]) {
+          const rc = roadCoords[v.fromHub.code || v.fromHub.id];
+          if (v.fromHub.lat !== rc.lat || v.fromHub.lng !== rc.lng) {
+            v.fromHub.lat = rc.lat;
+            v.fromHub.lng = rc.lng;
+            modified = true;
+          }
+        }
+        if (v.toHub && roadCoords[v.toHub.code || v.toHub.id]) {
+          const rc = roadCoords[v.toHub.code || v.toHub.id];
+          if (v.toHub.lat !== rc.lat || v.toHub.lng !== rc.lng) {
+            v.toHub.lat = rc.lat;
+            v.toHub.lng = rc.lng;
+            modified = true;
+          }
+        }
+        // Xe 1 (51C-889.26): Đang chạy tuyến TC1 -> D1
+        if (v.id === 1 && (v.currentLat === 11.545 || v.currentLat === 11.5450)) {
+          v.currentLat = 11.54883;
+          v.currentLng = 106.61637;
+          modified = true;
+        }
+        // Xe 2 (51C-772.18): Sẵn sàng tại TC1
+        if (v.id === 2 && (v.currentLat !== 11.51138 || v.currentLng !== 106.60247)) {
+          v.currentLat = 11.51138;
+          v.currentLng = 106.60247;
+          modified = true;
+        }
+        // Xe 3 (51A-992.34): Đang chạy tuyến VP -> NM trên QL13
+        if (v.id === 3 && (v.currentLat === 11.4785 || v.currentLng === 106.6178 || v.currentLat !== 11.47720)) {
+          v.currentLat = 11.47720;
+          v.currentLng = 106.61490;
+          modified = true;
+        }
+        // Xe 4 (MX-01): Bảo dưỡng tại D2
+        if (v.id === 4 && (v.currentLat !== 11.58909 || v.currentLng !== 106.56799)) {
+          v.currentLat = 11.58909;
+          v.currentLng = 106.56799;
+          modified = true;
+        }
+      });
+      if (modified) {
+        saveToStorage(STORAGE_KEYS.VEHICLE_MAP_STATES, res);
+      }
+    }
     return res;
   },
   saveVehicleMapStates<T = any>(data: T[]) {
@@ -671,12 +851,54 @@ export const mockStorage = {
   // TUYẾN ĐƯỜNG BẢN ĐỒ ECOTECH (ROUTE PATHS GIS)
   getEcotechRoutes<T = any>(defaultRoutes: T[] = []): T[] {
     const res = getFromStorage<T[]>(STORAGE_KEYS.ECOTECH_ROUTES, defaultRoutes);
-    if (!Array.isArray(res) || res.length === 0) {
+    // Tự động nâng cấp nếu dữ liệu lưu trước đó chỉ là đường chim bay hoặc chưa ghim sát mặt đường
+    const isOldCrowFlies = Array.isArray(res) && res.some((r: any) => !r.waypoints || r.waypoints.length <= 8);
+    const isMisaligned = Array.isArray(res) && res.some((r: any) => {
+      if (r.code === 'TC1-D1-TC1' && r.waypoints && r.waypoints[0]) {
+        return Math.abs(r.waypoints[0][0] - 11.51138) > 0.0001;
+      }
+      return false;
+    });
+    if (!Array.isArray(res) || res.length === 0 || isOldCrowFlies || isMisaligned) {
       if (defaultRoutes.length > 0) {
         saveToStorage(STORAGE_KEYS.ECOTECH_ROUTES, defaultRoutes);
       }
       return [...defaultRoutes];
     }
+
+    // Tự động đồng bộ tọa độ GPS trạm từ danh mục đường bộ chuẩn
+    let modified = false;
+    const roadCoords: Record<string, { lat: number; lng: number }> = {
+      TC1: { lat: 11.51138, lng: 106.60247 },
+      D1: { lat: 11.56658, lng: 106.63256 },
+      D2: { lat: 11.58909, lng: 106.56799 },
+      D3: { lat: 11.62039, lng: 106.67075 },
+      NM: { lat: 11.48501, lng: 106.62013 },
+      VP: { lat: 11.47200, lng: 106.61504 },
+    };
+
+    res.forEach((r: any) => {
+      if (r.from && roadCoords[r.from.code || r.from.id]) {
+        const rc = roadCoords[r.from.code || r.from.id];
+        if (Math.abs(r.from.lat - rc.lat) > 0.00005 || Math.abs(r.from.lng - rc.lng) > 0.00005) {
+          r.from.lat = rc.lat;
+          r.from.lng = rc.lng;
+          modified = true;
+        }
+      }
+      if (r.to && roadCoords[r.to.code || r.to.id]) {
+        const rc = roadCoords[r.to.code || r.to.id];
+        if (Math.abs(r.to.lat - rc.lat) > 0.00005 || Math.abs(r.to.lng - rc.lng) > 0.00005) {
+          r.to.lat = rc.lat;
+          r.to.lng = rc.lng;
+          modified = true;
+        }
+      }
+    });
+    if (modified) {
+      saveToStorage(STORAGE_KEYS.ECOTECH_ROUTES, res);
+    }
+
     return res;
   },
   saveEcotechRoutes<T = any>(data: T[]) {
@@ -725,6 +947,105 @@ export const mockStorage = {
     const list = this.getDriverNotifications();
     const filtered = list.filter((n: any) => n.id !== id);
     this.saveDriverNotifications(filtered);
+  },
+
+  // ==========================================
+  // CÀI ĐẶT CHUYẾN & GIÃN CÁCH ĐIỀU ĐỘNG XE
+  // ==========================================
+  getTripSettings(): TripSettingsConfig {
+    const raw = localStorage.getItem(STORAGE_KEYS.TRIP_SETTINGS);
+    const vehicles = this.getVehicles();
+
+    const createInitial = (): TripSettingsConfig => ({
+      defaultTurnaroundMinutes: 30,
+      defaultInterVehicleIntervalMinutes: 15,
+      allowEmergencyOverride: true,
+      vehicleTypeSettings: {
+        LatexTruck: {
+          turnaroundBufferMinutes: 45,
+          interVehicleIntervalMinutes: 20,
+          cleaningDurationMinutes: 15,
+          description: 'Xe bồn téc chở mủ: Cần thời gian xả cặn mủ, súc rửa bồn và kiểm tra van nắp',
+        },
+        PassengerCar: {
+          turnaroundBufferMinutes: 20,
+          interVehicleIntervalMinutes: 10,
+          cleaningDurationMinutes: 5,
+          description: 'Xe đưa đón công nhân/chuyên gia: Nghỉ ngắn, kiểm tra vệ sinh khoang xe',
+        },
+        MillingMachine: {
+          turnaroundBufferMinutes: 40,
+          interVehicleIntervalMinutes: 30,
+          cleaningDurationMinutes: 20,
+          description: 'Cơ giới nông trường: Kiểm tra dầu nhớt, hệ thống thủy lực trước ca mới',
+        },
+      },
+      specificVehicleSettings: vehicles.map((v) => ({
+        vehicleId: v.id,
+        licensePlate: v.licensePlate,
+        vehicleType: v.vehicleType,
+        teamName: v.teamName,
+        operatingUnitType: v.operatingUnitType,
+        useCustom: v.licensePlate === '51C-889.26', // Mẫu: xe bồn chính có cấu hình đặc thù
+        turnaroundBufferMinutes: v.licensePlate === '51C-889.26' ? 45 : (v.vehicleType === 'LatexTruck' ? 45 : (v.vehicleType === 'PassengerCar' ? 20 : 40)),
+        interVehicleIntervalMinutes: v.licensePlate === '51C-889.26' ? 20 : (v.vehicleType === 'LatexTruck' ? 20 : (v.vehicleType === 'PassengerCar' ? 10 : 30)),
+        cleaningDurationMinutes: v.vehicleType === 'LatexTruck' ? 15 : 5,
+        notes: v.licensePlate === '51C-889.26'
+          ? 'Xe téc bồn 10T chở mủ ly tâm trọng điểm — Ưu tiên đệm 45p vệ sinh kỹ nắp van'
+          : v.operatingUnitType === 'Factory'
+            ? 'Xe nhà máy điều động hỗ trợ các đội'
+            : `Xe phục vụ ${v.teamName || 'Đội sản xuất'}`,
+      })),
+      updatedAt: new Date().toISOString(),
+    });
+
+    if (!raw) {
+      const initial = createInitial();
+      this.saveTripSettings(initial);
+      return initial;
+    }
+
+    try {
+      const parsed: TripSettingsConfig = JSON.parse(raw);
+      // Đồng bộ nếu có xe mới chưa có trong config
+      let hasChanges = false;
+      const existingVehicleIds = new Set((parsed.specificVehicleSettings || []).map((s) => s.vehicleId));
+      for (const v of vehicles) {
+        if (!existingVehicleIds.has(v.id)) {
+          parsed.specificVehicleSettings.push({
+            vehicleId: v.id,
+            licensePlate: v.licensePlate,
+            vehicleType: v.vehicleType,
+            teamName: v.teamName,
+            operatingUnitType: v.operatingUnitType,
+            useCustom: false,
+            turnaroundBufferMinutes: v.vehicleType === 'LatexTruck' ? 45 : (v.vehicleType === 'PassengerCar' ? 20 : 40),
+            interVehicleIntervalMinutes: v.vehicleType === 'LatexTruck' ? 20 : (v.vehicleType === 'PassengerCar' ? 10 : 30),
+            cleaningDurationMinutes: v.vehicleType === 'LatexTruck' ? 15 : 5,
+            notes: `Xe phục vụ ${v.operatingUnitType === 'Factory' ? 'Nhà máy' : (v.teamName || 'Đội')}`,
+          });
+          hasChanges = true;
+        }
+      }
+      if (hasChanges) {
+        this.saveTripSettings(parsed);
+      }
+      return parsed;
+    } catch {
+      const fallback = createInitial();
+      this.saveTripSettings(fallback);
+      return fallback;
+    }
+  },
+
+  saveTripSettings(settings: TripSettingsConfig) {
+    settings.updatedAt = new Date().toISOString();
+    localStorage.setItem(STORAGE_KEYS.TRIP_SETTINGS, JSON.stringify(settings));
+  },
+
+  resetTripSettings(): TripSettingsConfig {
+    localStorage.removeItem(STORAGE_KEYS.TRIP_SETTINGS);
+    return this.getTripSettings();
   },
 
   getStorageHealth() {

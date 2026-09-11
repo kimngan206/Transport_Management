@@ -5,6 +5,7 @@ import { useBookingStore } from '@/stores/booking';
 import { useDialogStore } from '@/stores/dialog';
 import type { TransportRequest } from '@/types';
 import StatusBadge from '@/components/common/StatusBadge.vue';
+import TablePagination from '@/components/common/TablePagination.vue';
 import { CheckSquare, Check, X, AlertCircle } from 'lucide-vue-next';
 
 const authStore = useAuthStore();
@@ -33,9 +34,23 @@ const pendingList = computed(() =>
   departmentRequests.value.filter((r) => r.status === 'PENDING')
 );
 
+const pendingCurrentPage = ref(1);
+const pendingPageSize = ref(8);
+const paginatedPending = computed(() => {
+  const start = (pendingCurrentPage.value - 1) * pendingPageSize.value;
+  return pendingList.value.slice(start, start + pendingPageSize.value);
+});
+
 const historyList = computed(() =>
   departmentRequests.value.filter((r) => r.status === 'APPROVED' || r.status === 'REJECTED')
 );
+
+const historyCurrentPage = ref(1);
+const historyPageSize = ref(8);
+const paginatedHistory = computed(() => {
+  const start = (historyCurrentPage.value - 1) * historyPageSize.value;
+  return historyList.value.slice(start, start + historyPageSize.value);
+});
 
 function handleApprove(req: TransportRequest) {
   const res = bookingStore.approveRequest(
@@ -143,7 +158,7 @@ function confirmReject() {
               </td>
             </tr>
 
-            <tr v-for="req in pendingList" :key="req.id">
+            <tr v-for="req in paginatedPending" :key="req.id">
               <td><strong>{{ req.requestCode }}</strong></td>
               <td>
                 <div class="flex-col">
@@ -185,6 +200,12 @@ function confirmReject() {
           </tbody>
         </table>
       </div>
+      <TablePagination
+        v-model:currentPage="pendingCurrentPage"
+        v-model:pageSize="pendingPageSize"
+        :totalItems="pendingList.length"
+        :pageSizeOptions="[5, 8, 15, 25]"
+      />
     </div>
 
     <!-- Lịch sử duyệt -->
@@ -213,7 +234,7 @@ function confirmReject() {
               </td>
             </tr>
 
-            <tr v-for="req in historyList" :key="req.id">
+            <tr v-for="req in paginatedHistory" :key="req.id">
               <td><strong>{{ req.requestCode }}</strong></td>
               <td>{{ req.requesterName }}</td>
               <td>{{ req.vehicleType }}</td>
@@ -230,6 +251,12 @@ function confirmReject() {
           </tbody>
         </table>
       </div>
+      <TablePagination
+        v-model:currentPage="historyCurrentPage"
+        v-model:pageSize="historyPageSize"
+        :totalItems="historyList.length"
+        :pageSizeOptions="[5, 8, 15, 25]"
+      />
     </div>
 
     <!-- Modal Từ Chối (US-04: Bắt buộc RejectReason) -->

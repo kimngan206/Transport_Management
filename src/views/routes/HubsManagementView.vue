@@ -33,8 +33,14 @@ import {
 
 import { useDialogStore } from '@/stores/dialog';
 import {
+  ADMIN_COUNTRIES,
   VIETNAM_PROVINCES,
+  getProvincesByCountry,
+  getDistrictsByProvince,
+  getWardsByDistrict,
   smartGeocodeAddress,
+  type CountryItem,
+  type ProvinceItem,
   type DistrictItem,
   type WardItem,
 } from '@/services/vietnamLocations';
@@ -80,30 +86,97 @@ const formLng = ref<number>(106.6025);
 const formAddress = ref('');
 const formDescription = ref('');
 
-// Quản lý Địa chỉ Hành chính & Định vị GPS tự động
+// Quản lý Địa chỉ Hành chính & Định vị GPS tự động (Quốc gia -> Tỉnh -> Huyện -> Xã)
+// Quản lý Địa chỉ Hành chính & Định vị GPS tự động (Quốc gia -> Tỉnh -> Huyện -> Xã)
+const selectedCountry = ref<string>('Việt Nam');
 const selectedProvince = ref<string>('Tỉnh Bình Phước');
 const selectedDistrict = ref<string>('Huyện Đồng Phú');
 const selectedWard = ref<string>('Xã Tân Lập');
-const streetAddress = ref<string>('Đường nội bộ nông trường');
+const streetAddress = ref<string>('Đường nội bộ nông trường cao su');
 const isGeocoding = ref<boolean>(false);
 const geocodeSource = ref<'nominatim' | 'administrative' | 'manual' | 'fallback'>('administrative');
 const showManualCoords = ref<boolean>(false);
+
+// Danh sách động render theo cấp trên
+const availableProvinces = computed(() => {
+  return getProvincesByCountry(selectedCountry.value);
+});
+
+const availableDistricts = computed(() => {
+  return getDistrictsByProvince(selectedProvince.value, selectedCountry.value);
+});
+
+const availableWards = computed(() => {
+  return getWardsByDistrict(selectedDistrict.value, selectedProvince.value, selectedCountry.value);
+});
+
+// Khi đổi Quốc gia -> Reset và render lại Tỉnh, Huyện, Xã
+function handleCountryChange() {
+  const provinces = availableProvinces.value;
+  if (provinces.length > 0) {
+    selectedProvince.value = provinces[0].name;
+    const districts = getDistrictsByProvince(selectedProvince.value, selectedCountry.value);
+    selectedDistrict.value = districts.length > 0 ? districts[0].name : '';
+    const wards = getWardsByDistrict(selectedDistrict.value, selectedProvince.value, selectedCountry.value);
+    selectedWard.value = wards.length > 0 ? wards[0].name : '';
+  } else {
+    selectedProvince.value = '';
+    selectedDistrict.value = '';
+    selectedWard.value = '';
+  }
+  updateFullAddress();
+  triggerGeocode(true);
+}
+
+// Khi đổi Tỉnh -> Reset và render lại Huyện, Xã
+function handleProvinceChange() {
+  const districts = availableDistricts.value;
+  if (districts.length > 0) {
+    selectedDistrict.value = districts[0].name;
+    const wards = getWardsByDistrict(selectedDistrict.value, selectedProvince.value, selectedCountry.value);
+    selectedWard.value = wards.length > 0 ? wards[0].name : '';
+  } else {
+    selectedDistrict.value = '';
+    selectedWard.value = '';
+  }
+  updateFullAddress();
+  triggerGeocode(true);
+}
+
+// Khi đổi Huyện -> Reset và render lại Xã
+function handleDistrictChange() {
+  const wards = availableWards.value;
+  selectedWard.value = wards.length > 0 ? wards[0].name : '';
+  updateFullAddress();
+  triggerGeocode(true);
+}
+
+// Khi đổi Xã -> Cập nhật địa chỉ và tọa độ
+function handleWardChange() {
+  updateFullAddress();
+  triggerGeocode(true);
+}
+
 // Mini Map trong modal định vị
 const miniMapContainer = ref<HTMLElement | null>(null);
 let miniMapInstance: any = null;
 let miniMapMarker: any = null;
 
+// Sắp xếp thứ tự chuẩn từ Tỉnh -> Huyện -> Xã -> Địa chỉ chi tiết, Quốc gia
 function updateFullAddress() {
-  const s = streetAddress.value.trim();
-  const w = selectedWard.value.trim();
-  const d = selectedDistrict.value.trim();
   const p = selectedProvince.value.trim();
-  
-  const parts = [s];
-  if (w && !s.includes(w)) parts.push(w);
-  if (d && !s.includes(d)) parts.push(d);
-  if (p && !s.includes(p)) parts.push(p);
-  
+  const d = selectedDistrict.value.trim();
+  const w = selectedWard.value.trim();
+  const s = streetAddress.value.trim();
+  const c = selectedCountry.value.trim();
+
+  const parts: string[] = [];
+  if (p) parts.push(p);
+  if (d && !p.toLowerCase().includes(d.toLowerCase())) parts.push(d);
+  if (w && !d.toLowerCase().includes(w.toLowerCase())) parts.push(w);
+  if (s) parts.push(s);
+  if (c) parts.push(c);
+
   formAddress.value = parts.filter(Boolean).join(', ');
 }
 
@@ -133,7 +206,8 @@ async function triggerGeocode(immediate = false) {
       streetAddress.value,
       selectedWard.value,
       selectedDistrict.value,
-      selectedProvince.value
+      selectedProvince.value,
+      selectedCountry.value
     );
 
     formLat.value = res.lat;
@@ -228,19 +302,83 @@ function updateMiniMapPosition() {
 }
 
 function parseExistingAddress(addr: string) {
-  if (!addr) return;
-  const tokens = addr.split(',').map((t) => t.trim());
-  if (tokens.length >= 4) {
-    selectedProvince.value = tokens.pop() || '';
-    selectedDistrict.value = tokens.pop() || '';
-    selectedWard.value = tokens.pop() || '';
-    streetAddress.value = tokens.join(', ');
-  } else {
-    streetAddress.value = addr;
-    selectedProvince.value = '';
-    selectedDistrict.value = '';
-    selectedWard.value = '';
+  if (!addr) {
+    selectedCountry.value = 'Việt Nam';
+    selectedProvince.value = 'Tỉnh Bình Phước';
+    selectedDistrict.value = 'Huyện Đồng Phú';
+    selectedWard.value = 'Xã Tân Lập';
+    streetAddress.value = '';
+    return;
   }
+
+  const addrLower = addr.toLowerCase();
+
+  // Nhận diện quốc gia
+  if (addrLower.includes('campuchia') || addrLower.includes('cambodia') || addrLower.includes('kratié') || addrLower.includes('kratie')) {
+    selectedCountry.value = 'Campuchia';
+  } else if (addrLower.includes('lào') || addrLower.includes('laos') || addrLower.includes('champasak') || addrLower.includes('salavan')) {
+    selectedCountry.value = 'Lào';
+  } else {
+    selectedCountry.value = 'Việt Nam';
+  }
+
+  const provinces = getProvincesByCountry(selectedCountry.value);
+  let matchedProv: ProvinceItem | undefined = undefined;
+
+  for (const p of provinces) {
+    const pClean = p.name.replace(/^(Tỉnh|Thành phố)\s+/i, '').toLowerCase();
+    if (addrLower.includes(pClean)) {
+      matchedProv = p;
+      selectedProvince.value = p.name;
+      break;
+    }
+  }
+
+  if (!matchedProv && provinces.length > 0) {
+    matchedProv = provinces[0];
+    selectedProvince.value = matchedProv.name;
+  }
+
+  let matchedDist: DistrictItem | undefined = undefined;
+  if (matchedProv) {
+    for (const d of matchedProv.districts) {
+      const dClean = d.name.replace(/^(Huyện|Thị xã|Thành phố|Quận)\s+/i, '').toLowerCase();
+      if (addrLower.includes(dClean)) {
+        matchedDist = d;
+        selectedDistrict.value = d.name;
+        break;
+      }
+    }
+  }
+
+  if (!matchedDist && matchedProv && matchedProv.districts.length > 0) {
+    matchedDist = matchedProv.districts[0];
+    selectedDistrict.value = matchedDist.name;
+  }
+
+  if (matchedDist) {
+    for (const w of matchedDist.wards) {
+      const wClean = w.name.replace(/^(Xã|Phường|Thị trấn|Bản)\s+/i, '').toLowerCase();
+      if (addrLower.includes(wClean)) {
+        selectedWard.value = w.name;
+        break;
+      }
+    }
+  }
+
+  // Tách các token địa chỉ chi tiết
+  const tokens = addr.split(',').map((t) => t.trim());
+  const streetTokens = tokens.filter((t) => {
+    const tl = t.toLowerCase();
+    if (tl === 'việt nam' || tl === 'campuchia' || tl === 'lào') return false;
+    if (selectedProvince.value && tl.includes(selectedProvince.value.replace(/^(Tỉnh|Thành phố)\s+/i, '').toLowerCase())) return false;
+    if (selectedDistrict.value && tl.includes(selectedDistrict.value.replace(/^(Huyện|Thị xã|Thành phố|Quận)\s+/i, '').toLowerCase())) return false;
+    if (selectedWard.value && tl.includes(selectedWard.value.replace(/^(Xã|Phường|Thị trấn|Bản)\s+/i, '').toLowerCase())) return false;
+    return true;
+  });
+
+  streetAddress.value = streetTokens.join(', ');
+  updateFullAddress();
 }
 
 function openAddModal() {
@@ -253,7 +391,8 @@ function openAddModal() {
   showManualCoords.value = false;
   geocodeSource.value = 'administrative';
 
-  // Mặc định vùng Bình Phước - Đồng Phú
+  // Mặc định vùng Bình Phước - Đồng Phú (Việt Nam)
+  selectedCountry.value = 'Việt Nam';
   selectedProvince.value = 'Tỉnh Bình Phước';
   selectedDistrict.value = 'Huyện Đồng Phú';
   selectedWard.value = 'Xã Tân Lập';
@@ -377,7 +516,7 @@ function initMap() {
 
   L.control.zoom({ position: 'bottomright' }).addTo(mapInstance.value);
 
-  createTileLayer('osm').addTo(mapInstance.value);
+  createTileLayer('google_streets').addTo(mapInstance.value);
 
   renderHubsOnMap();
 }
@@ -661,42 +800,61 @@ onUnmounted(() => {
           <div class="admin-location-box">
             <div class="section-badge-title">
               <Globe :size="14" class="text-primary" />
-              <span>ĐỊA CHỈ HÀNH CHÍNH & VỊ TRÍ ĐỊNH VỊ</span>
+              <span>ĐỊA CHỈ HÀNH CHÍNH & VỊ TRÍ ĐỊNH VỊ (VỪA CHỌN VỪA NHẬP)</span>
             </div>
 
-            <!-- Hàng 1: Tỉnh / Thành phố - Quận / Huyện - Phường / Xã -->
-            <div class="grid-3 mb-2">
+            <!-- Hàng 1: Quốc gia - Tỉnh - Huyện - Xã: dùng <select> để show toàn bộ danh sách -->
+            <div class="addr-select-row mb-2">
+              <!-- Cột 1: Quốc gia -->
               <div class="form-group mb-0">
-                <label class="form-label">Tỉnh / Thành phố / Quốc gia <span class="required">*</span></label>
-                <input
-                  type="text"
-                  v-model="selectedProvince"
-                  @blur="handleAddressBlur"
-                  class="form-input font-semibold"
-                  placeholder="VD: Tỉnh Kratie, Campuchia"
-                />
+                <label class="form-label">Quốc gia <span class="required">*</span></label>
+                <select
+                  v-model="selectedCountry"
+                  @change="handleCountryChange"
+                  class="form-select addr-select"
+                >
+                  <option v-for="c in ADMIN_COUNTRIES" :key="c.id" :value="c.name">{{ c.name }}</option>
+                </select>
               </div>
 
+              <!-- Cột 2: Tỉnh / Thành phố -->
+              <div class="form-group mb-0">
+                <label class="form-label">Tỉnh / Thành phố <span class="required">*</span></label>
+                <select
+                  v-model="selectedProvince"
+                  @change="handleProvinceChange"
+                  class="form-select addr-select"
+                >
+                  <option v-for="p in availableProvinces" :key="p.id" :value="p.name">{{ p.name }}</option>
+                </select>
+              </div>
+
+              <!-- Cột 3: Quận / Huyện -->
               <div class="form-group mb-0">
                 <label class="form-label">Quận / Huyện</label>
-                <input
-                  type="text"
+                <select
                   v-model="selectedDistrict"
-                  @blur="handleAddressBlur"
-                  class="form-input font-semibold"
-                  placeholder="VD: Huyện Snuol"
-                />
+                  @change="handleDistrictChange"
+                  class="form-select addr-select"
+                  :disabled="availableDistricts.length === 0"
+                >
+                  <option v-if="availableDistricts.length === 0" value="">— Không có dữ liệu —</option>
+                  <option v-for="d in availableDistricts" :key="d.id" :value="d.name">{{ d.name }}</option>
+                </select>
               </div>
 
+              <!-- Cột 4: Phường / Xã / Thị trấn -->
               <div class="form-group mb-0">
                 <label class="form-label">Phường / Xã / Thị trấn</label>
-                <input
-                  type="text"
+                <select
                   v-model="selectedWard"
-                  @blur="handleAddressBlur"
-                  class="form-input font-semibold"
-                  placeholder="VD: Xã 2 Thôn Khsach L'ea"
-                />
+                  @change="handleWardChange"
+                  class="form-select addr-select"
+                  :disabled="availableWards.length === 0"
+                >
+                  <option v-if="availableWards.length === 0" value="">— Không có dữ liệu —</option>
+                  <option v-for="w in availableWards" :key="w.id" :value="w.name">{{ w.name }}</option>
+                </select>
               </div>
             </div>
 
@@ -974,15 +1132,63 @@ onUnmounted(() => {
 .flex-shrink-0 { flex-shrink: 0; }
 .text-amber-500 { color: #f59e0b; }
 
-/* Grid 3 columns */
+/* Grid 3 and 4 columns */
 .grid-3 {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
 }
 
+.grid-4 {
+  display: grid;
+  grid-template-columns: 1.1fr 1.3fr 1.3fr 1.3fr;
+  gap: 10px;
+}
+
+/* Layout hàng địa chỉ: 4 cột select đều nhau */
+.addr-select-row {
+  display: grid;
+  grid-template-columns: 1fr 1.4fr 1.4fr 1.4fr;
+  gap: 10px;
+  align-items: end;
+}
+
+/* Select địa chỉ: chiều cao & style đồng bộ với form-input */
+.addr-select {
+  height: 38px;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 28px;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.addr-select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background-color: #f8fafc;
+}
+
+
+@media (max-width: 768px) {
+  .grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .addr-select-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 @media (max-width: 640px) {
   .grid-3 {
+    grid-template-columns: 1fr;
+  }
+  .grid-4 {
+    grid-template-columns: 1fr;
+  }
+  .addr-select-row {
     grid-template-columns: 1fr;
   }
 }
@@ -1006,6 +1212,8 @@ onUnmounted(() => {
   letter-spacing: 0.05em;
   margin-bottom: 10px;
 }
+
+
 
 .address-input-wrapper {
   display: flex;

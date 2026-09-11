@@ -23,6 +23,15 @@ export interface ProvinceItem {
   districts: DistrictItem[];
 }
 
+export interface CountryItem {
+  id: string;
+  name: string;
+  code: string;
+  lat: number;
+  lng: number;
+  provinces: ProvinceItem[];
+}
+
 export interface GeocodingResult {
   lat: number;
   lng: number;
@@ -573,6 +582,420 @@ export const VIETNAM_PROVINCES: ProvinceItem[] = [
   },
 ];
 
+export const CAMBODIA_PROVINCES: ProvinceItem[] = [
+  {
+    id: 'kh_kratie',
+    name: 'Tỉnh Kratié',
+    lat: 12.4881,
+    lng: 106.0188,
+    districts: [
+      {
+        id: 'kh_snuol',
+        name: 'Huyện Snuol',
+        lat: 11.9833,
+        lng: 106.4167,
+        wards: [
+          { id: 'kh_snuol_c', name: 'Xã Snuol', lat: 11.9833, lng: 106.4167 },
+          { id: 'kh_khsach', name: "Xã Khsach L'ea", lat: 12.0120, lng: 106.4520 },
+          { id: 'kh_pithnou', name: 'Xã Pi Thnou', lat: 11.9420, lng: 106.3850 },
+          { id: 'kh_svaychreah', name: 'Xã Svay Chreah', lat: 12.0540, lng: 106.4910 },
+          { id: 'kh_cheungkhleung', name: 'Xã Cheung Khleung', lat: 11.9210, lng: 106.3500 },
+        ],
+      },
+      {
+        id: 'kh_sambour',
+        name: 'Huyện Sambour',
+        lat: 12.7833,
+        lng: 105.9667,
+        wards: [
+          { id: 'kh_sambour_c', name: 'Xã Sambour', lat: 12.7833, lng: 105.9667 },
+          { id: 'kh_sandan', name: 'Xã Sandan', lat: 12.8210, lng: 106.0120 },
+          { id: 'kh_vadhnak', name: 'Xã Voadhnak', lat: 12.7410, lng: 105.9300 },
+        ],
+      },
+      {
+        id: 'kh_chetrborei',
+        name: 'Huyện Chetr Borei',
+        lat: 12.4500,
+        lng: 106.1000,
+        wards: [
+          { id: 'kh_dar', name: 'Xã Dar', lat: 12.4120, lng: 106.0850 },
+          { id: 'kh_changkrang', name: 'Xã Changkrang', lat: 12.4780, lng: 106.1200 },
+          { id: 'kh_thmaandeth', name: 'Xã Thma Andeth', lat: 12.5100, lng: 106.0600 },
+        ],
+      },
+      {
+        id: 'kh_kratie_city',
+        name: 'Thành phố Kratié',
+        lat: 12.4881,
+        lng: 106.0188,
+        wards: [
+          { id: 'kh_kratie_c', name: 'Phường Kratié', lat: 12.4881, lng: 106.0188 },
+          { id: 'kh_ou_russei', name: 'Phường Ou Russei', lat: 12.4720, lng: 106.0250 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'kh_kampong_thom',
+    name: 'Tỉnh Kampong Thom',
+    lat: 12.7111,
+    lng: 104.8887,
+    districts: [
+      {
+        id: 'kh_baray',
+        name: 'Huyện Baray',
+        lat: 12.3333,
+        lng: 105.1667,
+        wards: [
+          { id: 'kh_baray_c', name: 'Xã Baray', lat: 12.3333, lng: 105.1667 },
+          { id: 'kh_chhukksach', name: 'Xã Chhuk Khsach', lat: 12.3520, lng: 105.1950 },
+          { id: 'kh_boeng', name: 'Xã Boeng', lat: 12.3110, lng: 105.1420 },
+        ],
+      },
+      {
+        id: 'kh_santuk',
+        name: 'Huyện Santuk',
+        lat: 12.6000,
+        lng: 105.1000,
+        wards: [
+          { id: 'kh_prasat', name: 'Xã Prasat', lat: 12.6120, lng: 105.0850 },
+          { id: 'kh_tangkrasau', name: 'Xã Tang Krasau', lat: 12.6540, lng: 105.1420 },
+          { id: 'kh_tipou', name: 'Xã Ti Pou', lat: 12.5820, lng: 105.1850 },
+        ],
+      },
+      {
+        id: 'kh_stoung',
+        name: 'Huyện Stoung',
+        lat: 12.9833,
+        lng: 104.5667,
+        wards: [
+          { id: 'kh_kampong_chen', name: 'Xã Kampong Chen Cheung', lat: 12.9833, lng: 104.5667 },
+        ],
+      },
+      {
+        id: 'kh_stuengsaen',
+        name: 'Thành phố Stueng Saen',
+        lat: 12.7111,
+        lng: 104.8887,
+        wards: [
+          { id: 'kh_damrei_choan', name: 'Phường Damrei Choan Chla', lat: 12.7111, lng: 104.8887 },
+          { id: 'kh_kampong_thom_c', name: 'Phường Kampong Thom', lat: 12.7210, lng: 104.8950 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'kh_mondulkiri',
+    name: 'Tỉnh Mondulkiri',
+    lat: 12.4558,
+    lng: 107.1881,
+    districts: [
+      {
+        id: 'kh_keoseima',
+        name: 'Huyện Keo Seima',
+        lat: 12.1833,
+        lng: 106.8833,
+        wards: [
+          { id: 'kh_srekhtum', name: 'Xã Sre Khtum', lat: 12.1833, lng: 106.8833 },
+          { id: 'kh_srechhouk', name: 'Xã Sre Chhouk', lat: 12.2450, lng: 106.9120 },
+          { id: 'kh_srepreah', name: 'Xã Sre Preah', lat: 12.1520, lng: 106.8210 },
+        ],
+      },
+      {
+        id: 'kh_pechrchenda',
+        name: 'Huyện Pechr Chenda',
+        lat: 12.5500,
+        lng: 107.3500,
+        wards: [
+          { id: 'kh_krangteh', name: 'Xã Krang Teh', lat: 12.5500, lng: 107.3500 },
+          { id: 'kh_bousra', name: 'Xã Bou Sra', lat: 12.5820, lng: 107.4120 },
+        ],
+      },
+      {
+        id: 'kh_senmonorom',
+        name: 'Thành phố Senmonorom',
+        lat: 12.4558,
+        lng: 107.1881,
+        wards: [
+          { id: 'kh_monorom', name: 'Phường Monorom', lat: 12.4558, lng: 107.1881 },
+          { id: 'kh_sokhdom', name: 'Phường Sokhdom', lat: 12.4680, lng: 107.2100 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'kh_ratanakiri',
+    name: 'Tỉnh Ratanakiri',
+    lat: 13.7394,
+    lng: 106.9873,
+    districts: [
+      {
+        id: 'kh_oyadav',
+        name: "Huyện O'Yadav",
+        lat: 13.5833,
+        lng: 107.2833,
+        wards: [
+          { id: 'kh_somknor', name: 'Xã Som Knor', lat: 13.5833, lng: 107.2833 },
+          { id: 'kh_paknhai', name: 'Xã Pak Nhai', lat: 13.6210, lng: 107.3120 },
+        ],
+      },
+      {
+        id: 'kh_banlung',
+        name: 'Thành phố Banlung',
+        lat: 13.7394,
+        lng: 106.9873,
+        wards: [
+          { id: 'kh_labansiek', name: 'Phường Labansiek', lat: 13.7394, lng: 106.9873 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'kh_phnom_penh',
+    name: 'Thủ đô Phnom Penh',
+    lat: 11.5564,
+    lng: 104.9282,
+    districts: [
+      {
+        id: 'kh_daunpenh',
+        name: 'Quận Daun Penh',
+        lat: 11.5725,
+        lng: 104.9258,
+        wards: [
+          { id: 'kh_phsar_thmey', name: 'Phường Phsar Thmey', lat: 11.5700, lng: 104.9240 },
+        ],
+      },
+      {
+        id: 'kh_chamkarmon',
+        name: 'Quận Chamkar Mon',
+        lat: 11.5420,
+        lng: 104.9210,
+        wards: [
+          { id: 'kh_tonle_bassac', name: 'Phường Tonle Bassac', lat: 11.5420, lng: 104.9210 },
+        ],
+      },
+    ],
+  },
+];
+
+export const LAOS_PROVINCES: ProvinceItem[] = [
+  {
+    id: 'la_champasak',
+    name: 'Tỉnh Champasak',
+    lat: 15.1201,
+    lng: 105.7993,
+    districts: [
+      {
+        id: 'la_bachiang',
+        name: 'Huyện Bachiangchaleunsouk',
+        lat: 15.1800,
+        lng: 105.9500,
+        wards: [
+          { id: 'la_huaychampa', name: 'Bản Huaychampa', lat: 15.1800, lng: 105.9500 },
+          { id: 'la_thongset', name: 'Bản Thongset', lat: 15.2100, lng: 105.9800 },
+          { id: 'la_champa', name: 'Bản Champa', lat: 15.1950, lng: 105.9620 },
+        ],
+      },
+      {
+        id: 'la_pakse',
+        name: 'Thành phố Pakse',
+        lat: 15.1214,
+        lng: 105.7821,
+        wards: [
+          { id: 'la_pakse_c', name: 'Bản Pakse', lat: 15.1214, lng: 105.7821 },
+          { id: 'la_thaluang', name: 'Bản Thaluang', lat: 15.1150, lng: 105.7920 },
+        ],
+      },
+      {
+        id: 'la_paksong',
+        name: 'Huyện Paksong',
+        lat: 15.1833,
+        lng: 106.2333,
+        wards: [
+          { id: 'la_paksong_c', name: 'Bản Paksong', lat: 15.1833, lng: 106.2333 },
+          { id: 'la_nonghin', name: 'Bản Nonghin', lat: 15.2010, lng: 106.2510 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'la_salavan',
+    name: 'Tỉnh Salavan',
+    lat: 15.7167,
+    lng: 106.4167,
+    districts: [
+      {
+        id: 'la_laongam',
+        name: 'Huyện Laongam',
+        lat: 15.5200,
+        lng: 106.2500,
+        wards: [
+          { id: 'la_laongam_c', name: 'Bản Laongam', lat: 15.5200, lng: 106.2500 },
+          { id: 'la_huayman', name: 'Bản Huayman', lat: 15.5420, lng: 106.2810 },
+        ],
+      },
+      {
+        id: 'la_salavan_d',
+        name: 'Huyện Salavan',
+        lat: 15.7167,
+        lng: 106.4167,
+        wards: [
+          { id: 'la_salavan_c', name: 'Bản Salavan', lat: 15.7167, lng: 106.4167 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'la_savannakhet',
+    name: 'Tỉnh Savannakhet',
+    lat: 16.5500,
+    lng: 105.2000,
+    districts: [
+      {
+        id: 'la_kaysone',
+        name: 'Thành phố Kaysone Phomvihane',
+        lat: 16.5500,
+        lng: 104.7500,
+        wards: [
+          { id: 'la_kaysone_c', name: 'Bản Kaysone', lat: 16.5500, lng: 104.7500 },
+        ],
+      },
+      {
+        id: 'la_outhoumphone',
+        name: 'Huyện Outhoumphone',
+        lat: 16.6833,
+        lng: 105.0000,
+        wards: [
+          { id: 'la_seno', name: 'Bản Seno', lat: 16.6833, lng: 105.0000 },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'la_vientiane',
+    name: 'Thủ đô Vientiane',
+    lat: 17.9757,
+    lng: 102.6331,
+    districts: [
+      {
+        id: 'la_chanthabuly',
+        name: 'Quận Chanthabuly',
+        lat: 17.9700,
+        lng: 102.6100,
+        wards: [
+          { id: 'la_chanthabuly_c', name: 'Bản Chanthabuly', lat: 17.9700, lng: 102.6100 },
+        ],
+      },
+    ],
+  },
+];
+
+export const ADMIN_COUNTRIES: CountryItem[] = [
+  {
+    id: 'VN',
+    name: 'Việt Nam',
+    code: 'VN',
+    lat: 11.7512,
+    lng: 106.9042,
+    provinces: VIETNAM_PROVINCES,
+  },
+  {
+    id: 'KH',
+    name: 'Campuchia',
+    code: 'KH',
+    lat: 12.4881,
+    lng: 106.0188,
+    provinces: CAMBODIA_PROVINCES,
+  },
+  {
+    id: 'LA',
+    name: 'Lào',
+    code: 'LA',
+    lat: 15.1201,
+    lng: 105.7993,
+    provinces: LAOS_PROVINCES,
+  },
+];
+
+/**
+ * Lấy danh sách tỉnh/thành theo quốc gia
+ */
+export function getProvincesByCountry(countryNameOrCode: string): ProvinceItem[] {
+  if (!countryNameOrCode) return VIETNAM_PROVINCES;
+  const q = countryNameOrCode.toLowerCase().trim();
+  const c = ADMIN_COUNTRIES.find(
+    (item) => item.id.toLowerCase() === q || item.code.toLowerCase() === q || item.name.toLowerCase() === q
+  );
+  return c ? c.provinces : VIETNAM_PROVINCES;
+}
+
+/**
+ * Lấy danh sách quận/huyện theo tỉnh/thành phố
+ */
+export function getDistrictsByProvince(provinceName: string, countryNameOrCode?: string): DistrictItem[] {
+  if (!provinceName) return [];
+  const pName = provinceName.toLowerCase().trim();
+  const provinces = countryNameOrCode ? getProvincesByCountry(countryNameOrCode) : [
+    ...VIETNAM_PROVINCES,
+    ...CAMBODIA_PROVINCES,
+    ...LAOS_PROVINCES,
+  ];
+
+  const found = provinces.find((p) => p.name.toLowerCase().includes(pName) || pName.includes(p.name.toLowerCase()));
+  return found ? found.districts : [];
+}
+
+/**
+ * Lấy danh sách phường/xã theo quận/huyện
+ */
+export function getWardsByDistrict(districtName: string, provinceName?: string, countryNameOrCode?: string): WardItem[] {
+  if (!districtName) return [];
+  const dName = districtName.toLowerCase().trim();
+  const districts = provinceName ? getDistrictsByProvince(provinceName, countryNameOrCode) : [
+    ...VIETNAM_PROVINCES.flatMap((p) => p.districts),
+    ...CAMBODIA_PROVINCES.flatMap((p) => p.districts),
+    ...LAOS_PROVINCES.flatMap((p) => p.districts),
+  ];
+
+  const found = districts.find((d) => d.name.toLowerCase().includes(dName) || dName.includes(d.name.toLowerCase()));
+  return found ? found.wards : [];
+}
+
+/**
+ * Tìm tọa độ của cấp hành chính nhanh (Quốc gia / Tỉnh / Huyện / Xã)
+ */
+export function findAdministrativeCoords(
+  countryName: string,
+  provinceName: string,
+  districtName: string,
+  wardName: string
+): { lat: number; lng: number } | null {
+  const provinces = getProvincesByCountry(countryName);
+  
+  if (provinceName) {
+    const p = provinces.find((item) => item.name.toLowerCase().includes(provinceName.toLowerCase()) || provinceName.toLowerCase().includes(item.name.toLowerCase()));
+    if (p) {
+      if (districtName) {
+        const d = p.districts.find((item) => item.name.toLowerCase().includes(districtName.toLowerCase()) || districtName.toLowerCase().includes(item.name.toLowerCase()));
+        if (d) {
+          if (wardName) {
+            const w = d.wards.find((item) => item.name.toLowerCase().includes(wardName.toLowerCase()) || wardName.toLowerCase().includes(item.name.toLowerCase()));
+            if (w) return { lat: w.lat, lng: w.lng };
+          }
+          return { lat: d.lat, lng: d.lng };
+        }
+      }
+      return { lat: p.lat, lng: p.lng };
+    }
+  }
+
+  const c = ADMIN_COUNTRIES.find((item) => item.name.toLowerCase() === countryName.toLowerCase() || item.code.toLowerCase() === countryName.toLowerCase());
+  if (c) return { lat: c.lat, lng: c.lng };
+
+  return null;
+}
+
 /**
  * Hàm geocoding thông minh:
  * 1. Thử gọi API OpenStreetMap Nominatim với full address
@@ -583,13 +1006,16 @@ export async function smartGeocodeAddress(
   streetAddress: string,
   wardName: string,
   districtName: string,
-  provinceName: string
+  provinceName: string,
+  countryName: string = 'Việt Nam'
 ): Promise<GeocodingResult> {
+  // Sắp xếp thứ tự truy vấn địa chỉ: Tỉnh -> Huyện -> Xã -> Đường/Ấp, Quốc gia
   const parts = [
-    streetAddress.trim(),
-    wardName.trim(),
-    districtName.trim(),
     provinceName.trim(),
+    districtName.trim(),
+    wardName.trim(),
+    streetAddress.trim(),
+    countryName.trim(),
   ].filter(Boolean);
 
   const fullAddress = parts.join(', ');
@@ -598,33 +1024,15 @@ export async function smartGeocodeAddress(
   let fallbackLat = 11.5120; // Default gần trạm cân Bình Phước
   let fallbackLng = 106.6025;
 
-  const foundProvince = VIETNAM_PROVINCES.find((p) => p.name.toLowerCase() === provinceName.toLowerCase());
-  if (foundProvince) {
-    fallbackLat = foundProvince.lat;
-    fallbackLng = foundProvince.lng;
-
-    const foundDistrict = foundProvince.districts.find((d) => d.name.toLowerCase() === districtName.toLowerCase());
-    if (foundDistrict) {
-      fallbackLat = foundDistrict.lat;
-      fallbackLng = foundDistrict.lng;
-
-      const foundWard = foundDistrict.wards.find((w) => w.name.toLowerCase() === wardName.toLowerCase());
-      if (foundWard) {
-        fallbackLat = foundWard.lat;
-        fallbackLng = foundWard.lng;
-      }
-    }
-  }
-
-  // Nếu có địa chỉ cụ thể nhưng dùng fallback hành chính, có thể thêm một chút jitter nhỏ để phân biệt
-  if (streetAddress && !foundProvince) {
-    fallbackLat = 11.5400;
-    fallbackLng = 106.6200;
+  const adminCoords = findAdministrativeCoords(countryName, provinceName, districtName, wardName);
+  if (adminCoords) {
+    fallbackLat = adminCoords.lat;
+    fallbackLng = adminCoords.lng;
   }
 
   // 2. Thử truy vấn Nominatim Geocoding API với timeout 3s
   try {
-    const query = fullAddress || `${districtName}, ${provinceName}`;
+    const query = fullAddress || `${wardName}, ${districtName}, ${provinceName}, ${countryName}`;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 3000);
 
@@ -667,3 +1075,4 @@ export async function smartGeocodeAddress(
     source: 'administrative',
   };
 }
+

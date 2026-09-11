@@ -4,6 +4,7 @@ import { useFleetStore } from '@/stores/fleet';
 import { useAuthStore } from '@/stores/auth';
 import { useDialogStore } from '@/stores/dialog';
 import StatusBadge from '@/components/common/StatusBadge.vue';
+import TablePagination from '@/components/common/TablePagination.vue';
 import { Wrench, AlertTriangle, ShieldAlert, Plus, Settings, MapPin, ExternalLink, Truck } from 'lucide-vue-next';
 
 const fleetStore = useFleetStore();
@@ -76,6 +77,28 @@ watch(selectedMaintenanceType, (mt) => {
 // Auto-fill ODO khi chọn xe
 watch(selectedVehicle, (v) => {
   if (v) recOdo.value = v.currentOdoKm;
+});
+
+// Phân trang danh sách bảo dưỡng & sự cố
+const duePage = ref(1);
+const duePageSize = ref(8);
+const paginatedDueVehicles = computed(() => {
+  const start = (duePage.value - 1) * duePageSize.value;
+  return fleetStore.vehicles.slice(start, start + duePageSize.value);
+});
+
+const incPage = ref(1);
+const incPageSize = ref(8);
+const paginatedIncidents = computed(() => {
+  const start = (incPage.value - 1) * incPageSize.value;
+  return fleetStore.incidents.slice(start, start + incPageSize.value);
+});
+
+const recPage = ref(1);
+const recPageSize = ref(8);
+const paginatedMaintenances = computed(() => {
+  const start = (recPage.value - 1) * recPageSize.value;
+  return fleetStore.maintenances.slice(start, start + recPageSize.value);
 });
 
 function openRecordModal(v?: { id: number; currentOdoKm: number }) {
@@ -253,7 +276,7 @@ function getThreshold(v: any): number {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="v in fleetStore.vehicles" :key="v.id">
+            <tr v-for="v in paginatedDueVehicles" :key="v.id">
               <td><strong>{{ v.licensePlate }}</strong></td>
               <td>{{ v.model }} ({{ v.vehicleType }})</td>
               <td><strong>{{ v.currentOdoKm.toLocaleString() }} km</strong></td>
@@ -285,6 +308,12 @@ function getThreshold(v: any): number {
           </tbody>
         </table>
       </div>
+      <TablePagination
+        v-model:currentPage="duePage"
+        v-model:pageSize="duePageSize"
+        :totalItems="fleetStore.vehicles.length"
+        :pageSizeOptions="[5, 8, 15, 25]"
+      />
     </div>
 
     <!-- 2. Danh sách Sự cố báo hỏng -->
@@ -307,7 +336,7 @@ function getThreshold(v: any): number {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="inc in fleetStore.incidents" :key="inc.id">
+            <tr v-for="inc in paginatedIncidents" :key="inc.id">
               <td><strong>{{ inc.vehiclePlate }}</strong></td>
               <td>{{ inc.driverName }}</td>
               <td>{{ inc.reportDate }}</td>
@@ -355,6 +384,12 @@ function getThreshold(v: any): number {
           </tbody>
         </table>
       </div>
+      <TablePagination
+        v-model:currentPage="incPage"
+        v-model:pageSize="incPageSize"
+        :totalItems="fleetStore.incidents.length"
+        :pageSizeOptions="[5, 8, 15, 25]"
+      />
     </div>
 
     <!-- 3. Lịch sử sửa chữa -->
@@ -377,7 +412,7 @@ function getThreshold(v: any): number {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="rec in fleetStore.maintenances" :key="rec.id">
+            <tr v-for="rec in paginatedMaintenances" :key="rec.id">
               <td><strong>{{ rec.vehiclePlate }}</strong></td>
               <td>
                 <span v-if="rec.maintenanceTypeName" class="font-medium">{{ rec.maintenanceTypeName }}</span>
@@ -392,6 +427,12 @@ function getThreshold(v: any): number {
           </tbody>
         </table>
       </div>
+      <TablePagination
+        v-model:currentPage="recPage"
+        v-model:pageSize="recPageSize"
+        :totalItems="fleetStore.maintenances.length"
+        :pageSizeOptions="[5, 8, 15, 25]"
+      />
     </div>
 
     <!-- Modal Báo sự cố -->
