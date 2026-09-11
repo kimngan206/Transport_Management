@@ -1946,9 +1946,12 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
               <th>Phương Tiện</th>
               <th>Đơn Vị Mượn</th>
               <th>Đơn Vị Cho Mượn</th>
-              <th>Đại Diện 2 Bên</th>
+              <th>Đại Diện Nhận</th>
+              <th>Đại Diện Giao</th>
               <th>Xe Cần Thay Thế</th>
-              <th>Thời Gian Mượn - Trả</th>
+              <th>Thời Gian Mượn (Từ)</th>
+              <th>Hạn Trả (Hẹn)</th>
+              <th>Ngày Trả (Thực Tế)</th>
               <th>ODO Bàn Giao</th>
               <th>Nhiên Liệu</th>
               <th>Lý Do Mượn Xe</th>
@@ -1958,7 +1961,7 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
           </thead>
           <tbody>
             <tr v-if="filteredHandovers.length === 0">
-              <td colspan="11" class="text-center py-5">
+              <td colspan="14" class="text-center py-5">
                 <div class="empty-state-subtab">
                   <ArrowRightLeft :size="36" class="text-muted opacity-40 mb-2" />
                   <p class="text-sm text-muted font-medium">Không tìm thấy biên bản mượn/trả xe nào phù hợp với bộ lọc hiện tại.</p>
@@ -1982,9 +1985,13 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
                 <span class="badge-unit-factory">{{ h.fromTeam || '—' }}</span>
               </td>
               <td>
-                <div class="text-xs">
-                  <div><strong>Nhận:</strong> {{ h.toManagerName || 'Quản lý nhận' }}</div>
-                  <div class="text-muted"><strong>Giao:</strong> {{ h.fromManagerName || 'Quản lý giao' }}</div>
+                <div class="text-xs font-medium text-slate-800">
+                  {{ h.toManagerName || 'Quản lý nhận' }}
+                </div>
+              </td>
+              <td>
+                <div class="text-xs text-muted">
+                  {{ h.fromManagerName || 'Quản lý giao' }}
                 </div>
               </td>
               <td>
@@ -1994,13 +2001,16 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
                 <span v-else class="text-muted text-xs italic">—</span>
               </td>
               <td>
-                <div class="text-xs">
-                  <div><strong>Từ:</strong> {{ h.borrowStartAt }}</div>
-                  <div><strong>Hẹn:</strong> {{ h.expectedReturnAt || '—' }}</div>
-                  <div v-if="h.actualReturnAt" class="text-emerald-700 font-semibold">
-                    <strong>Đã trả:</strong> {{ h.actualReturnAt }}
-                  </div>
-                </div>
+                <span class="text-xs font-mono text-slate-700">{{ h.borrowStartAt }}</span>
+              </td>
+              <td>
+                <span class="text-xs font-mono text-slate-700">{{ h.expectedReturnAt || '—' }}</span>
+              </td>
+              <td>
+                <span v-if="h.actualReturnAt" class="text-xs font-mono text-emerald-700 font-semibold">
+                  {{ h.actualReturnAt }}
+                </span>
+                <span v-else class="text-muted text-xs italic">—</span>
               </td>
               <td>
                 <strong>{{ h.handoverOdo.toLocaleString() }} km</strong>
@@ -2055,7 +2065,8 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
               <th>Đơn Vị Chuyển Giao (Cũ)</th>
               <th>Đơn Vị Tiếp Nhận (Mới)</th>
               <th>Số Quyết Định & Hiệu Lực</th>
-              <th>Đại Diện 2 Bên</th>
+              <th>Đại Diện Bên Giao</th>
+              <th>Đại Diện Bên Nhận</th>
               <th>Lý Do Điều Chuyển</th>
               <th>ODO Bàn Giao</th>
               <th>Hồ Sơ Kèm Theo</th>
@@ -2065,7 +2076,7 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
           </thead>
           <tbody>
             <tr v-if="filteredHandovers.length === 0">
-              <td colspan="10" class="text-center py-5">
+              <td colspan="11" class="text-center py-5">
                 <div class="empty-state-subtab">
                   <Building2 :size="36" class="text-muted opacity-40 mb-2" />
                   <p class="text-sm text-muted font-medium">Không tìm thấy lệnh điều chuyển xe nào phù hợp với bộ lọc hiện tại.</p>
@@ -2097,9 +2108,13 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
                 </div>
               </td>
               <td>
-                <div class="text-xs">
-                  <div><strong>Giao:</strong> {{ h.fromManagerName || 'Đơn vị giao' }}</div>
-                  <div><strong>Nhận:</strong> {{ h.toManagerName || 'Đơn vị nhận' }}</div>
+                <div class="text-xs text-slate-800 font-medium">
+                  {{ h.fromManagerName || 'Đơn vị giao' }}
+                </div>
+              </td>
+              <td>
+                <div class="text-xs text-emerald-700 font-medium">
+                  {{ h.toManagerName || 'Đơn vị nhận' }}
                 </div>
               </td>
               <td class="text-sm text-secondary" style="max-width: 240px;" :title="h.transferReason || h.conditionNotes || ''">
