@@ -275,7 +275,7 @@ function deleteCategory(category: VehicleCategory) {
               <th>Mã Loại</th>
               <th>Tên Loại Phương Tiện</th>
               <th>Nhóm Phân Loại</th>
-              <th>Xe Trong Đội</th>
+              <th>Xe Trực Thuộc</th>
               <th>Trạng Thái</th>
               <th>Mô Tả</th>
               <th class="text-right">Hành Động</th>

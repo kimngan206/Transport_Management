@@ -1362,6 +1362,7 @@ function handleDeleteHandover(record: HandoverRecord) {
               <th style="min-width: 135px;">Đơn Vị Sử Dụng</th>
               <th style="min-width: 170px;">Model / Dòng Xe</th>
               <th style="min-width: 155px;">Tài Xế Trực Thuộc</th>
+              <th style="min-width: 120px;">Số Điện Thoại</th>
               <th style="min-width: 90px;">Tải Trọng</th>
               <th style="min-width: 80px;">Số Chỗ</th>
               <th style="min-width: 140px;">Định Mức Nhiên Liệu</th>
@@ -1375,7 +1376,7 @@ function handleDeleteHandover(record: HandoverRecord) {
           </thead>
           <tbody>
             <tr v-if="filteredVehicles.length === 0">
-              <td colspan="14" class="text-center py-5">
+              <td colspan="15" class="text-center py-5">
                 <div class="empty-state-subtab">
                   <Truck :size="36" class="text-muted opacity-40 mb-2" />
                   <p class="text-sm text-muted font-medium">Chưa có phương tiện nào phù hợp với bộ lọc.</p>
@@ -1390,7 +1391,6 @@ function handleDeleteHandover(record: HandoverRecord) {
               </td>
               <td>
                 <span class="type-pill">{{ getVehicleTypeLabel(v.vehicleType, v) }}</span>
-                <div v-if="v.isExternal" class="text-xs text-primary mt-1 font-medium">Xe ngoài (Thuê/Dịch vụ)</div>
               </td>
               <!-- Cột Đơn Vị / Đối Tượng Sử Dụng -->
               <td>
@@ -1399,17 +1399,14 @@ function handleDeleteHandover(record: HandoverRecord) {
               </td>
               <td>{{ v.model }}</td>
               <td>
-                <div v-if="v.assignedDriverName" class="driver-direct-cell">
-                  <div class="driver-mini-icon">
-                    <UserCheck :size="14" :class="v.isExternal ? 'text-amber-600' : 'text-success'" />
-                  </div>
-                  <div class="driver-mini-info">
-                    <strong>{{ v.assignedDriverName }}</strong>
-                    <span v-if="v.isExternal" class="text-xs text-amber-600 font-semibold">(Tài xế thuê ngoài)</span>
-                    <span v-if="v.assignedDriverPhone" class="text-xs text-muted">{{ v.assignedDriverPhone }}</span>
-                  </div>
-                </div>
+                <strong v-if="v.assignedDriverName">{{ v.assignedDriverName }}</strong>
                 <span v-else class="text-muted text-xs italic">{{ v.isExternal ? '— Chưa nhập tên tài xế —' : '— Chưa phân công —' }}</span>
+              </td>
+              <td>
+                <span v-if="v.assignedDriverPhone || fleetStore.drivers.find(d => d.id === v.assignedDriverId)?.phone" class="text-xs font-mono">
+                  {{ v.assignedDriverPhone || fleetStore.drivers.find(d => d.id === v.assignedDriverId)?.phone }}
+                </span>
+                <span v-else class="text-muted text-xs italic">—</span>
               </td>
               <td>
                 <span v-if="v.capacityTons">{{ v.capacityTons }} Tấn</span>
@@ -1625,9 +1622,9 @@ function handleDeleteHandover(record: HandoverRecord) {
               <th>Số Giấy Phép Lái Xe</th>
               <th>Hạng Bằng Lái</th>
               <th>Ngày Hết Hạn</th>
+              <th>Số Lần Vận Chuyển</th>
               <th>Tình Trạng Hoạt Động</th>
               <th>Trạng Thái Chuyến</th>
-              <th>Số Lần Vận Chuyển</th>
               <th class="text-center sticky-action-col" style="min-width: 90px; width: 90px;">Hành Động</th>
             </tr>
           </thead>
@@ -1651,6 +1648,12 @@ function handleDeleteHandover(record: HandoverRecord) {
               <td>
                 <span>{{ d.licenseExpiryDate }}</span>
               </td>
+              <!-- Số lần vận chuyển trong ngày -->
+              <td>
+                <span class="badge" :class="getDriverTodayTrips(d.id).length > 0 ? 'badge-trip-stat-active' : 'badge-trip-stat-zero'">
+                  {{ getDriverTodayTrips(d.id).length }} chuyến hôm nay
+                </span>
+              </td>
               <td>
                 <span class="driver-status-badge" :class="`status-${d.employmentStatus.toLowerCase()}`">
                   {{ getDriverEmploymentStatusLabel(d.employmentStatus) }}
@@ -1660,12 +1663,6 @@ function handleDeleteHandover(record: HandoverRecord) {
               <td>
                 <span class="badge" :class="d.isCurrentlyOnTrip ? 'badge-dispatched' : 'badge-completed'">
                   {{ d.isCurrentlyOnTrip ? 'Đang chạy chuyến' : 'Đang rảnh' }}
-                </span>
-              </td>
-              <!-- Số lần vận chuyển trong ngày -->
-              <td>
-                <span class="badge" :class="getDriverTodayTrips(d.id).length > 0 ? 'badge-trip-stat-active' : 'badge-trip-stat-zero'">
-                  {{ getDriverTodayTrips(d.id).length }} chuyến hôm nay
                 </span>
               </td>
               <td class="text-center sticky-action-col">
