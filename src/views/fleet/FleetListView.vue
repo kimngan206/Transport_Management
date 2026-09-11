@@ -1765,25 +1765,6 @@ function handleDeleteHandover(record: HandoverRecord) {
         </div>
       </div>
 
-      <div style="display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px;">
-        <div style="padding: 12px 14px; border-radius: 12px; border: 1px solid #dfe7ef; background: linear-gradient(135deg, #fef3c7, #fff7ed);">
-          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #8a5b00; font-weight: 700;">Đang mượn / còn hiệu lực</div>
-          <div style="margin-top: 8px; font-size: 22px; font-weight: 800; color: #7c3f00;">{{ handoverSummary.borrowing }}</div>
-        </div>
-        <div style="padding: 12px 14px; border-radius: 12px; border: 1px solid #dfe7ef; background: linear-gradient(135deg, #dcfce7, #f0fdf4);">
-          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #166534; font-weight: 700;">Đã trả / đã đóng đợt</div>
-          <div style="margin-top: 8px; font-size: 22px; font-weight: 800; color: #166534;">{{ handoverSummary.returned }}</div>
-        </div>
-        <div style="padding: 12px 14px; border-radius: 12px; border: 1px solid #dfe7ef; background: linear-gradient(135deg, #fce7f3, #fff1f2);">
-          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #9d174d; font-weight: 700;">Quá hạn / cần xử lý</div>
-          <div style="margin-top: 8px; font-size: 22px; font-weight: 800; color: #9d174d;">{{ handoverSummary.overdue }}</div>
-        </div>
-        <div style="padding: 12px 14px; border-radius: 12px; border: 1px solid #dfe7ef; background: linear-gradient(135deg, #dbeafe, #eff6ff);">
-          <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #1d4ed8; font-weight: 700;">Tổng phiếu</div>
-          <div style="margin-top: 8px; font-size: 22px; font-weight: 800; color: #1e3a8a;">{{ handoverSummary.total }}</div>
-        </div>
-      </div>
-
       <div class="table-container">
         <table class="table">
           <thead>
