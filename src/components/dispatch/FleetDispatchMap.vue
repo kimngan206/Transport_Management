@@ -664,20 +664,7 @@ onUnmounted(() => {
           <span class="live-text">GIÁM SÁT ĐỘI XE REALTIME (GPS)</span>
         </div>
 
-        <div class="metrics-chips">
-          <span class="chip chip-green">
-            <Truck :size="13" />
-            <strong>{{ stats.running }}</strong> xe đang chạy
-          </span>
-          <span class="chip chip-blue">
-            <CheckCircle2 :size="13" />
-            <strong>{{ stats.available }}</strong> xe sẵn sàng
-          </span>
-          <span class="chip chip-purple">
-            <MapPin :size="13" />
-            <strong>{{ ECOTECH_HUBS.length }}</strong> trạm quy chuẩn
-          </span>
-        </div>
+
       </div>
 
       <div class="top-bar-right">

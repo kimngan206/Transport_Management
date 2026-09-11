@@ -324,25 +324,7 @@ function getServingTeam(req: TransportRequest): { label: string; isFactory: bool
       </div>
     </div>
 
-    <!-- Bộ chuyển đổi chế độ xem -->
-    <div class="view-mode-tabs mb-4">
-      <button
-        class="tab-btn"
-        :class="{ active: viewMode === 'map' }"
-        @click="switchView('map')"
-      >
-        <MapPin :size="16" />
-        <span>Bản Đồ Lộ Trình & Sơ Đồ Điều Xe (GPS Realtime)</span>
-      </button>
-      <button
-        class="tab-btn"
-        :class="{ active: viewMode === 'board' }"
-        @click="switchView('board')"
-      >
-        <LayoutGrid :size="16" />
-        <span>Bảng Yêu Cầu Chờ Ghép Xe</span>
-      </button>
-    </div>
+
 
     <!-- 1. CHẾ ĐỘ XEM BẢN ĐỒ & SƠ ĐỒ ĐIỀU XE -->
     <div v-if="viewMode === 'map'">
