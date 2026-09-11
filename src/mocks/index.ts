@@ -11,6 +11,7 @@ import type {
   MaintenanceRecord,
   MaintenanceType,
   VehicleAssignmentHistory,
+  HandoverRecord,
 } from '@/types';
 import type { HubLocation } from '@/types/map';
 import {

@@ -283,8 +283,15 @@ const handoverSummary = computed(() => {
     borrowing: list.filter((h) => h.status === 'BORROWING').length,
     returned: list.filter((h) => h.status === 'RETURNED').length,
     overdue: list.filter((h) => h.status === 'OVERDUE').length,
+    cancelled: list.filter((h) => h.status === 'CANCELLED').length,
   };
 });
+
+function resetHandoverFilters() {
+  handoverStatusFilter.value = 'ALL';
+  searchHandoverKeyword.value = '';
+  handoverCurrentPage.value = 1;
+}
 
 function syncVehicleStatusFromHandover(record: HandoverRecord) {
   const vehicle = fleetStore.vehicles.find((v) => v.licensePlate === record.vehiclePlate);
