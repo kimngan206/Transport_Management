@@ -11,6 +11,35 @@ try {
   });
 } catch (e) {}
 
+// Phòng thủ toàn diện chống lỗi "_latLngToNewLayerPoint of null" khi zoom
+// Xảy ra khi marker, popup hoặc tooltip đã bị gỡ khỏi map (hoặc trong chu kỳ tái tạo DOM / Vue proxy)
+// nhưng sự kiện zoomanim vẫn phát tín hiệu
+if (typeof L !== 'undefined') {
+  if (L.Marker && (L.Marker.prototype as any)._animateZoom) {
+    const origMarkerAnimateZoom = (L.Marker.prototype as any)._animateZoom;
+    (L.Marker.prototype as any)._animateZoom = function (opt: any) {
+      if (!this._map) return;
+      return origMarkerAnimateZoom.call(this, opt);
+    };
+  }
+
+  if (L.Popup && (L.Popup.prototype as any)._animateZoom) {
+    const origPopupAnimateZoom = (L.Popup.prototype as any)._animateZoom;
+    (L.Popup.prototype as any)._animateZoom = function (e: any) {
+      if (!this._map) return;
+      return origPopupAnimateZoom.call(this, e);
+    };
+  }
+
+  if (L.Tooltip && (L.Tooltip.prototype as any)._animateZoom) {
+    const origTooltipAnimateZoom = (L.Tooltip.prototype as any)._animateZoom;
+    (L.Tooltip.prototype as any)._animateZoom = function (e: any) {
+      if (!this._map) return;
+      return origTooltipAnimateZoom.call(this, e);
+    };
+  }
+}
+
 /**
  * Khởi tạo Leaflet map an toàn trên DOM element container.
  * Tự động xóa _leaflet_id và dọn dẹp map instance cũ nếu có
