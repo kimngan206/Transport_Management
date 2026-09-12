@@ -47,6 +47,9 @@ import {
   Square,
   Clock,
   ClipboardCheck,
+  Gauge,
+  Fuel,
+  User,
 } from 'lucide-vue-next';
 
 const route = useRoute();
@@ -1851,7 +1854,7 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
     </div>
 
     <!-- 4. Phân hệ Bàn giao, Điều chuyển & Mượn trả xe -->
-    <div v-else-if="!showAddHandoverModal && !showHandoverDetailModal" class="card">
+    <div v-else-if="activeTab === 'handover' && !showAddHandoverModal && !showHandoverDetailModal" class="card">
       <div class="card-header flex-between">
         <div>
           <h3 class="card-title">Quản Lý Bàn Giao, Điều Chuyển & Mượn Trả Xe</h3>
@@ -2532,9 +2535,12 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
           </div>
       </div>
 
-      <div class="subpage-footer pt-3 mt-4 border-t flex items-center justify-end gap-2">
-        <button class="btn btn-secondary" @click="showAddVehModal = false">Hủy</button>
-        <button class="btn btn-primary" @click="handleSaveVehicle">
+      <div class="subpage-footer pt-3 mt-4 border-t flex items-center justify-end gap-3">
+        <button type="button" class="btn btn-secondary" @click="showAddVehModal = false">
+          <X :size="16" />
+          <span>Hủy</span>
+        </button>
+        <button type="button" class="btn btn-primary" @click="handleSaveVehicle">
           <Check :size="16" />
           <span>{{ editingVehicle ? 'Lưu Thay Đổi' : 'Lưu Phương Tiện' }}</span>
         </button>
@@ -2611,9 +2617,12 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
           </div>
       </div>
 
-      <div class="subpage-footer pt-3 mt-4 border-t flex items-center justify-end gap-2">
-        <button class="btn btn-secondary" @click="showAddCatModal = false">Hủy</button>
-        <button class="btn btn-primary" @click="handleSaveCategory">
+      <div class="subpage-footer pt-3 mt-4 border-t flex items-center justify-end gap-3">
+        <button type="button" class="btn btn-secondary" @click="showAddCatModal = false">
+          <X :size="16" />
+          <span>Hủy</span>
+        </button>
+        <button type="button" class="btn btn-primary" @click="handleSaveCategory">
           <Check :size="16" />
           <span>{{ editingCategory ? 'Lưu Thay Đổi' : 'Lưu Loại Xe' }}</span>
         </button>
@@ -2744,9 +2753,12 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
           </div>
       </div>
 
-      <div class="subpage-footer pt-3 mt-4 border-t flex items-center justify-end gap-2">
-        <button class="btn btn-secondary" @click="showAddDriverModal = false">Hủy</button>
-        <button class="btn btn-primary" @click="handleSaveDriver">
+      <div class="subpage-footer pt-3 mt-4 border-t flex items-center justify-end gap-3">
+        <button type="button" class="btn btn-secondary" @click="showAddDriverModal = false">
+          <X :size="16" />
+          <span>Hủy</span>
+        </button>
+        <button type="button" class="btn btn-primary" @click="handleSaveDriver">
           <Check :size="16" />
           <span>{{ editingDriver ? 'Lưu Thay Đổi' : 'Lưu Hồ Sơ Tài Xế' }}</span>
         </button>
@@ -3223,9 +3235,12 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
           </datalist>
       </div>
 
-      <div class="subpage-footer pt-3 mt-4 border-t flex items-center justify-end gap-2">
-        <button class="btn btn-secondary" @click="showAddHandoverModal = false">Hủy</button>
-        <button class="btn btn-primary" @click="handleAddHandover">
+      <div class="subpage-footer pt-3 mt-4 border-t flex items-center justify-end gap-3">
+        <button type="button" class="btn btn-secondary" @click="showAddHandoverModal = false">
+          <X :size="16" />
+          <span>Hủy</span>
+        </button>
+        <button type="button" class="btn btn-primary" @click="handleAddHandover">
           <Check :size="16" />
           <span>
             <template v-if="editingHandover">Lưu Thay Đổi</template>
@@ -3245,81 +3260,81 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
 
     <!-- Trang Riêng: Xem chi tiết phiếu bàn giao / điều chuyển / mượn trả -->
     <div v-if="showHandoverDetailModal && viewingHandover" class="card mb-4 p-4 shadow-sm subpage-create-card">
-      <!-- Header Main Row (Unified Clean Subpage Header) -->
-      <div class="subpage-header-main mb-4 flex-between border-b pb-3">
-        <div>
-          <div class="breadcrumb text-xs text-muted mb-2">
-            <span>Quản lý đội xe</span> <span class="mx-1">/</span> <span>Danh sách bàn giao</span> <span class="mx-1">/</span> <span class="text-slate-700 font-medium">Chi tiết biên bản</span>
-          </div>
-          <div class="flex items-center gap-3 flex-wrap">
-            <button class="btn btn-outline btn-sm flex items-center gap-1" @click="showHandoverDetailModal = false">
-              <ArrowLeft :size="16" />
-              <span>Quay lại danh sách</span>
-            </button>
-            <h2 class="subpage-title" style="margin: 0; font-size: 1.3rem; font-weight: 800;">
-              Chi Tiết {{ getHandoverWorkflowLabel(viewingHandover.workflowType) }} <span class="text-success font-mono">[{{ viewingHandover.vehiclePlate }}]</span>
-            </h2>
-            <span
-              class="badge"
-              :class="{
-                'badge-success': viewingHandover.workflowType === 'BORROW_RETURN',
-                'badge-info': viewingHandover.workflowType === 'TRANSFER',
-                'badge-warning': viewingHandover.workflowType === 'DRIVER_HANDOVER' || viewingHandover.workflowType === 'HANDOVER',
-              }"
-            >
-              {{ getHandoverWorkflowLabel(viewingHandover.workflowType) }}
-            </span>
-            <span class="badge" :class="getHandoverStatusClass(viewingHandover.status)">
-              {{ getHandoverStatusLabel(viewingHandover.status, viewingHandover.workflowType) }}
-            </span>
+      <!-- Subpage Header -->
+      <div class="subpage-header mb-4 pb-3">
+        <div class="subpage-back-row mb-2">
+          <button class="btn btn-outline btn-sm flex items-center gap-1" @click="showHandoverDetailModal = false">
+            <ArrowLeft :size="16" />
+            <span>Quay lại danh sách biên bản</span>
+          </button>
+        </div>
+        <div class="subpage-header-main">
+          <div class="subpage-title-box">
+            <div class="breadcrumb text-xs text-muted mb-1" style="display: flex; align-items: center; gap: 6px; font-size: 0.8rem;">
+              <span>Quản lý đội xe</span> <span style="color: #94a3b8;">/</span> <span>Danh sách bàn giao</span> <span style="color: #94a3b8;">/</span> <span style="color: #1e293b; font-weight: 600;">Chi tiết biên bản</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 4px;">
+              <h2 class="subpage-title" style="margin: 0; font-size: 1.4rem; font-weight: 800;">
+                Chi Tiết {{ getHandoverWorkflowLabel(viewingHandover.workflowType) }} <span class="text-success font-mono">[{{ viewingHandover.vehiclePlate }}]</span>
+              </h2>
+              <span
+                class="badge"
+                :class="{
+                  'badge-success': viewingHandover.workflowType === 'BORROW_RETURN',
+                  'badge-info': viewingHandover.workflowType === 'TRANSFER',
+                  'badge-warning': viewingHandover.workflowType === 'DRIVER_HANDOVER' || viewingHandover.workflowType === 'HANDOVER',
+                }"
+              >
+                {{ getHandoverWorkflowLabel(viewingHandover.workflowType) }}
+              </span>
+              <span class="badge" :class="getHandoverStatusClass(viewingHandover.status)">
+                {{ getHandoverStatusLabel(viewingHandover.status, viewingHandover.workflowType) }}
+              </span>
+            </div>
           </div>
         </div>
-        <button class="btn btn-primary flex items-center gap-2" @click="showHandoverDetailModal = false; openEditHandoverModal(viewingHandover)">
-          <Edit2 :size="16" />
-          <span>Chỉnh sửa biên bản</span>
-        </button>
       </div>
 
       <div class="subpage-body">
         <!-- Common vehicle overview stats grid -->
         <div class="grid-4 mb-4">
-          <div class="stat-card card-inner p-3 rounded-xl border border-slate-200 bg-slate-50">
-            <div class="stat-icon bg-emerald-100 text-emerald-700 p-2 rounded-lg mb-1 inline-block">
-              <Truck :size="18" />
+          <div class="stat-card">
+            <div class="stat-icon icon-emerald">
+              <Truck :size="20" />
             </div>
             <div class="stat-info">
-              <span class="stat-label text-xs text-slate-500 font-semibold block uppercase">Biển Số Phương Tiện</span>
-              <span class="stat-val text-lg font-black text-emerald-700">{{ viewingHandover.vehiclePlate }}</span>
+              <span class="stat-label">Biển Số Phương Tiện</span>
+              <span class="stat-val text-success font-mono">{{ viewingHandover.vehiclePlate }}</span>
             </div>
           </div>
 
-          <div class="stat-card card-inner p-3 rounded-xl border border-slate-200 bg-slate-50">
-            <div class="stat-icon bg-blue-100 text-blue-700 p-2 rounded-lg mb-1 inline-block">
-              <Gauge :size="18" />
+          <div class="stat-card">
+            <div class="stat-icon icon-blue">
+              <Gauge :size="20" />
             </div>
             <div class="stat-info">
-              <span class="stat-label text-xs text-slate-500 font-semibold block uppercase">ODO Bàn Giao</span>
-              <span class="stat-val text-base font-bold text-slate-800">{{ viewingHandover.handoverOdo.toLocaleString() }} km</span>
+              <span class="stat-label">ODO Bàn Giao</span>
+              <span class="stat-val">{{ Number(viewingHandover.handoverOdo || 0).toLocaleString() }} km</span>
             </div>
           </div>
 
-          <div class="stat-card card-inner p-3 rounded-xl border border-slate-200 bg-slate-50">
-            <div class="stat-icon bg-amber-100 text-amber-700 p-2 rounded-lg mb-1 inline-block">
-              <Fuel :size="18" />
+          <div class="stat-card">
+            <div class="stat-icon icon-amber">
+              <Fuel :size="20" />
             </div>
             <div class="stat-info">
-              <span class="stat-label text-xs text-slate-500 font-semibold block uppercase">Mức Nhiên Liệu</span>
-              <span class="stat-val text-base font-bold text-slate-800">{{ viewingHandover.fuelLevel || '—' }}</span>
+              <span class="stat-label">Mức Nhiên Liệu</span>
+              <span class="stat-val">{{ viewingHandover.fuelLevel || '—' }}</span>
             </div>
           </div>
 
-          <div class="stat-card card-inner p-3 rounded-xl border border-slate-200 bg-slate-50">
-            <div class="stat-icon bg-purple-100 text-purple-700 p-2 rounded-lg mb-1 inline-block">
-              <Clock :size="18" />
+          <div class="stat-card">
+            <div class="stat-icon icon-purple">
+              <Clock :size="20" />
             </div>
             <div class="stat-info">
-              <span class="stat-label text-xs text-slate-500 font-semibold block uppercase">Thời Điểm Tạo</span>
-              <span class="stat-val text-xs font-semibold text-slate-700">{{ viewingHandover.borrowStartAt || viewingHandover.createdAt || '—' }}</span>
+              <span class="stat-label">Thời Điểm Tạo</span>
+              <span class="stat-val stat-val-sm">{{ viewingHandover.borrowStartAt || viewingHandover.createdAt || '—' }}</span>
             </div>
           </div>
         </div>
@@ -3329,8 +3344,8 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
           <!-- Red Box 2 Redesign: Units Cards -->
           <div class="grid-2 mb-4">
             <div class="card-inner p-4 rounded-xl border border-slate-200 bg-slate-50 shadow-2xs">
-              <div class="flex items-center gap-2 mb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                <Building2 :size="16" class="text-slate-500" />
+              <div class="flex items-center gap-2 mb-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                <Building2 :size="16" class="text-slate-500 flex-shrink-0 mr-1" />
                 <span>ĐƠN VỊ CHO MƯỢN</span>
               </div>
               <div class="text-base font-extrabold text-slate-800 mb-1">
@@ -3343,8 +3358,8 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
             </div>
 
             <div class="card-inner p-4 rounded-xl border border-emerald-200 bg-emerald-50/70 shadow-2xs">
-              <div class="flex items-center gap-2 mb-2 text-xs font-bold text-emerald-800 uppercase tracking-wider">
-                <Building2 :size="16" class="text-emerald-600" />
+              <div class="flex items-center gap-2 mb-3 text-xs font-bold text-emerald-800 uppercase tracking-wider">
+                <Building2 :size="16" class="text-emerald-600 flex-shrink-0 mr-1" />
                 <span>ĐƠN VỊ MƯỢN XE</span>
               </div>
               <div class="text-base font-extrabold text-emerald-800 mb-1">
@@ -3407,8 +3422,8 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
 
           <div class="grid-2 mb-4">
             <div class="card-inner p-4 rounded-xl border border-slate-200 bg-slate-50 shadow-2xs">
-              <div class="flex items-center gap-2 mb-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                <Building2 :size="16" class="text-slate-500" />
+              <div class="flex items-center gap-2 mb-3 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                <Building2 :size="16" class="text-slate-500 flex-shrink-0 mr-1" />
                 <span>ĐƠN VỊ BÀN GIAO (CŨ)</span>
               </div>
               <div class="text-base font-extrabold text-slate-800 mb-1">{{ viewingHandover.fromTeam || '—' }}</div>
@@ -3419,8 +3434,8 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
             </div>
 
             <div class="card-inner p-4 rounded-xl border border-emerald-200 bg-emerald-50/70 shadow-2xs">
-              <div class="flex items-center gap-2 mb-2 text-xs font-bold text-emerald-800 uppercase tracking-wider">
-                <Building2 :size="16" class="text-emerald-600" />
+              <div class="flex items-center gap-2 mb-3 text-xs font-bold text-emerald-800 uppercase tracking-wider">
+                <Building2 :size="16" class="text-emerald-600 flex-shrink-0 mr-1" />
                 <span>ĐƠN VỊ TIẾP NHẬN (MỚI)</span>
               </div>
               <div class="text-base font-extrabold text-emerald-800 mb-1">{{ viewingHandover.toTeam || '—' }}</div>
@@ -4230,15 +4245,15 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
 .ownership-selection-group {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-top: 6px;
+  gap: 16px;
+  margin-top: 8px;
 }
 
 .ownership-check-card {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 10px 14px;
+  gap: 12px;
+  padding: 14px 18px;
   border: 1.5px solid #e2e8f0;
   border-radius: var(--radius-md, 8px);
   background: #f8fafc;
@@ -4338,15 +4353,15 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
 .unit-type-selection-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-top: 6px;
+  gap: 16px;
+  margin-top: 8px;
 }
 
 .unit-check-card {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding: 10px 14px;
+  gap: 12px;
+  padding: 14px 18px;
   border: 1.5px solid #e2e8f0;
   border-radius: var(--radius-md, 8px);
   background: #f8fafc;
@@ -4991,8 +5006,8 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
 .checklist-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-  margin-top: 8px;
+  gap: 16px;
+  margin-top: 12px;
 }
 
 @media (max-width: 640px) {
@@ -5004,8 +5019,8 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
 .checklist-card-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
+  gap: 14px;
+  padding: 16px 20px;
   border-radius: 10px;
   border: 1px solid #cbd5e1;
   background-color: #ffffff;
@@ -5042,5 +5057,68 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
   flex: 1;
   min-width: 0;
   line-height: 1.4;
+}
+
+/* Stat cards inside subpage */
+.stat-card {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 12px !important;
+  padding: 14px 16px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 14px !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+  transition: all 0.2s ease !important;
+}
+
+.stat-card:hover {
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06) !important;
+}
+
+.stat-icon {
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 10px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+}
+
+.stat-icon.icon-emerald { background: #dcfce7 !important; color: #16a34a !important; }
+.stat-icon.icon-blue { background: #e0f2fe !important; color: #0284c7 !important; }
+.stat-icon.icon-amber { background: #fef3c7 !important; color: #d97706 !important; }
+.stat-icon.icon-purple { background: #f3e8ff !important; color: #9333ea !important; }
+
+.stat-info {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+  min-width: 0 !important;
+}
+
+.stat-label {
+  font-size: 0.72rem !important;
+  color: #64748b !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.03em !important;
+}
+
+.stat-val {
+  font-size: 1.1rem !important;
+  font-weight: 800 !important;
+  color: #0f172a !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.stat-val-sm {
+  font-size: 0.85rem !important;
+  font-weight: 700 !important;
+  color: #334155 !important;
 }
 </style>
