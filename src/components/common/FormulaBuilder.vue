@@ -102,7 +102,15 @@ const electricItems: TokenItem[] = [
   { label: 'Cự ly quy chuẩn', value: '[Cự ly chuẩn]', badge: 'Km', description: 'Quãng đường quy chuẩn giữa các điểm di chuyển' },
 ];
 
-// 7. Biến hành trình thực tế
+// 7. Hằng số định mức NLP & NLC thường dùng
+const quotaConstants: TokenItem[] = [
+  { label: 'NLP = 0.10 (L/km)', value: '0.1', badge: 'NLP', description: 'Hằng số định mức không tải NLP là 0.1 L/km' },
+  { label: 'NLC = 0.22 (L/t.km)', value: '0.22', badge: 'NLC', description: 'Hằng số định mức có tải NLC là 0.22 L/tấn.km' },
+  { label: 'NLP = 0.25 (L/km)', value: '0.25', badge: 'NLP bồn', description: 'Hằng số định mức không tải NLP thông dụng xe bồn 0.25 L/km' },
+  { label: 'NLC = 0.02 (L/t.km)', value: '0.02', badge: 'NLC bồn', description: 'Hằng số định mức có tải NLC thông dụng xe bồn 0.02 L/tấn.km' },
+];
+
+// 8. Biến hành trình thực tế
 const tripVariables: TokenItem[] = [
   { label: 'Quãng đường thực tế', value: '[Quãng đường thực tế]', badge: 'Km', description: 'Quãng đường xe chạy thực tế trong chuyến đi (ODO kết thúc - ODO bắt đầu)' },
   { label: 'Số ODO bắt đầu', value: '[Số ODO bắt đầu]', badge: 'Km', description: 'Chỉ số công-tơ-mét (ODO) khi xe xuất bến' },
@@ -110,13 +118,19 @@ const tripVariables: TokenItem[] = [
   { label: 'Số ODO hiện tại', value: '[Số ODO hiện tại]', badge: 'Km', description: 'Chỉ số công-tơ-mét (ODO) hiện tại ghi nhận trên xe' },
 ];
 
-// 8. Các công thức mẫu sẵn
+// 9. Các công thức mẫu sẵn
 const sampleFormulas: TokenItem[] = [
   {
-    label: 'Mẫu xe tải: (Cự ly × NLP) + ((Hàng/1000) × Cự ly × NLC)',
+    label: 'Mẫu xe tải (NLP 0.1 & NLC 0.22): (Cự ly × 0.1) + ((Hàng/1000) × Cự ly × 0.22)',
+    value: '( [Cự ly chuẩn] * 0.1 ) + ( ( [Tổng tải trọng hàng] / 1000 ) * [Cự ly chuẩn] * 0.22 )',
+    badge: 'Cố định 0.1 & 0.22',
+    description: 'Áp dụng công thức xe tải chở mủ với hằng số cụ thể NLP = 0.1 và NLC = 0.22',
+  },
+  {
+    label: 'Mẫu xe tải (Tham chiếu biến NLP & NLC): (Cự ly × NLP) + ((Hàng/1000) × Cự ly × NLC)',
     value: '( [Cự ly chuẩn] * [Định mức không tải (NLP)] ) + ( ( [Tổng tải trọng hàng] / 1000 ) * [Cự ly chuẩn] * [Định mức có tải (NLC)] )',
     badge: 'Mẫu xe tải',
-    description: 'Áp dụng công thức định mức tiêu chuẩn cho xe bồn / xe tải mủ cao su',
+    description: 'Áp dụng công thức định mức tiêu chuẩn tự động lấy NLP và NLC đã cấu hình của xe',
   },
   {
     label: 'Mẫu máy xúc: (Giờ kết thúc - Giờ bắt đầu) × Định mức giờ',
@@ -157,6 +171,10 @@ const builderGroups: Record<string, BuilderGroup[]> = {
     {
       title: 'ĐỊNH MỨC XE TẢI & XE BỒN CHỞ MỦ',
       items: truckQuotaItems,
+    },
+    {
+      title: 'HẰNG SỐ ĐỊNH MỨC NLP & NLC THƯỜNG DÙNG',
+      items: quotaConstants,
     },
     {
       title: 'ĐỊNH MỨC XE XÚC & MÁY CÔNG TRÌNH',
