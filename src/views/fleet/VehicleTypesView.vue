@@ -59,6 +59,19 @@ function countVehiclesForCategory(category: VehicleCategory): number {
   }).length;
 }
 
+// Chuyển đổi tên loại phương tiện dài thành tên gọi tắt
+function getShortCatName(code: string): string {
+  switch (code) {
+    case 'TRUCK_LATEX': return 'Xe tải';
+    case 'TANKER_LATEX': return 'Xe bồn';
+    case 'PICKUP_WORK': return 'Bán tải';
+    case 'MillingMachine': return 'Máy đào';
+    case 'TRACTOR_TRAILER': return 'Máy kéo';
+    case 'VINFAST_ELECTRIC': return 'Xe điện';
+    default: return 'Khác';
+  }
+}
+
 // Danh sách sau khi lọc
 const filteredCategories = computed(() => {
   return fleetStore.vehicleCategories.filter((c) => {
@@ -295,7 +308,7 @@ function deleteCategory(category: VehicleCategory) {
                 <span class="code-badge">{{ cat.code }}</span>
               </td>
               <td class="cat-name-cell">
-                <strong class="cat-name">{{ cat.name }}</strong>
+                <strong class="cat-name">{{ getShortCatName(cat.code) }}</strong>
               </td>
               <td>
                 <span

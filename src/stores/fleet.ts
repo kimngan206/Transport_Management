@@ -197,6 +197,14 @@ export const useFleetStore = defineStore('fleet', () => {
       console.warn('Lỗi đồng bộ GPS bản đồ:', err);
     }
 
+    // Bắn thông báo sự cố vào chuông hệ thống
+    mockStorage.addDriverNotification({
+      type: 'INCIDENT_REPORT',
+      title: `Sự Cố Khẩn Cấp: Xe ${payload.vehiclePlate}`,
+      content: `Tài xế ${payload.driverName} vừa báo cáo sự cố tại ${payload.location || 'dọc đường'}. Mức độ: ${payload.severity === 'StopOperation' ? 'Nặng/Khẩn cấp' : 'Nhẹ/Cảnh báo'}.`,
+      createdAt: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    });
+
     saveState();
   }
 

@@ -183,6 +183,8 @@ export interface TransportRequest {
   passengersCount?: number;
   estimatedWeightKg?: number; // Khối lượng mủ / hàng dự kiến (kg)
   operatingHours?: number; // Số giờ máy dự kiến (đối với xe cơ giới / xúc đào)
+  requestedVehicleId?: number; // Yêu cầu đích danh xe cụ thể (ID)
+  requestedVehiclePlate?: string; // Yêu cầu đích danh xe cụ thể (Biển số)
   // Thuộc tính riêng cho xe chở người / xe ngoài
   pickupTime?: string;
   dropoffTime?: string;

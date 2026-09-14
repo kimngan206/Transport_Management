@@ -305,22 +305,29 @@ const showSection = computed(() => {
                 v-for="notif in dispatchNotifications.slice(0, 5)"
                 :key="'dnotif-' + notif.id"
                 class="notify-item"
-                :class="{ 'notify-rescue-item': notif.type === 'RESCUE_DISPATCH' }"
-                @click="router.push(authStore.activeRole === 'Driver' ? '/driver-schedule' : '/dispatch'); showNotificationDropdown = false"
-              >
+                :class="{ 'notify-rescue-item': notif.type === 'RESCUE_DISPATCH' || notif.type === 'INCIDENT_REPORT' }"
+                @click="
+                  if (notif.type === 'INCIDENT_REPORT') {
+                    router.push(authStore.activeRole === 'Driver' ? '/driver/incidents' : '/maintenance');
+                  } else {
+                    router.push(authStore.activeRole === 'Driver' ? '/driver-schedule' : '/dispatch');
+                  }
+                  showNotificationDropdown = false;
+                ">
                 <div class="notify-item-icon">
-                  <span v-if="notif.type === 'RESCUE_DISPATCH'" class="text-base">🚨</span>
+                  <AlertTriangle v-if="notif.type === 'INCIDENT_REPORT'" :size="16" class="text-danger" />
+                  <span v-else-if="notif.type === 'RESCUE_DISPATCH'" class="text-base">🚨</span>
                   <Truck v-else :size="16" class="text-primary" />
                 </div>
                 <div class="notify-item-content">
-                  <div class="notify-item-title font-bold" :class="{ 'text-danger': notif.type === 'RESCUE_DISPATCH' }">
+                  <div class="notify-item-title font-bold" :class="{ 'text-danger': notif.type === 'RESCUE_DISPATCH' || notif.type === 'INCIDENT_REPORT' }">
                     {{ notif.title }}
                   </div>
                   <div class="notify-item-desc">
                     {{ notif.content }}
                   </div>
                   <div class="notify-item-time">
-                    {{ notif.createdAt }} • Bấm mở chuyến xe
+                    {{ notif.createdAt }} • {{ notif.type === 'INCIDENT_REPORT' ? 'Bấm để xem' : 'Bấm mở chuyến xe' }}
                   </div>
                 </div>
                 <button

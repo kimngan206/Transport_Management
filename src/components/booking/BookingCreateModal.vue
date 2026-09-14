@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { useBookingStore } from '@/stores/booking';
 import { useDialogStore } from '@/stores/dialog';
+import { useFleetStore } from '@/stores/fleet';
 import { mockStorage } from '@/services/mockStorage';
 import { getFreshHubs } from '@/mocks/mapData';
 import type { HubLocation } from '@/types/map';
@@ -36,6 +37,7 @@ const emit = defineEmits<{
 const authStore = useAuthStore();
 const bookingStore = useBookingStore();
 const dialog = useDialogStore();
+const fleetStore = useFleetStore();
 
 // Xác định phân hệ: Đặt xe Đội vs Đặt xe Nhà máy
 const isTeamModule = computed(() => props.moduleType === 'team');
@@ -86,47 +88,37 @@ const dropoffTime = ref<string>(props.editingRequest?.dropoffTime ? props.editin
 const contactPerson = ref<string>(props.editingRequest?.contactPerson || '');
 const contactPhone = ref<string>(props.editingRequest?.contactPhone || '');
 
-// Danh mục loại phương tiện phân theo 2 module riêng biệt:
-// 1. Phân hệ ĐẶT XE ĐỘI: MẶC ĐỊNH & CHỈ GỒM "Xe chuyên dùng chở mủ" & "Xe cơ giới" (không có xe con/bán tải)
-// 2. Phân hệ ĐẶT XE NHÀ MÁY: Gồm xe bồn téc ly tâm, xe xuất mủ thành phẩm SVR, và xe bán tải công tác KCS
-const availableVehicleTypes = computed(() => {
-  if (isTeamModule.value) {
-    return [
-      {
-        value: 'LatexTruck' as VehicleType,
-        label: 'Xe chuyên dùng chở mủ cao su (Bồn inox / Mui bạt thu gom)',
-        shortLabel: 'Xe chuyên dùng chở mủ',
-        badge: 'Ưu tiên mủ tươi',
-      },
-      {
-        value: 'MillingMachine' as VehicleType,
-        label: 'Xe cơ giới nông trường (Máy xúc đào mương / San ủi vườn cây)',
-        shortLabel: 'Xe cơ giới',
-        badge: 'Cơ giới hóa',
-      },
-    ];
-  }
-  return [
-    {
-      value: 'LatexTruck' as VehicleType,
-      label: 'Xe bồn téc mủ ly tâm & xe tải xuất mủ thành phẩm SVR',
-      shortLabel: 'Xe bồn mủ & xuất hàng',
-      badge: 'Mủ ly tâm / SVR',
-    },
-    {
-      value: 'PassengerCar' as VehicleType,
-      label: 'Xe bán tải đưa đón / công tác KCS & kiểm tra kỹ thuật (5 chỗ)',
-      shortLabel: 'Xe công tác / KCS',
-      badge: 'Kiểm định KCS',
-    },
-    {
-      value: 'MillingMachine' as VehicleType,
-      label: 'Xe cơ giới / Máy xúc nạo vét hồ xử lý nước thải nhà máy',
-      shortLabel: 'Xe cơ giới nhà máy',
-      badge: 'Hạ tầng / Môi trường',
-    },
-  ];
+// Lấy danh sách xe cụ thể thay vì chỉ loại xe
+const requestedVehicleId = ref<number | undefined>(props.editingRequest?.requestedVehicleId);
+const availableVehiclesList = computed(() => {
+  return fleetStore.vehicles.filter((v) => {
+    // Nếu xe đang hỏng thì không hiển thị để chọn
+    if (v.status === 'Broken' || v.status === 'Maintenance') return false;
+
+    if (isTeamModule.value) {
+      return v.vehicleType === 'LatexTruck' || v.vehicleType === 'MillingMachine';
+    } else {
+      return v.vehicleType === 'LatexTruck' || v.vehicleType === 'PassengerCar' || v.vehicleType === 'MillingMachine';
+    }
+  });
 });
+
+// Khi đổi xe cụ thể, tự động map sang loại xe tương ứng để form hiển thị đúng
+watch(requestedVehicleId, (newId) => {
+  if (newId) {
+    const selectedVeh = fleetStore.vehicles.find((v) => v.id === newId);
+    if (selectedVeh) {
+      vehicleType.value = selectedVeh.vehicleType;
+    }
+  }
+});
+
+// Set xe mặc định khi list thay đổi (chỉ khi không ở mode edit)
+watch(availableVehiclesList, (newList) => {
+  if (!props.editingRequest && newList.length > 0 && !requestedVehicleId.value) {
+    requestedVehicleId.value = newList[0].id;
+  }
+}, { immediate: true });
 
 const purpose = ref<string>(
   props.editingRequest?.purpose || 'Vận chuyển mủ cao su ca thu hoạch ngày lẻ'
@@ -224,6 +216,7 @@ const errorMsg = ref<string>('');
 function populateFormFromRequest(request: TransportRequest) {
   selectedTeam.value = request.teamName || 'Đội 1';
   vehicleType.value = request.vehicleType;
+  requestedVehicleId.value = request.requestedVehicleId;
   purpose.value = request.purpose || '';
   estimatedWeightKg.value = request.estimatedWeightKg || 2500;
   passengersCount.value = request.passengersCount || 3;
@@ -344,6 +337,9 @@ function handleSubmit() {
         ? locations.value.slice(1).join(' ➔ ')
         : (locations.value[0] === 'Nhà Máy Chế Biến ECOTECH 2A' ? 'Trạm Cân 1 (Trung tâm)' : 'Nhà Máy Chế Biến ECOTECH 2A'));
 
+  const reqVeh = fleetStore.vehicles.find((v) => v.id === requestedVehicleId.value);
+  const reqVehPlate = reqVeh?.licensePlate;
+
   const requestPayload = {
     requesterId: authStore.currentUser.id,
     requesterName: authStore.currentUser.fullName,
@@ -354,6 +350,8 @@ function handleSubmit() {
       : 'Nhà máy Chế biến Mủ Cao su',
     teamName: isTeamModule.value ? selectedTeam.value : undefined,
     vehicleType: vehicleType.value,
+    requestedVehicleId: requestedVehicleId.value,
+    requestedVehiclePlate: reqVehPlate,
     startTime: startTime.value.replace('T', ' '),
     endTime: endTime.value.replace('T', ' '),
     fromLocation: fromLoc,
@@ -449,22 +447,22 @@ function handleSubmit() {
           </div>
         </div>
 
-        <!-- 1. Loại phương tiện yêu cầu -->
+        <!-- 1. Phương tiện yêu cầu cụ thể (Tên xe/Biển số) -->
         <div class="form-group">
           <div class="form-label-with-hint">
-            <label class="form-label">Loại phương tiện yêu cầu <span class="required">*</span></label>
+            <label class="form-label">Chọn đích danh xe yêu cầu <span class="required">*</span></label>
             <span class="hint-pill" :class="isTeamModule ? 'pill-team' : 'pill-factory'">
-              {{ isTeamModule ? 'Mặc định Đội: Xe chuyên dùng chở mủ & Xe cơ giới' : 'Xe phục vụ Nhà máy chế biến & xuất hàng' }}
+              {{ isTeamModule ? 'Xe tải mủ & Xe cơ giới' : 'Gồm xe bồn ly tâm, xe công tác KCS & máy xúc' }}
             </span>
           </div>
 
-          <select v-model="vehicleType" class="form-select vehicle-select-highlight">
+          <select v-model="requestedVehicleId" class="form-select vehicle-select-highlight">
             <option
-              v-for="opt in availableVehicleTypes"
-              :key="opt.value"
-              :value="opt.value"
+              v-for="veh in availableVehiclesList"
+              :key="veh.id"
+              :value="veh.id"
             >
-              {{ opt.label }}
+              [{{ veh.licensePlate }}] - {{ veh.name }}
             </option>
           </select>
         </div>

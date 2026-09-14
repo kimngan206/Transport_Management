@@ -494,9 +494,6 @@ function getSeverityBadge(sev: DriverIncident['severity']) {
                   <Clock :size="12" />
                   <span>Đã Tiếp Nhận</span>
                 </span>
-                <div v-if="inc.repairNote" class="text-xs text-primary font-medium mt-1 bg-blue-50 p-1.5 rounded border border-blue-200">
-                  {{ inc.repairNote }}
-                </div>
               </td>
             </tr>
           </tbody>

@@ -511,25 +511,39 @@ function getEffectiveVehicleStatus(v: Vehicle): { code: string; label: string; b
 
 // Chuyển đổi loại xe sang tiếng Việt
 function getVehicleTypeLabel(type: string, vehicle?: Vehicle): string {
-  const t = (type || '').toLowerCase();
-
-  if (vehicle && vehicle.model && vehicle.model.toLowerCase().includes('bồn')) {
-    return 'Xe bồn';
+  if (vehicle) {
+    let cat = fleetStore.vehicleCategories.find(c => {
+       if (c.code === 'TANKER_LATEX') return vehicle.vehicleType === 'LatexTruck' && (vehicle.capacityTons >= 7.0 || vehicle.model.toLowerCase().includes('bồn'));
+       if (c.code === 'TRUCK_LATEX') return vehicle.vehicleType === 'LatexTruck' && !vehicle.model.toLowerCase().includes('bồn');
+       return c.vehicleTypeCode === vehicle.vehicleType;
+    });
+    if (cat) return cat.name;
   }
-
+  
+  const t = (type || '').toLowerCase();
   switch (t) {
-    case 'latextruck':
-      return 'Xe tải';
-    case 'passengercar':
-      return 'Bán tải';
-    case 'millingmachine':
-      return 'Máy đào';
+    case 'latextruck': return 'Xe tải chở mủ cao su';
+    case 'passengercar': return 'Xe bán tải công tác & kỹ thuật';
+    case 'millingmachine': return 'Máy xúc đào & san ủi nông trường';
     default: {
       const cat = fleetStore.vehicleCategories.find(
         (c) => c.code.toLowerCase() === t || c.vehicleTypeCode.toLowerCase() === t
       );
       return cat ? cat.name : type;
     }
+  }
+}
+
+function getVehicleTypeShortName(type: string, vehicle?: Vehicle): string {
+  const t = (type || '').toLowerCase();
+  if (vehicle && vehicle.model && vehicle.model.toLowerCase().includes('bồn')) {
+    return 'Xe bồn';
+  }
+  switch (t) {
+    case 'latextruck': return 'Xe tải';
+    case 'passengercar': return 'Bán tải';
+    case 'millingmachine': return 'Máy đào';
+    default: return type;
   }
 }
 
@@ -1516,6 +1530,7 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
           <thead>
             <tr>
               <th style="min-width: 105px;">Biển Số Xe</th>
+              <th style="min-width: 180px;">Tên Xe</th>
               <th style="min-width: 80px;">Loại Xe</th>
               <th style="min-width: 135px;">Đơn Vị Sử Dụng</th>
               <th style="min-width: 170px;">Model / Dòng Xe</th>
@@ -1534,7 +1549,7 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
           </thead>
           <tbody>
             <tr v-if="filteredVehicles.length === 0">
-              <td colspan="15" class="text-center py-5">
+              <td colspan="16" class="text-center py-5">
                 <div class="empty-state-subtab">
                   <Truck :size="36" class="text-muted opacity-40 mb-2" />
                   <p class="text-sm text-muted font-medium">Chưa có phương tiện nào phù hợp với bộ lọc.</p>
@@ -1548,7 +1563,10 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
                 </button>
               </td>
               <td>
-                <span class="type-pill">{{ getVehicleTypeLabel(v.vehicleType, v) }}</span>
+                <strong>{{ getVehicleTypeLabel(v.vehicleType, v) }}</strong>
+              </td>
+              <td>
+                <span class="type-pill">{{ getVehicleTypeShortName(v.vehicleType, v) }}</span>
               </td>
               <!-- Cột Đơn Vị / Đối Tượng Sử Dụng -->
               <td>
