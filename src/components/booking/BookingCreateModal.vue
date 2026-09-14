@@ -92,8 +92,8 @@ const contactPhone = ref<string>(props.editingRequest?.contactPhone || '');
 const requestedVehicleId = ref<number | undefined>(props.editingRequest?.requestedVehicleId);
 const availableVehiclesList = computed(() => {
   return fleetStore.vehicles.filter((v) => {
-    // Nếu xe đang hỏng thì không hiển thị để chọn
-    if (v.status === 'Broken' || v.status === 'Maintenance') return false;
+    // Nếu xe đang hỏng hoặc đang bảo dưỡng thì không hiển thị để chọn
+    if (v.status === 'Broken' || v.status === 'UnderMaintenance') return false;
 
     if (isTeamModule.value) {
       return v.vehicleType === 'LatexTruck' || v.vehicleType === 'MillingMachine';
@@ -462,7 +462,7 @@ function handleSubmit() {
               :key="veh.id"
               :value="veh.id"
             >
-              [{{ veh.licensePlate }}] - {{ veh.name }}
+              [{{ veh.licensePlate }}] - {{ veh.model }}
             </option>
           </select>
         </div>
