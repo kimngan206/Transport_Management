@@ -9,6 +9,7 @@ import type { HubLocation } from '@/types/map';
 import type { VehicleType, TransportRequest } from '@/types';
 import {
   X,
+  Check,
   AlertCircle,
   CheckCircle2,
   Trees,
@@ -642,14 +643,19 @@ function handleSubmit() {
         </div>
       </div>
 
-      <div class="modal-footer">
-        <button class="btn btn-secondary" @click="emit('close')">Hủy bỏ</button>
+      <div class="modal-footer flex items-center justify-end gap-3">
+        <button type="button" class="btn btn-secondary" @click="emit('close')">
+          <X :size="16" />
+          <span>Hủy bỏ</span>
+        </button>
         <button
+          type="button"
           class="btn btn-primary"
           :disabled="!rule30Status.valid || conflictStatus.hasConflict"
           @click="handleSubmit"
         >
-          {{ isEditMode ? 'Lưu Thay Đổi' : 'Gửi Yêu Cầu Đặt Xe' }}
+          <Check :size="16" />
+          <span>{{ isEditMode ? 'Lưu Thay Đổi' : 'Gửi Yêu Cầu Đặt Xe' }}</span>
         </button>
       </div>
     </div>

@@ -218,7 +218,7 @@ const verifiedCount = computed(() => {
 
       <div class="modal-body">
         <!-- Banner Hướng Dẫn Nghiệp Vụ -->
-        <div class="guide-banner mb-3">
+        <div class="guide-banner">
           <div class="guide-icon">
             <Camera :size="20" class="text-primary" />
           </div>
@@ -234,7 +234,7 @@ const verifiedCount = computed(() => {
         <div class="add-expense-card">
           <h4 class="card-subtitle-custom">{{ isEditing ? 'Điều Chỉnh Khoản Chi Đã Chọn' : 'Thêm Khoản Chi Phát Sinh Mới' }}</h4>
 
-          <div class="grid-2">
+          <div class="grid-2 form-row">
             <div class="form-group">
               <label class="form-label">Loại chi phí phát sinh <span class="required">*</span></label>
               <select v-model="expenseType" class="form-select font-semibold">
@@ -262,7 +262,7 @@ const verifiedCount = computed(() => {
             </div>
           </div>
 
-          <div class="form-group mt-2">
+          <div class="form-group">
             <label class="form-label">Nội dung ghi chú / Số hóa đơn / Vị trí</label>
             <input
               v-model="receiptNote"
@@ -273,8 +273,8 @@ const verifiedCount = computed(() => {
           </div>
 
           <!-- KHU VỰC ĐÍNH KÈM BẰNG CHỨNG XÁC MINH -->
-          <div class="proof-upload-section mt-3">
-            <label class="form-label font-bold flex-between">
+          <div class="proof-upload-section">
+            <label class="form-label font-bold flex-between mb-2">
               <span>Bằng chứng xác minh (Ảnh hóa đơn / Biên lai) <span class="required">*</span></span>
               <span v-if="receiptImage" class="text-xs text-success font-semibold flex-center gap-1">
                 <CheckCircle2 :size="13" />
@@ -303,7 +303,7 @@ const verifiedCount = computed(() => {
                 </span>
                 <span class="text-xs text-muted">{{ sampleName || 'Ảnh chụp tài xế tải lên' }}</span>
 
-                <div class="proof-button-row mt-2">
+                <div class="proof-button-row">
                   <label class="btn btn-outline btn-xs">
                     <Camera :size="13" />
                     <span>Đổi ảnh khác</span>
@@ -352,7 +352,7 @@ const verifiedCount = computed(() => {
             </div>
           </div>
 
-          <div class="add-btn-row mt-3">
+          <div class="add-btn-row">
             <button class="btn btn-primary full-w" @click="handleAddExpense">
               <Plus v-if="!isEditing" :size="16" />
               <Edit v-else :size="16" />
@@ -362,8 +362,8 @@ const verifiedCount = computed(() => {
         </div>
 
         <!-- DANH SÁCH CÁC KHOẢN CHI ĐÃ KÊ KHAI CỦA CHUYẾN XE NÀY -->
-        <div class="trip-expenses-history mt-4">
-          <div class="flex-between mb-2">
+        <div class="trip-expenses-history">
+          <div class="flex-between mb-3">
             <h4 class="card-subtitle-custom mb-0">
               Các Khoản Chi Đã Ghi Nhận ({{ tripExpenses.length }})
               <span v-if="tripExpenses.length > 0" class="text-xs text-success font-semibold ml-1">
@@ -466,28 +466,53 @@ const verifiedCount = computed(() => {
 }
 .guide-banner {
   display: flex;
-  gap: 12px;
+  gap: 14px;
   background: #f0fdf4;
   border: 1px solid #bbf7d0;
-  border-radius: 8px;
-  padding: 10px 14px;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 22px;
+  align-items: flex-start;
+}
+.guide-icon {
+  flex-shrink: 0;
+  padding-top: 2px;
 }
 .guide-text strong {
   color: #166534;
-  font-size: 0.82rem;
+  font-size: 0.85rem;
+  display: block;
+  margin-bottom: 2px;
 }
 .add-expense-card {
   background: #f8fafc;
   border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 14px;
-  margin-bottom: 24px;
+  border-radius: 12px;
+  padding: 22px 24px;
+  margin-bottom: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
 }
 .card-subtitle-custom {
-  font-size: 0.88rem;
+  font-size: 0.95rem;
   font-weight: 700;
   color: #1e293b;
-  margin-bottom: 12px;
+  margin-bottom: 18px;
+}
+.form-row {
+  margin-bottom: 16px;
+}
+.form-group {
+  margin-bottom: 16px;
+}
+.form-group:last-child {
+  margin-bottom: 0;
+}
+.form-label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 6px;
 }
 .amount-input-wrap {
   position: relative;
@@ -503,26 +528,28 @@ const verifiedCount = computed(() => {
 .proof-upload-section {
   background: #ffffff;
   border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  padding: 12px;
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin-top: 18px;
+  margin-bottom: 20px;
 }
 .hidden-file-input {
   display: none;
 }
 .proof-preview-card {
   display: flex;
-  gap: 12px;
-  background: #f8fafc;
+  gap: 16px;
+  background: #f0fdf4;
   border: 1.5px solid #22c55e;
-  border-radius: 8px;
-  padding: 10px;
+  border-radius: 10px;
+  padding: 14px 16px;
   align-items: center;
 }
 .thumb-container {
   position: relative;
-  width: 75px;
-  height: 75px;
-  border-radius: 6px;
+  width: 80px;
+  height: 80px;
+  border-radius: 8px;
   overflow: hidden;
   border: 1px solid #cbd5e1;
   cursor: pointer;
@@ -553,44 +580,48 @@ const verifiedCount = computed(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
+  gap: 4px;
 }
 .proof-button-row {
   display: flex;
-  gap: 8px;
+  gap: 10px;
+  margin-top: 8px;
 }
 .proof-empty-card {
   background: #fffbeb;
   border: 1.5px dashed #f59e0b;
-  border-radius: 8px;
-  padding: 14px;
+  border-radius: 10px;
+  padding: 20px 16px;
   text-align: center;
 }
 .empty-upload-box {
   display: flex;
   flex-direction: column;
   align-items: center;
+  gap: 6px;
 }
 .btn-camera-action {
   cursor: pointer;
+  margin-top: 4px;
 }
 .sample-chips-box {
-  margin-top: 10px;
-  padding-top: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
   border-top: 1px dashed #e2e8f0;
 }
 .chips-row {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   justify-content: center;
   flex-wrap: wrap;
-  margin-top: 4px;
+  margin-top: 6px;
 }
 .chip-btn {
   background: #f1f5f9;
   border: 1px solid #cbd5e1;
-  border-radius: 12px;
-  padding: 3px 8px;
-  font-size: 0.72rem;
+  border-radius: 14px;
+  padding: 4px 10px;
+  font-size: 0.75rem;
   cursor: pointer;
   font-weight: 500;
   transition: all 0.15s ease;
@@ -599,49 +630,70 @@ const verifiedCount = computed(() => {
   background: #e2e8f0;
   border-color: #94a3b8;
 }
+.add-btn-row {
+  margin-top: 20px;
+}
+.add-btn-row .btn {
+  padding: 10px 20px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  border-radius: 8px;
+}
+.trip-expenses-history {
+  margin-top: 28px;
+  padding-top: 22px;
+  border-top: 1.5px dashed #cbd5e1;
+}
 .empty-list-notice {
   text-align: center;
-  padding: 16px;
+  padding: 18px;
   color: #94a3b8;
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   background: #f8fafc;
-  border-radius: 6px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+.expenses-table-wrap {
+  overflow-x: auto;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
 }
 .table-compact {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.8rem;
+  font-size: 0.82rem;
 }
 .table-compact th {
   background: #f1f5f9;
-  padding: 8px;
+  padding: 10px 12px;
   text-align: left;
   font-weight: 600;
   color: #475569;
   border-bottom: 1px solid #cbd5e1;
 }
 .table-compact td {
-  padding: 8px;
+  padding: 10px 12px;
   border-bottom: 1px solid #f1f5f9;
 }
 .badge-type {
   background: #e0f2fe;
   color: #0369a1;
-  padding: 2px 6px;
+  padding: 3px 8px;
   border-radius: 4px;
   font-weight: 600;
-  font-size: 0.72rem;
+  font-size: 0.74rem;
 }
 .verified-cell {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 .mini-thumb {
   position: relative;
-  width: 28px;
-  height: 28px;
-  border-radius: 4px;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
   overflow: hidden;
   cursor: pointer;
   border: 1px solid #cbd5e1;
@@ -661,12 +713,12 @@ const verifiedCount = computed(() => {
 }
 .badge-verified-mini {
   color: #16a34a;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: bold;
 }
 .badge-warning-mini {
   color: #d97706;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: bold;
 }
 .btn-del-mini {
@@ -674,8 +726,12 @@ const verifiedCount = computed(() => {
   border: none;
   color: #dc2626;
   cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
+  padding: 6px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease;
 }
 .btn-del-mini:hover {
   background: #fee2e2;

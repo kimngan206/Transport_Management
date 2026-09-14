@@ -9,6 +9,8 @@ import {
   Search,
   Edit2,
   Trash2,
+  Check,
+  X,
 } from 'lucide-vue-next';
 
 import { useDialogStore } from '@/stores/dialog';
@@ -421,9 +423,13 @@ function deleteCategory(category: VehicleCategory) {
           </div>
         </div>
 
-        <div class="modal-footer">
-          <button class="btn btn-secondary" @click="showModal = false">Hủy</button>
-          <button class="btn btn-primary" @click="saveCategory">
+        <div class="modal-footer flex items-center justify-end gap-3">
+          <button type="button" class="btn btn-secondary" @click="showModal = false">
+            <X :size="16" />
+            <span>Hủy</span>
+          </button>
+          <button type="button" class="btn btn-primary" @click="saveCategory">
+            <Check :size="16" />
             <span>{{ editingCategory ? 'Lưu Thay Đổi' : 'Thêm Loại Xe' }}</span>
           </button>
         </div>
@@ -769,7 +775,7 @@ function deleteCategory(category: VehicleCategory) {
 
 .modal-card {
   width: 100%;
-  max-width: 640px;
+  max-width: 820px;
   background: #ffffff;
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-modal);
