@@ -54,6 +54,7 @@ const saveMessage = ref('');
 const selectedDate = ref('2026-09-07'); // Mặc định ngày có các chuyến mẫu
 const filterType = ref<string>('ALL');
 const filterUnit = ref<string>('ALL');
+const hideEmptyVehicles = ref(true); // Mặc định ẩn xe không có chuyến
 
 // Bộ lọc cho Tab Cài đặt từng xe
 const searchPlate = ref('');
@@ -124,6 +125,11 @@ const timelineVehicles = computed(() => {
     if (filterType.value !== 'ALL' && v.vehicleType !== filterType.value) return false;
     if (filterUnit.value === 'Factory' && v.operatingUnitType !== 'Factory') return false;
     if (filterUnit.value.startsWith('Team:') && v.teamName !== filterUnit.value.replace('Team:', '')) return false;
+    // Ẩn xe không có chuyến trong ngày nếu toggle bật
+    if (hideEmptyVehicles.value) {
+      const hasTrips = getVehicleDailyTrips(v.id, selectedDate.value, dispatchStore.trips).length > 0;
+      if (!hasTrips) return false;
+    }
     return true;
   });
 });
@@ -196,6 +202,9 @@ const interVehicleGaps = computed<InterVehicleGapPair[]>(() => {
 
   return pairs;
 });
+
+// Chỉ lấy các cặp xe vi phạm (không an toàn) để hiển thị cảnh báo
+const violationGaps = computed(() => interVehicleGaps.value.filter(p => !p.isSafe));
 
 // Giờ từ 06:00 đến 18:00 (13 mốc giờ)
 const timelineHours = [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
@@ -329,7 +338,7 @@ function handleBatchTemplateChange(event: Event) {
         </p>
       </div>
 
-      <div class="header-actions">
+      <div v-if="activeTab === 'vehicles'" class="header-actions">
         <button class="btn btn-outline btn-sm" @click="handleResetConfig" title="Khôi phục mặc định">
           <RotateCcw :size="14" />
           <span>Mặc định</span>
@@ -412,6 +421,13 @@ function handleBatchTemplateChange(event: Event) {
                 <option value="Team:Đội 4">Đội sản xuất 4</option>
               </select>
             </div>
+
+            <div class="filter-field-item">
+              <label class="filter-toggle-label">
+                <input v-model="hideEmptyVehicles" type="checkbox" class="filter-checkbox" />
+                <span>Ẩn xe không có chuyến</span>
+              </label>
+            </div>
           </div>
         </div>
       </div>
@@ -454,16 +470,11 @@ function handleBatchTemplateChange(event: Event) {
               class="timeline-vehicle-row"
               :class="{ 'has-trips': getVehicleDailyTrips(v.id, selectedDate, dispatchStore.trips).length > 0 }"
             >
-              <!-- Cột thông tin xe -->
-              <div class="vehicle-label-col">
+              <!-- Cột thông tin xe (gọn: chỉ biển số + loại xe, hover xem chi tiết) -->
+              <div class="vehicle-label-col" :title="`${v.licensePlate} • ${v.operatingUnitType === 'Factory' ? 'Nhà máy' : (v.teamName || 'Đội')} • Đệm ${getVehicleBufferMinutes(v.id).turnaroundMinutes}p`">
                 <div class="veh-id-badge">
                   <strong class="font-mono">{{ v.licensePlate }}</strong>
-                  <span class="veh-type-tag">{{ getVehicleTypeLabel(v.vehicleType) }}</span>
-                </div>
-                <div class="veh-meta-sub">
-                  <span v-if="v.operatingUnitType === 'Factory'" class="unit-tag factory">Nhà máy</span>
-                  <span v-else class="unit-tag team">{{ v.teamName || 'Đội' }}</span>
-                  <span class="text-xxs text-muted ml-1">• Đệm {{ getVehicleBufferMinutes(v.id).turnaroundMinutes }}p</span>
+                  <span class="veh-type-tag">{{ v.vehicleType === 'LatexTruck' ? 'Truck' : v.vehicleType === 'PassengerCar' ? 'Pickup' : 'Excavator' }}</span>
                 </div>
               </div>
 
@@ -519,86 +530,47 @@ function handleBatchTemplateChange(event: Event) {
         </div>
       </div>
 
-      <!-- BẢNG SO SÁNH GIÃN CÁCH KHỞI HÀNH GIỮA CÁC XE -->
-      <div class="card mt-3">
-        <div class="card-header flex-between py-2 px-3">
+      <!-- TRẠNG THÁI GIÃN CÁCH XUẤT BẾN (Gọn: chỉ hiện cảnh báo khi có vi phạm) -->
+      <div class="card mt-3 gap-alert-card">
+        <!-- Trạng thái an toàn: Tất cả giãn cách đạt chuẩn -->
+        <div v-if="violationGaps.length === 0" class="gap-status-safe">
+          <CheckCircle2 :size="18" class="text-success" />
           <div>
-            <h3 class="card-title text-sm font-bold mb-0">Ma Trận So Sánh Thời Gian Giãn Cách Giữa Các Xe</h3>
-            <span class="text-xs text-muted">Khoảng cách giờ xuất phát giữa các xe trong ngày để tránh dồn ứ trạm cân và nhà máy</span>
+            <strong class="text-sm text-emerald-800">Giãn cách xuất bến an toàn</strong>
+            <p class="mb-0 text-xs text-emerald-600">
+              Tất cả {{ interVehicleGaps.length > 0 ? interVehicleGaps.length + ' cặp xe' : 'chuyến xe' }} trong ngày {{ selectedDate }} đều đảm bảo khoảng cách xuất bến tối thiểu. Không có nguy cơ dồn ứ trạm cân hoặc nhà máy.
+            </p>
+          </div>
+        </div>
+
+        <!-- Cảnh báo: Có cặp xe vi phạm giãn cách -->
+        <div v-else>
+          <div class="gap-status-warning-header">
+            <div class="flex items-center gap-2">
+              <AlertTriangle :size="16" class="text-amber-600" />
+              <strong class="text-sm text-amber-800">{{ violationGaps.length }} cặp xe xuất bến quá gần nhau</strong>
+            </div>
+            <span class="text-xs text-amber-600">Cần điều chỉnh lịch trình để tránh ùn ứ trạm cân</span>
           </div>
 
-          <span class="badge badge-blue">
-            {{ interVehicleGaps.length }} cặp xe trong khung 60p
-          </span>
-        </div>
-
-        <div v-if="interVehicleGaps.length > 0" class="table-responsive">
-          <table class="table align-middle table-sm">
-            <thead>
-              <tr>
-                <th style="width: 140px;">Xe Xuất Phát Trước</th>
-                <th style="width: 140px;">Xe Xuất Phát Sau</th>
-                <th>Giờ Xuất Phát Xe 1</th>
-                <th>Giờ Xuất Phát Xe 2</th>
-                <th class="text-center">Khoảng Cách</th>
-                <th class="text-center">Quy Chuẩn</th>
-                <th>Đánh Giá</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(p, idx) in paginatedInterVehicleGaps" :key="idx">
-                <td>
-                  <strong class="font-mono text-primary">{{ p.vehicleA }}</strong>
-                  <div class="text-xxs text-muted">{{ p.tripA.tripCode }}</div>
-                </td>
-                <td>
-                  <strong class="font-mono text-primary">{{ p.vehicleB }}</strong>
-                  <div class="text-xxs text-muted">{{ p.tripB.tripCode }}</div>
-                </td>
-                <td>
-                  <span class="font-mono font-bold">{{ p.tripA.scheduledStartTime.slice(11, 16) }}</span>
-                  <div class="text-xxs text-slate-500 truncate max-w-xs">{{ p.tripA.routeName }}</div>
-                </td>
-                <td>
-                  <span class="font-mono font-bold">{{ p.tripB.scheduledStartTime.slice(11, 16) }}</span>
-                  <div class="text-xxs text-slate-500 truncate max-w-xs">{{ p.tripB.routeName }}</div>
-                </td>
-                <td class="text-center">
-                  <span
-                    class="badge-interval-pill"
-                    :class="p.isSafe ? 'pill-safe' : 'pill-warning'"
-                  >
-                    <Clock :size="11" />
-                    <strong>{{ p.diffMinutes }} phút</strong>
-                  </span>
-                </td>
-                <td class="text-center">
-                  <span class="text-xs font-semibold text-slate-700">&ge; {{ p.recommendedMinutes }} phút</span>
-                </td>
-                <td>
-                  <div class="status-eval-cell" :class="p.isSafe ? 'text-emerald-700' : 'text-amber-700'">
-                    <CheckCircle2 v-if="p.isSafe" :size="14" class="text-success inline mr-1" />
-                    <AlertTriangle v-else :size="14" class="text-amber-600 inline mr-1" />
-                    <span class="text-xs font-medium">{{ p.notes }}</span>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-
-          <TablePagination
-            v-model:currentPage="gapPage"
-            v-model:pageSize="gapPageSize"
-            :totalItems="interVehicleGaps.length"
-            :pageSizeOptions="[5, 10, 20]"
-          />
-        </div>
-
-        <div v-else class="text-center py-4 text-muted">
-          <CheckCircle2 :size="20" class="text-success mb-1" />
-          <p class="mb-0 text-xs font-medium text-slate-600">
-            Không có cặp xe nào xuất bến quá gần nhau trong ngày {{ selectedDate }}. Lịch trình phân bổ giãn cách an toàn.
-          </p>
+          <div class="gap-violation-list">
+            <div v-for="(p, idx) in violationGaps" :key="idx" class="gap-violation-item">
+              <div class="gap-violation-vehicles">
+                <span class="font-mono font-bold text-primary">{{ p.vehicleA }}</span>
+                <span class="text-xs text-muted mx-1">{{ p.tripA.scheduledStartTime.slice(11, 16) }}</span>
+                <ArrowRight :size="12" class="text-slate-400" />
+                <span class="font-mono font-bold text-primary ml-1">{{ p.vehicleB }}</span>
+                <span class="text-xs text-muted mx-1">{{ p.tripB.scheduledStartTime.slice(11, 16) }}</span>
+              </div>
+              <div class="gap-violation-detail">
+                <span class="badge-interval-pill pill-warning">
+                  <Clock :size="11" />
+                  <strong>{{ p.diffMinutes }} phút</strong>
+                </span>
+                <span class="text-xs text-amber-700">Cần tối thiểu {{ p.recommendedMinutes }} phút</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -2405,5 +2377,98 @@ function handleBatchTemplateChange(event: Event) {
   .kpi-mini-box {
     justify-content: flex-start;
   }
+}
+
+/* ============================
+   NEW: Checkbox ẩn xe không có chuyến
+   ============================ */
+.filter-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #475569;
+  user-select: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  transition: all 0.15s ease;
+}
+
+.filter-toggle-label:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.filter-checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: #16a34a;
+  cursor: pointer;
+}
+
+/* ============================
+   NEW: Alert-based Gap Status
+   ============================ */
+.gap-alert-card {
+  overflow: hidden;
+}
+
+.gap-status-safe {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 18px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: var(--radius-md, 10px);
+}
+
+.gap-status-warning-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 18px;
+  background: #fffbeb;
+  border-bottom: 1px solid #fde68a;
+}
+
+.gap-violation-list {
+  padding: 8px 12px;
+}
+
+.gap-violation-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  margin-bottom: 6px;
+}
+
+.gap-violation-item:last-child {
+  margin-bottom: 0;
+}
+
+.gap-violation-vehicles {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.gap-violation-detail {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 </style>
