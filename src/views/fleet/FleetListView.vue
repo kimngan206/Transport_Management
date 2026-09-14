@@ -2638,7 +2638,7 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
           <FormulaBuilder
             v-model="vehFormulaDraft"
             label="Công thức hao phí / tiêu hao theo mong muốn"
-            placeholder="Ví dụ: (StandardDistanceKm × NLP) + ((TotalWeightKg / 1000) × StandardDistanceKm × NLC)"
+            placeholder="Ví dụ: ( [Cự ly chuẩn] * [Định mức không tải (NLP)] ) + ( ( [Tổng tải trọng hàng] / 1000 ) * [Cự ly chuẩn] * [Định mức có tải (NLC)] )"
           />
         </div>
         <div class="modal-footer">
@@ -2657,7 +2657,7 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
           <FormulaBuilder
             v-model="catFormulaDraft"
             label="Công thức hao phí tiêu chuẩn của loại xe"
-            placeholder="Ví dụ: StandardDistanceKm × ElectricNormPerKm"
+            placeholder="Ví dụ: [Cự ly chuẩn] * [Định mức điện / km]"
           />
         </div>
         <div class="modal-footer">

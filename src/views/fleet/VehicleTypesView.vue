@@ -450,7 +450,7 @@ function deleteCategory(category: VehicleCategory) {
           <FormulaBuilder
             v-model="formulaEditorDraft"
             label="Công Thức Hao Phí / Tiêu Hao"
-            placeholder="Ví dụ: StandardDistanceKm × ElectricNormPerKm"
+            placeholder="Ví dụ: [Cự ly chuẩn] * [Định mức điện / km]"
           />
         </div>
 
