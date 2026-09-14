@@ -56,7 +56,7 @@ Table driver {
 // ==========================================
 
 Table hub_location {
-  id guid [pk]
+  id int [pk, increment]
   code varchar(20) [not null, unique] // TC1, D1, D2, D3, NM, VP
   name nvarchar(100) [not null]
   short_name nvarchar(50)
@@ -68,11 +68,11 @@ Table hub_location {
 }
 
 Table standard_route {
-  id guid [pk]
+  id int [pk, increment]
   route_code varchar(20) [not null, unique]
   name nvarchar(200) [not null]
-  start_hub_id guid
-  end_hub_id guid
+  start_hub_id int
+  end_hub_id int
   standard_distance_km decimal(10,2)
   description nvarchar(255)
 }
@@ -95,7 +95,7 @@ Table vehicle_category {
 }
 
 Table vehicle {
-  id guid [pk]
+  id int [pk, increment]
   license_plate varchar(20) [not null, unique]
   category_id int
   vehicle_type varchar(30) // LatexTruck, PassengerCar, MillingMachine
@@ -143,10 +143,10 @@ Table maintenance_type {
 }
 
 Table maintenance_record {
-  id guid [pk]
-  vehicle_id guid [not null]
+  id int [pk, increment]
+  vehicle_id int [not null]
   maintenance_type_id int
-  incident_report_id guid
+  incident_report_id int
   maintenance_odo decimal(10,2)
   cost decimal(15,2)
   garage_name nvarchar(150)
@@ -160,7 +160,7 @@ Table maintenance_record {
 // ==========================================
 
 Table transport_request {
-  id guid [pk]
+  id int [pk, increment]
   request_code varchar(30) [not null, unique]
   requester_id int [not null]
   department_id int [not null]
@@ -170,7 +170,7 @@ Table transport_request {
   end_time datetime [not null]
   from_location nvarchar(200)
   to_location nvarchar(200)
-  standard_route_id guid
+  standard_route_id int
   purpose nvarchar(255)
   estimated_weight_kg decimal(10,2)
   passengers_count int
@@ -186,11 +186,11 @@ Table transport_request {
 }
 
 Table haulage_trip {
-  id guid [pk]
+  id int [pk, increment]
   trip_code varchar(30) [not null, unique]
-  vehicle_id guid [not null]
+  vehicle_id int [not null]
   driver_id int [not null]
-  standard_route_id guid [not null]
+  standard_route_id int [not null]
   
   // Khung thời gian chạy chuyến (phục vụ kiểm tra trùng lịch đệm 30 phút)
   scheduled_start_time datetime [not null]
@@ -225,13 +225,13 @@ Table haulage_trip {
 
 // Bảng trung gian gom/ghép nhiều Yêu cầu vào 1 Chuyến đi (US-06)
 Table trip_request_mapping {
-  trip_id guid [pk]
-  request_id guid [pk]
+  trip_id int [pk]
+  request_id int [pk]
 }
 
 Table trip_expense {
-  id guid [pk]
-  trip_id guid [not null]
+  id int [pk, increment]
+  trip_id int [not null]
   expense_type varchar(30) // Fuel, Toll, Parking, Repair, Other
   amount decimal(15,2) [not null]
   receipt_note nvarchar(255)
@@ -245,7 +245,7 @@ Table trip_expense {
 // Cài đặt giãn cách thời gian đệm điều phối chuyến đi
 Table trip_dispatch_setting {
   id int [pk, increment]
-  vehicle_id guid [unique] // Null means default setting for type
+  vehicle_id int [unique] // Null means default setting for type
   vehicle_type varchar(30)
   turnaround_buffer_minutes int [default: 30]
   inter_vehicle_interval_minutes int [default: 15]
@@ -259,8 +259,8 @@ Table trip_dispatch_setting {
 // ==========================================
 
 Table incident_report {
-  id guid [pk]
-  vehicle_id guid [not null]
+  id int [pk, increment]
+  vehicle_id int [not null]
   reported_by_driver_id int [not null]
   report_date datetime [not null]
   issue_description nvarchar(500)
@@ -274,16 +274,16 @@ Table incident_report {
 
 // Biên bản Bàn giao, Điều chuyển & Mượn trả xe (hợp nhất chuẩn hóa)
 Table vehicle_handover_record {
-  id guid [pk]
-  vehicle_id guid [not null]
+  id int [pk, increment]
+  vehicle_id int [not null]
   workflow_type varchar(30) // BORROW_RETURN (Mượn trả), TRANSFER (Điều chuyển), DRIVER_HANDOVER (Bàn giao tài xế)
-  rescue_trip_id guid
-  replacing_vehicle_id guid
+  rescue_trip_id int
+  replacing_vehicle_id int
   
   from_team nvarchar(100)
   to_team nvarchar(100)
-  from_hub_id guid
-  to_hub_id guid
+  from_hub_id int
+  to_hub_id int
   
   // Đại diện bàn giao & Pháp lý điều chuyển
   from_manager_name nvarchar(100)
@@ -314,17 +314,17 @@ Table vehicle_handover_record {
 }
 
 Table equipment_shift_log {
-  id guid [pk]
-  vehicle_id guid [not null]
+  id int [pk, increment]
+  vehicle_id int [not null]
   operator_id int [not null] // Thợ máy / Tài xế cơ giới
-  hub_id guid
+  hub_id int
   work_date date [not null]
   start_hour_meter decimal(10,2)
   end_hour_meter decimal(10,2)
   total_hours decimal(10,2)
   excavator_task varchar(50)
   fuel_allocated decimal(10,2)
-  handover_record_id guid
+  handover_record_id int
 }
 
 // ==========================================
