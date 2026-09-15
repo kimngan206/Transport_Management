@@ -1,386 +1,434 @@
+// ============================================================================ 
+// DATABASE DIAGRAM (DBML) - ĐIỀU VẬN & ĐỘI XE ECOTECH 2A
+// Chuẩn hóa 100% theo Script SQL OperationManagementDB
+// Dùng trực tiếp trên https://dbdiagram.io
+// ============================================================================
+
 // ==========================================
 // 1. NHÓM TÀI KHOẢN, PHÒNG BAN & TÀI XẾ
 // ==========================================
 
-Table department {
+Table Farm {
   id int [pk, increment]
   code varchar(20) [not null, unique]
   name nvarchar(100) [not null]
-  manager_id int
+  manager_id int [null]
+  Note: 'Nông trường / Đội sản xuất'
 }
 
-Table account {
+Table Factory {
   id int [pk, increment]
-  user_name nvarchar(50) [not null, unique]
+  code varchar(20) [not null, unique]
+  name nvarchar(100) [not null]
+  manager_id int [null]
+  Note: 'Nhà máy chế biến mủ cao su'
+}
+
+Table Account {
+  id int [pk, increment]
+  user_name varchar(20) [not null, unique]
   password varchar(100) [not null]
-  first_name nvarchar(50)
-  last_name nvarchar(50)
-  job_title nvarchar(100) // Tổ Trưởng Thu Gom, Điều Phối Viên, KCS...
-  email nvarchar(100)
-  phone varchar(20)
-  avatar_url varchar(500)
-  department_id int
-  status smallint // 1: Active, 0: Inactive
-  created_at datetime
-  created_by int
-  updated_at datetime
-  updated_by int
+  first_name nvarchar(10) [not null]
+  last_name nvarchar(10) [not null]
+  account_type varchar(10) [not null] // Requester, Dispatcher, Driver, Admin
+  email nvarchar(100) [null]
+  phone varchar(20) [null]
+  updated_at datetime [null]
+  updated_by int [null]
+  status smallint [not null, default: 1]
+  created_at datetime2 [not null]
+  created_by int [not null]
+  Note: 'Tài khoản người dùng hệ thống'
 }
 
-Table role {
-  id int [pk, increment]
-  role_name nvarchar(50) [not null] // Requester, Dispatcher, Driver, Admin
-  description nvarchar(200)
-}
-
-Table account_role {
-  account_id int [pk]
-  role_id int [pk]
-  assigned_at datetime
-}
-
-Table driver {
+Table Driver {
   id int [pk, increment]
   account_id int [not null, unique]
-  employee_code varchar(20)
+  employee_code varchar(20) [null]
+  full_name nvarchar(100) [not null]
+  phone_number varchar(20) [null]
+  email nvarchar(100) [null]
+  address nvarchar(200) [null]
+  date_of_birth datetime2 [null]
+  note nvarchar(200) [null]
+  status smallint [not null, default: 1]
   license_number varchar(30) [not null]
-  license_class varchar(10) // B2, C, D, E, FC...
+  license_class varchar(10) [null] // B2, C, D, E, FC...
   license_expiry_date date [not null]
-  license_image_url varchar(500)
-  employment_status varchar(20) // Active, OnLeave, Suspended
-  is_currently_on_trip bool [default: false]
+  license_image_url varchar(500) [null]
+  employment_status varchar(20) [not null, default: 'Active'] // Active, OnLeave, Suspended
+  is_currently_on_trip bit [not null, default: 0]
+  Note: 'Hồ sơ GPLX & Thông tin tài xế'
 }
 
 // ==========================================
-// 2. NHÓM TUYẾN ĐƯỜNG, ĐỊA ĐIỂM & ĐIỂM TRẠM
+// 2. NHÓM ĐIỂM TRẠM, TUYẾN ĐƯỜNG & BẢN ĐỒ
 // ==========================================
 
-Table hub_location {
+Table HubLocation {
   id int [pk, increment]
-  code varchar(20) [not null, unique] // TC1, D1, D2, D3, NM, VP
+  code varchar(20) [not null, unique]
   name nvarchar(100) [not null]
-  short_name nvarchar(50)
-  hub_type varchar(30) // 'STATION' | 'FACTORY' | 'GARAGE' | 'FARM' | 'OFFICE'
-  address nvarchar(255)
-  latitude decimal(9,6)
-  longitude decimal(9,6)
-  description nvarchar(200)
+  short_name nvarchar(50) [null]
+  hub_type varchar(30) [not null] // STATION, FACTORY, GARAGE, FARM, OFFICE
+  address nvarchar(255) [null]
+  latitude decimal(9,6) [null]
+  longitude decimal(9,6) [null]
+  description nvarchar(200) [null]
+  Note: 'Điểm trạm cố định: Trạm cân, Nông trường, Nhà máy, Gara'
 }
 
-Table standard_route {
+Table StandardRoute {
   id int [pk, increment]
   route_code varchar(20) [not null, unique]
   name nvarchar(200) [not null]
-  start_hub_id int
-  end_hub_id int
-  standard_distance_km decimal(10,2)
-  description nvarchar(255)
+  start_hub_id int [null]
+  end_hub_id int [null]
+  standard_distance_km decimal(10,2) [not null, default: 0.00]
+  stroke_color varchar(20) [null, default: '#28a745']
+  waypoints_json nvarchar(max) [null]
+  description nvarchar(255) [null]
+  Note: 'Tuyến đường quy chuẩn thu gom & công tác'
 }
 
 // ==========================================
-// 3. NHÓM PHƯƠNG TIỆN & BẢO DƯỠNG
+// 3. NHÓM PHƯƠNG TIỆN, ĐỊNH MỨC & BẢO DƯỠNG
 // ==========================================
 
-Table vehicle_category {
+Table VehicleCategory {
   id int [pk, increment]
   code varchar(20) [not null, unique]
   name nvarchar(100) [not null]
-  group_type nvarchar(50) // Vận tải mủ, Cơ giới nông trường, Công tác
-  vehicle_type_code varchar(30) // LatexTruck, PassengerCar, MillingMachine
-  fuel_quota_type varchar(30) // L_PER_KM, L_PER_TON_KM, L_PER_HOUR
-  default_quota_empty decimal(10,3)
-  default_quota_loaded decimal(10,3)
-  description nvarchar(255)
-  is_active bool [default: true]
+  group_type nvarchar(50) [null] // Vận tải mủ, Cơ giới nông trường, Công tác
+  fuel_quota_type varchar(30) [not null] // L_PER_KM, L_PER_TON_KM, L_PER_HOUR
+  default_quota_empty decimal(10,3) [null]
+  default_quota_loaded decimal(10,3) [null]
+  description nvarchar(255) [null]
+  status smallint [not null, default: 1]
+  Note: 'Danh mục loại phương tiện & định mức chuẩn'
 }
 
-Table vehicle {
+Table Vehicle {
   id int [pk, increment]
+  code varchar(20) [not null]
   license_plate varchar(20) [not null, unique]
-  category_id int
-  vehicle_type varchar(30) // LatexTruck, PassengerCar, MillingMachine
-  model nvarchar(100) // Hino 5 tấn, Isuzu 7.5 tấn, Komatsu PC200...
-  capacity_tons decimal(10,2)
-  passenger_capacity int
-  inspection_expiry_date date // Ngày hết hạn kiểm định
-  
-  // Đơn vị sử dụng & Phân loại xe nội bộ / thuê ngoài
-  operating_unit_type varchar(20) // Team, Factory
-  team_name nvarchar(50) // Đội 1, Đội 2, Đội 3...
-  is_external bool [default: false] // Xe thuê ngoài (không tính bảo dưỡng nội bộ)
-  
-  // Quản lý ODO & Giờ máy
-  current_odo_km decimal(10,2) [default: 0]
-  current_operating_hours decimal(10,2) [default: 0]
-  last_maintenance_odo decimal(10,2) [default: 0]
-  last_maintenance_date date
-  
-  // Tách biệt Trạng thái vận hành & Trạng thái bảo dưỡng (BR-011)
-  status varchar(30) // Available, OnTrip, UnderMaintenance, Broken
-  maintenance_status varchar(30) // Normal, Due, Overdue
-  
-  // Định mức nhiên liệu & Công thức tùy biến
-  empty_fuel_norm decimal(10,3)
-  loaded_fuel_norm decimal(10,3)
-  hourly_fuel_norm decimal(10,3)
-  fuel_formula_text nvarchar(255)
-  
-  assigned_driver_id int
-  notes nvarchar(500)
+  type int [null]
+  category_id int [not null]
+  farm_id int [null]
+  factory_id int [null]
+  driver_id int [null]
+  escort_id int [null]
+  type_car nvarchar(30) [not null] // LatexTruck, PassengerCar, MillingMachine
+  vehicle_tonnage decimal(10,2) [null]
+  vehicle_weight decimal(10,2) [null]
+  image_url varchar(500) [null]
+  image_list varchar(500) [null]
+  remark nvarchar(500) [null]
+  model nvarchar(100) [null]
+  passenger_capacity int [null, default: 0]
+  inspection_expiry_date date [null]
+  is_external bit [not null, default: 0]
+  current_odo_km decimal(10,2) [not null, default: 0.00]
+  current_operating_hours decimal(10,2) [not null, default: 0.00]
+  last_maintenance_odo decimal(10,2) [not null, default: 0.00]
+  last_maintenance_date date [null]
+  status smallint [not null, default: 1]
+  maintenance_status varchar(30) [not null, default: 'Normal'] // Normal, MaintenanceNeeded, UnderMaintenance
+  empty_fuel_norm decimal(10,3) [null]
+  loaded_fuel_norm decimal(10,3) [null]
+  hourly_fuel_norm decimal(10,3) [null]
+  fuel_formula_text nvarchar(255) [null]
+  Note: 'Hồ sơ phương tiện đội xe'
 }
 
-Table maintenance_type {
+Table MaintenanceType {
   id int [pk, increment]
   code varchar(20) [not null, unique]
   name nvarchar(100) [not null]
-  group_name nvarchar(50) // Bảo dưỡng định kỳ, Sửa chữa phục hồi, Hệ thống chuyên dụng
-  cycle_km decimal(10,2)
-  cycle_hours decimal(10,2)
-  estimated_cost decimal(15,2)
-  estimated_duration_hours decimal(5,1)
-  checklist_items nvarchar(1000)
-  is_active bool [default: true]
+  group_name nvarchar(50) [null] // Bảo dưỡng định kỳ, Sửa chữa phục hồi, Hệ thống chuyên dụng
+  cycle_km decimal(10,2) [null]
+  cycle_hours decimal(10,2) [null]
+  estimated_cost decimal(15,2) [null]
+  estimated_duration_hours decimal(5,1) [null]
+  checklist_items nvarchar(1000) [null]
+  is_active bit [not null, default: 1]
+  Note: 'Danh mục loại hình bảo dưỡng & chu kỳ'
 }
 
-Table maintenance_record {
+Table IncidentReport {
   id int [pk, increment]
   vehicle_id int [not null]
-  maintenance_type_id int
-  incident_report_id int
-  maintenance_odo decimal(10,2)
-  cost decimal(15,2)
-  garage_name nvarchar(150)
-  replaced_parts nvarchar(500)
-  maintenance_date datetime
-  notes nvarchar(500)
+  reported_by_driver_id int [not null]
+  report_date datetime2 [not null]
+  issue_description nvarchar(500) [not null]
+  severity varchar(20) [not null, default: 'Warning'] // Warning, StopOperation
+  status varchar(20) [not null, default: 'Pending'] // Pending, InRepair, Resolved
+  resolution_note nvarchar(500) [null]
+  location nvarchar(255) [null]
+  latitude decimal(9,6) [null]
+  longitude decimal(9,6) [null]
+  Note: 'Báo cáo sự cố trên đường / hiện trường'
+}
+
+Table MaintenanceRecord {
+  id int [pk, increment]
+  vehicle_id int [not null]
+  maintenance_type_id int [null]
+  incident_report_id int [null]
+  maintenance_odo decimal(10,2) [not null, default: 0.00]
+  cost decimal(15,2) [not null, default: 0.00]
+  garage_name nvarchar(150) [null]
+  replaced_parts nvarchar(500) [null]
+  maintenance_date datetime2 [not null]
+  notes nvarchar(500) [null]
+  Note: 'Lịch sử phiếu sửa chữa & bảo dưỡng'
 }
 
 // ==========================================
-// 4. YÊU CẦU VẬN CHUYỂN, CHUYẾN ĐI & ĐIỀU VẬN
+// 4. YÊU CẦU VẬN CHUYỂN, ĐIỀU PHỐI & CHI PHÍ
 // ==========================================
 
-Table transport_request {
+Table TransportRequest {
   id int [pk, increment]
   request_code varchar(30) [not null, unique]
   requester_id int [not null]
-  department_id int [not null]
-  vehicle_type varchar(30)
-  team_name nvarchar(50)
-  start_time datetime [not null]
-  end_time datetime [not null]
-  from_location nvarchar(200)
-  to_location nvarchar(200)
-  standard_route_id int
-  purpose nvarchar(255)
-  estimated_weight_kg decimal(10,2)
-  passengers_count int
-  operating_hours decimal(10,2) // Giờ máy đào dự kiến
-  
-  // Luồng duyệt & Trạng thái
-  status varchar(30) // PENDING, APPROVED, REJECTED, DISPATCHED, INPROGRESS, COMPLETED, CANCELLED
-  approved_by_id int
-  approved_at datetime
-  rejection_reason nvarchar(255)
-  
-  created_at datetime
+  farm_id int [not null]
+  vehicle_type varchar(30) [not null]
+  requested_vehicle_id int [null]
+  team_name nvarchar(50) [null]
+  start_time datetime2 [not null]
+  end_time datetime2 [not null]
+  from_location nvarchar(200) [not null]
+  to_location nvarchar(200) [not null]
+  standard_route_id int [null]
+  purpose nvarchar(255) [null]
+  estimated_weight_kg decimal(10,2) [null]
+  passengers_count int [null]
+  operating_hours decimal(10,2) [null]
+  status varchar(30) [not null, default: 'PENDING'] // PENDING, APPROVED, REJECTED, DISPATCHED, INPROGRESS, COMPLETED, CANCELLED
+  approved_by_id int [null]
+  approved_at datetime2 [null]
+  rejection_reason nvarchar(255) [null]
+  created_at datetime2 [not null]
+  created_by int [not null]
+  updated_at datetime2 [null]
+  updated_by int [null]
+  Note: 'Yêu cầu đặt xe vận chuyển mủ / công tác / máy đào'
 }
 
-Table haulage_trip {
+Table HaulageTrip {
   id int [pk, increment]
   trip_code varchar(30) [not null, unique]
   vehicle_id int [not null]
   driver_id int [not null]
   standard_route_id int [not null]
-  
-  // Khung thời gian chạy chuyến (phục vụ kiểm tra trùng lịch đệm 30 phút)
-  scheduled_start_time datetime [not null]
-  scheduled_end_time datetime [not null]
-  accepted_at datetime
-  actual_start_time datetime
-  arrived_at datetime
-  arrival_note nvarchar(255)
-  actual_end_time datetime
-  
-  // Đồng hồ ODO chuyến đi
-  start_odo decimal(10,2)
-  end_odo decimal(10,2)
-  total_distance_km decimal(10,2)
-  
-  // Sản lượng mủ chi tiết
-  weight_latex_1_kg decimal(10,2)
-  weight_latex_2_kg decimal(10,2)
-  weight_latex_3_kg decimal(10,2)
-  weight_latex_tap_kg decimal(10,2)
-  total_weight_tons decimal(10,2)
-  
-  // Nhiên liệu
-  calculated_fuel_liters decimal(10,2)
-  actual_fuel_supplied_liters decimal(10,2)
-  fuel_variance_liters decimal(10,2)
-  
-  status varchar(30) // ASSIGNED, ACCEPTED, INPROGRESS, ARRIVED, COMPLETED, CANCELLED
-  notes nvarchar(500)
-  created_at datetime
+  scheduled_start_time datetime2 [not null]
+  scheduled_end_time datetime2 [not null]
+  accepted_at datetime2 [null]
+  actual_start_time datetime2 [null]
+  arrived_at datetime2 [null]
+  arrival_note nvarchar(255) [null]
+  actual_end_time datetime2 [null]
+  start_odo decimal(10,2) [null]
+  end_odo decimal(10,2) [null]
+  total_distance_km decimal(10,2) [not null, default: 0.00]
+  weight_latex_1_kg decimal(10,2) [null, default: 0.00]
+  weight_latex_2_kg decimal(10,2) [null, default: 0.00]
+  weight_latex_3_kg decimal(10,2) [null, default: 0.00]
+  weight_latex_tap_kg decimal(10,2) [null, default: 0.00]
+  total_weight_tons decimal(10,2) [null, default: 0.00]
+  calculated_fuel_liters decimal(10,2) [null]
+  actual_fuel_supplied_liters decimal(10,2) [null]
+  fuel_variance_liters decimal(10,2) [null]
+  status varchar(30) [not null, default: 'ASSIGNED'] // ASSIGNED, ACCEPTED, INPROGRESS, ARRIVED, COMPLETED, CANCELLED
+  notes nvarchar(500) [null]
+  created_at datetime2 [not null]
+  created_by int [not null]
+  updated_at datetime2 [null]
+  updated_by int [null]
+  Note: 'Chuyến đi điều vận chính thức'
 }
 
-// Bảng trung gian gom/ghép nhiều Yêu cầu vào 1 Chuyến đi (US-06)
-Table trip_request_mapping {
+Table TripRequestMapping {
   trip_id int [pk]
   request_id int [pk]
+  Note: 'Ghép nhiều yêu cầu vào 1 chuyến xe (US-06)'
 }
 
-Table trip_expense {
+Table TripExpense {
   id int [pk, increment]
   trip_id int [not null]
-  expense_type varchar(30) // Fuel, Toll, Parking, Repair, Other
+  expense_type varchar(30) [not null] // Fuel, Toll, Parking, Repair, Other
   amount decimal(15,2) [not null]
-  receipt_note nvarchar(255)
-  receipt_image_url nvarchar(1000)
-  audit_status varchar(20) // PENDING, APPROVED, REJECTED
-  audited_by int
-  audit_note nvarchar(255)
-  recorded_at datetime
+  receipt_note nvarchar(255) [null]
+  receipt_image_url nvarchar(1000) [null]
+  audit_status varchar(20) [not null, default: 'PENDING'] // PENDING, APPROVED, REJECTED
+  audited_by int [null]
+  audit_note nvarchar(255) [null]
+  recorded_at datetime2 [not null]
+  Note: 'Chi phí phát sinh trên chuyến đi'
 }
 
-// Cài đặt giãn cách thời gian đệm điều phối chuyến đi
-Table trip_dispatch_setting {
+Table TripDispatchSetting {
   id int [pk, increment]
-  vehicle_id int [unique] // Null means default setting for type
-  vehicle_type varchar(30)
-  turnaround_buffer_minutes int [default: 30]
-  inter_vehicle_interval_minutes int [default: 15]
-  cleaning_duration_minutes int [default: 20]
-  is_custom_for_vehicle bool [default: false]
-  updated_at datetime
+  vehicle_id int [unique, null]
+  vehicle_type varchar(30) [null]
+  turnaround_buffer_minutes int [not null, default: 30]
+  inter_vehicle_interval_minutes int [not null, default: 15]
+  cleaning_duration_minutes int [not null, default: 20]
+  is_custom_for_vehicle bit [not null, default: 0]
+  updated_at datetime2 [not null]
+  Note: 'Cài đặt thời gian đệm và giãn cách điều phối'
 }
 
 // ==========================================
-// 5. SỰ CỐ, BÀN GIAO MƯỢN TRẢ & NHẬT TRÌNH
+// 5. BÀN GIAO MƯỢN TRẢ, ĐIỀU CHUYỂN & NHẬT TRÌNH
 // ==========================================
 
-Table incident_report {
+Table VehicleHandoverRecord {
   id int [pk, increment]
   vehicle_id int [not null]
-  reported_by_driver_id int [not null]
-  report_date datetime [not null]
-  issue_description nvarchar(500)
-  severity varchar(20) // Warning, StopOperation
-  status varchar(20) // Pending, InRepair, Resolved
-  resolution_note nvarchar(500)
-  location nvarchar(255)
-  latitude decimal(9,6)
-  longitude decimal(9,6)
+  workflow_type varchar(30) [not null] // BORROW_RETURN, TRANSFER, DRIVER_HANDOVER
+  rescue_trip_id int [null]
+  replacing_vehicle_id int [null]
+  from_team nvarchar(100) [null]
+  to_team nvarchar(100) [null]
+  from_hub_id int [null]
+  to_hub_id int [null]
+  from_manager_name nvarchar(100) [null]
+  to_manager_name nvarchar(100) [null]
+  decision_number varchar(50) [null]
+  effective_date date [null]
+  transfer_reason nvarchar(500) [null]
+  from_driver_id int [null]
+  to_driver_id int [null]
+  handover_reason_type varchar(30) [null]
+  borrow_start_at datetime2 [not null]
+  expected_return_at datetime2 [null]
+  actual_return_at datetime2 [null]
+  handover_odo decimal(10,2) [not null, default: 0.00]
+  return_odo decimal(10,2) [null]
+  fuel_level varchar(20) [null]
+  return_fuel_level varchar(20) [null]
+  condition_notes nvarchar(500) [null]
+  handover_image_url varchar(500) [null]
+  note nvarchar(500) [null]
+  status varchar(20) [not null, default: 'BORROWING'] // BORROWING, RETURNED, OVERDUE, CANCELLED
+  created_at datetime2 [not null]
+  created_by int [not null]
+  updated_at datetime2 [null]
+  updated_by int [null]
+  Note: 'Biên bản mượn trả xe, điều chuyển & bàn giao tài xế'
 }
 
-// Biên bản Bàn giao, Điều chuyển & Mượn trả xe (hợp nhất chuẩn hóa)
-Table vehicle_handover_record {
+Table EquipmentShiftLog {
   id int [pk, increment]
   vehicle_id int [not null]
-  workflow_type varchar(30) // BORROW_RETURN (Mượn trả), TRANSFER (Điều chuyển), DRIVER_HANDOVER (Bàn giao tài xế)
-  rescue_trip_id int
-  replacing_vehicle_id int
-  
-  from_team nvarchar(100)
-  to_team nvarchar(100)
-  from_hub_id int
-  to_hub_id int
-  
-  // Đại diện bàn giao & Pháp lý điều chuyển
-  from_manager_name nvarchar(100)
-  to_manager_name nvarchar(100)
-  decision_number varchar(50)
-  effective_date date
-  transfer_reason nvarchar(500)
-  
-  // Tài xế giao & nhận
-  from_driver_id int
-  to_driver_id int
-  handover_reason_type varchar(30) // DRIVER_SWAP, RESIGNATION, NEW_ASSIGNMENT, SHIFT_CHANGE
-  
-  borrow_start_at datetime [not null]
-  expected_return_at datetime
-  actual_return_at datetime
-  
-  handover_odo decimal(10,2) [not null]
-  return_odo decimal(10,2)
-  fuel_level varchar(20)
-  return_fuel_level varchar(20)
-  condition_notes nvarchar(500)
-  handover_image_url varchar(500)
-  note nvarchar(500)
-  
-  status varchar(20) // BORROWING, RETURNED, OVERDUE, CANCELLED
-  created_at datetime
-}
-
-Table equipment_shift_log {
-  id int [pk, increment]
-  vehicle_id int [not null]
-  operator_id int [not null] // Thợ máy / Tài xế cơ giới
-  hub_id int
+  operator_id int [not null]
+  hub_id int [null]
   work_date date [not null]
-  start_hour_meter decimal(10,2)
-  end_hour_meter decimal(10,2)
-  total_hours decimal(10,2)
-  excavator_task varchar(50)
-  fuel_allocated decimal(10,2)
-  handover_record_id int
+  start_hour_meter decimal(10,2) [not null, default: 0.00]
+  end_hour_meter decimal(10,2) [not null, default: 0.00]
+  total_hours decimal(10,2) [null]
+  excavator_task nvarchar(50) [null]
+  fuel_allocated decimal(10,2) [null]
+  handover_record_id int [null]
+  Note: 'Nhật trình máy đào & cơ giới nông trường'
+}
+
+// ==========================================
+// 6. HÌNH ẢNH & SẢN PHẨM NÔNG NGHIỆP
+// ==========================================
+
+Table Image {
+  id int [pk, increment]
+  serial_id int [null]
+  ref_id varchar(36) [null]
+  name varchar(50) [null]
+  description varchar(150) [null]
+  relative_url varchar(250) [null]
+  small_url varchar(250) [null]
+  medium_url varchar(250) [null]
+  created_at datetime2 [not null]
+  created_by int [not null]
+  status int [not null, default: 1]
+  timer datetime2 [null]
+  Note: 'Lưu trữ metadata hình ảnh'
+}
+
+Table Product {
+  id int [pk, increment]
+  code varchar(20) [not null, unique]
+  name nvarchar(100) [not null]
+  name_slug nvarchar(100) [null]
+  sort int [null]
+  ratio_transfer float [null]
+  remark nvarchar(150) [null]
+  status smallint [not null, default: 1]
+  created_at datetime2 [not null]
+  created_by int [not null]
+  updated_at datetime2 [null]
+  updated_by int [null]
+  Note: 'Sản phẩm / tỷ lệ chuyển đổi quả -> nhân'
 }
 
 // ==========================================
 // QUAN HỆ GIỮA CÁC BẢNG (RELATIONSHIPS)
 // ==========================================
 
-// Tài khoản, Phòng ban & Phân quyền
-Ref: department.manager_id > account.id
-Ref: account.department_id > department.id
-Ref: account.updated_by > account.id
-Ref: account.created_by > account.id
-Ref: account_role.account_id > account.id
-Ref: account_role.role_id > role.id
-Ref: driver.account_id - account.id
+// Nhóm 1: Tài khoản, Đội, Nông trường, Tài xế
+Ref: Farm.manager_id > Account.id
+Ref: Factory.manager_id > Account.id
+Ref: Driver.account_id - Account.id
 
-// Tuyến đường & Điểm trạm
-Ref: standard_route.start_hub_id > hub_location.id
-Ref: standard_route.end_hub_id > hub_location.id
+// Nhóm 2: Điểm trạm & Tuyến đường
+Ref: StandardRoute.start_hub_id > HubLocation.id
+Ref: StandardRoute.end_hub_id > HubLocation.id
 
-// Phương tiện & Bảo dưỡng
-Ref: vehicle.category_id > vehicle_category.id
-Ref: vehicle.assigned_driver_id > driver.id
-Ref: maintenance_record.vehicle_id > vehicle.id
-Ref: maintenance_record.maintenance_type_id > maintenance_type.id
-Ref: maintenance_record.incident_report_id > incident_report.id
+// Nhóm 3: Phương tiện & Bảo dưỡng
+Ref: Vehicle.category_id > VehicleCategory.id
+Ref: Vehicle.driver_id > Driver.id
+Ref: Vehicle.escort_id > Account.id
+Ref: Vehicle.farm_id > Farm.id
+Ref: Vehicle.factory_id > Factory.id
 
-// Yêu cầu & Điều phối chuyến đi
-Ref: transport_request.requester_id > account.id
-Ref: transport_request.department_id > department.id
-Ref: transport_request.approved_by_id > account.id
-Ref: transport_request.standard_route_id > standard_route.id
+Ref: IncidentReport.vehicle_id > Vehicle.id
+Ref: IncidentReport.reported_by_driver_id > Driver.id
 
-Ref: haulage_trip.vehicle_id > vehicle.id
-Ref: haulage_trip.driver_id > driver.id
-Ref: haulage_trip.standard_route_id > standard_route.id
+Ref: MaintenanceRecord.vehicle_id > Vehicle.id
+Ref: MaintenanceRecord.maintenance_type_id > MaintenanceType.id
+Ref: MaintenanceRecord.incident_report_id > IncidentReport.id
 
-Ref: trip_request_mapping.trip_id > haulage_trip.id
-Ref: trip_request_mapping.request_id > transport_request.id
+// Nhóm 4: Yêu cầu, Điều phối chuyến & Chi phí
+Ref: TransportRequest.requester_id > Account.id
+Ref: TransportRequest.farm_id > Farm.id
+Ref: TransportRequest.approved_by_id > Account.id
+Ref: TransportRequest.standard_route_id > StandardRoute.id
+Ref: TransportRequest.requested_vehicle_id > Vehicle.id
 
-Ref: trip_expense.trip_id > haulage_trip.id
-Ref: trip_expense.audited_by > account.id
-Ref: trip_dispatch_setting.vehicle_id > vehicle.id
+Ref: HaulageTrip.vehicle_id > Vehicle.id
+Ref: HaulageTrip.driver_id > Driver.id
+Ref: HaulageTrip.standard_route_id > StandardRoute.id
+Ref: HaulageTrip.created_by > Account.id
 
-// Sự cố & Bàn giao xe & Nhật trình
-Ref: incident_report.vehicle_id > vehicle.id
-Ref: incident_report.reported_by_driver_id > driver.id
+Ref: TripRequestMapping.trip_id > HaulageTrip.id
+Ref: TripRequestMapping.request_id > TransportRequest.id
 
-Ref: vehicle_handover_record.vehicle_id > vehicle.id
-Ref: vehicle_handover_record.replacing_vehicle_id > vehicle.id
-Ref: vehicle_handover_record.rescue_trip_id > haulage_trip.id
-Ref: vehicle_handover_record.from_hub_id > hub_location.id
-Ref: vehicle_handover_record.to_hub_id > hub_location.id
-Ref: vehicle_handover_record.from_driver_id > driver.id
-Ref: vehicle_handover_record.to_driver_id > driver.id
+Ref: TripExpense.trip_id > HaulageTrip.id
+Ref: TripExpense.audited_by > Account.id
 
-Ref: equipment_shift_log.vehicle_id > vehicle.id
-Ref: equipment_shift_log.operator_id > driver.id
-Ref: equipment_shift_log.hub_id > hub_location.id
-Ref: equipment_shift_log.handover_record_id > vehicle_handover_record.id
+Ref: TripDispatchSetting.vehicle_id > Vehicle.id
+
+// Nhóm 5: Mượn trả bàn giao & Nhật trình cơ giới
+Ref: VehicleHandoverRecord.vehicle_id > Vehicle.id
+Ref: VehicleHandoverRecord.rescue_trip_id > HaulageTrip.id
+Ref: VehicleHandoverRecord.replacing_vehicle_id > Vehicle.id
+Ref: VehicleHandoverRecord.from_hub_id > HubLocation.id
+Ref: VehicleHandoverRecord.to_hub_id > HubLocation.id
+Ref: VehicleHandoverRecord.from_driver_id > Driver.id
+Ref: VehicleHandoverRecord.to_driver_id > Driver.id
+
+Ref: EquipmentShiftLog.vehicle_id > Vehicle.id
+Ref: EquipmentShiftLog.operator_id > Driver.id
+Ref: EquipmentShiftLog.hub_id > HubLocation.id
+Ref: EquipmentShiftLog.handover_record_id > VehicleHandoverRecord.id
