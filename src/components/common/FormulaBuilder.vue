@@ -19,7 +19,7 @@ const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void;
 }>();
 
-const activeTab = ref<'Hàm' | 'Công thức' | 'Biểu thức'>('Công thức');
+const activeTab = ref<'Biểu thức' | 'Công thức'>('Biểu thức');
 const customNumberInput = ref('');
 
 // Trạng thái chọn để hoán đổi (Swap)
@@ -255,22 +255,42 @@ const sampleFormulas: TokenItem[] = [
   },
 ];
 
-const builderGroups: Record<string, BuilderGroup[]> = {
-  Hàm: [
-    {
-      title: 'HÀM TOÁN HỌC PHỔ BIẾN',
-      items: functionItems,
-    },
+const builderGroups: Record<'Biểu thức' | 'Công thức', BuilderGroup[]> = {
+  'Biểu thức': [
     {
       title: 'TOÁN TỬ & DẤU NGOẶC',
       items: mathOperators,
     },
     {
-      title: 'HẰNG SỐ & QUY ĐỔI',
+      title: 'HÀM TOÁN HỌC',
+      items: functionItems,
+    },
+    {
+      title: 'HẰNG SỐ QUY ĐỔI',
       items: constantItems,
+    },
+    {
+      title: 'BIẾN HÀNH TRÌNH THỰC TẾ CỦA XE',
+      items: tripVariables,
+    },
+    {
+      title: 'CÔNG THỨC MẪU GỢI Ý (NHẤN ĐỂ ÁP DỤNG NHANH)',
+      items: sampleFormulas,
     },
   ],
   'Công thức': [
+    {
+      title: 'TOÁN TỬ & DẤU NGOẶC',
+      items: mathOperators,
+    },
+    {
+      title: 'HÀM TOÁN HỌC',
+      items: functionItems,
+    },
+    {
+      title: 'HẰNG SỐ QUY ĐỔI',
+      items: constantItems,
+    },
     {
       title: 'ĐỊNH MỨC XE TẢI & XE BỒN CHỞ MỦ',
       items: truckQuotaItems,
@@ -287,44 +307,10 @@ const builderGroups: Record<string, BuilderGroup[]> = {
       title: 'ĐỊNH MỨC XE ĐIỆN & XE CÔNG TÁC',
       items: electricItems,
     },
-    {
-      title: 'TOÁN TỬ & DẤU NGOẶC',
-      items: mathOperators,
-    },
-    {
-      title: 'HÀM TOÁN HỌC',
-      items: functionItems,
-    },
-    {
-      title: 'HẰNG SỐ QUY ĐỔI',
-      items: constantItems,
-    },
-  ],
-  'Biểu thức': [
-    {
-      title: 'BIẾN HÀNH TRÌNH THỰC TẾ CỦA XE',
-      items: tripVariables,
-    },
-    {
-      title: 'CÔNG THỨC MẪU GỢI Ý (NHẤN ĐỂ ÁP DỤNG NHANH)',
-      items: sampleFormulas,
-    },
-    {
-      title: 'TOÁN TỬ & DẤU NGOẶC',
-      items: mathOperators,
-    },
-    {
-      title: 'HÀM TOÁN HỌC',
-      items: functionItems,
-    },
-    {
-      title: 'HẰNG SỐ QUY ĐỔI',
-      items: constantItems,
-    },
   ],
 };
 
-const tabItems = ['Hàm', 'Công thức', 'Biểu thức'] as const;
+const tabItems = ['Biểu thức', 'Công thức'] as const;
 
 function tokenizeFormula(formula: string): string[] {
   if (!formula || !formula.trim()) return [];
