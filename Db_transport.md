@@ -9,7 +9,7 @@
 // ==========================================
 
 Table Farm {
-  id int [pk, increment]
+  id int [pk]
   code varchar(20) [not null, unique]
   name nvarchar(100) [not null]
   manager_id int [null]
@@ -17,7 +17,7 @@ Table Farm {
 }
 
 Table Factory {
-  id int [pk, increment]
+  id int [pk]
   code varchar(20) [not null, unique]
   name nvarchar(100) [not null]
   manager_id int [null]
@@ -25,7 +25,7 @@ Table Factory {
 }
 
 Table Account {
-  id int [pk, increment]
+  id int [pk]
   user_name varchar(20) [not null, unique]
   password varchar(100) [not null]
   first_name nvarchar(10) [not null]
@@ -42,7 +42,7 @@ Table Account {
 }
 
 Table Driver {
-  id int [pk, increment]
+  id int [pk]
   account_id int [not null, unique]
   employee_code varchar(20) [null]
   full_name nvarchar(100) [not null]
@@ -66,7 +66,7 @@ Table Driver {
 // ==========================================
 
 Table HubLocation {
-  id int [pk, increment]
+  id int [pk]
   code varchar(20) [not null, unique]
   name nvarchar(100) [not null]
   short_name nvarchar(50) [null]
@@ -79,7 +79,7 @@ Table HubLocation {
 }
 
 Table StandardRoute {
-  id int [pk, increment]
+  id int [pk]
   route_code varchar(20) [not null, unique]
   name nvarchar(200) [not null]
   start_hub_id int [null]
@@ -96,7 +96,7 @@ Table StandardRoute {
 // ==========================================
 
 Table VehicleCategory {
-  id int [pk, increment]
+  id int [pk]
   code varchar(20) [not null, unique]
   name nvarchar(100) [not null]
   group_type nvarchar(50) [null] // Vận tải mủ, Cơ giới nông trường, Công tác
@@ -105,11 +105,12 @@ Table VehicleCategory {
   default_quota_loaded decimal(10,3) [null]
   description nvarchar(255) [null]
   status smallint [not null, default: 1]
+  sort int [null]
   Note: 'Danh mục loại phương tiện & định mức chuẩn'
 }
 
 Table Vehicle {
-  id int [pk, increment]
+  id int [pk]
   code varchar(20) [not null]
   license_plate varchar(20) [not null, unique]
   type int [null]
@@ -138,11 +139,12 @@ Table Vehicle {
   loaded_fuel_norm decimal(10,3) [null]
   hourly_fuel_norm decimal(10,3) [null]
   fuel_formula_text nvarchar(255) [null]
+  sort int [null]
   Note: 'Hồ sơ phương tiện đội xe'
 }
 
 Table MaintenanceType {
-  id int [pk, increment]
+  id int [pk]
   code varchar(20) [not null, unique]
   name nvarchar(100) [not null]
   group_name nvarchar(50) [null] // Bảo dưỡng định kỳ, Sửa chữa phục hồi, Hệ thống chuyên dụng
@@ -156,7 +158,7 @@ Table MaintenanceType {
 }
 
 Table IncidentReport {
-  id int [pk, increment]
+  id int [pk]
   vehicle_id int [not null]
   reported_by_driver_id int [not null]
   report_date datetime2 [not null]
@@ -171,7 +173,7 @@ Table IncidentReport {
 }
 
 Table MaintenanceRecord {
-  id int [pk, increment]
+  id int [pk]
   vehicle_id int [not null]
   maintenance_type_id int [null]
   incident_report_id int [null]
@@ -189,7 +191,7 @@ Table MaintenanceRecord {
 // ==========================================
 
 Table TransportRequest {
-  id int [pk, increment]
+  id int [pk]
   request_code varchar(30) [not null, unique]
   requester_id int [not null]
   farm_id int [not null]
@@ -217,7 +219,7 @@ Table TransportRequest {
 }
 
 Table HaulageTrip {
-  id int [pk, increment]
+  id int [pk]
   trip_code varchar(30) [not null, unique]
   vehicle_id int [not null]
   driver_id int [not null]
@@ -256,7 +258,7 @@ Table TripRequestMapping {
 }
 
 Table TripExpense {
-  id int [pk, increment]
+  id int [pk]
   trip_id int [not null]
   expense_type varchar(30) [not null] // Fuel, Toll, Parking, Repair, Other
   amount decimal(15,2) [not null]
@@ -270,7 +272,7 @@ Table TripExpense {
 }
 
 Table TripDispatchSetting {
-  id int [pk, increment]
+  id int [pk]
   vehicle_id int [unique, null]
   vehicle_type varchar(30) [null]
   turnaround_buffer_minutes int [not null, default: 30]
@@ -286,7 +288,7 @@ Table TripDispatchSetting {
 // ==========================================
 
 Table VehicleHandoverRecord {
-  id int [pk, increment]
+  id int [pk]
   vehicle_id int [not null]
   workflow_type varchar(30) [not null] // BORROW_RETURN, TRANSFER, DRIVER_HANDOVER
   rescue_trip_id int [null]
@@ -322,7 +324,7 @@ Table VehicleHandoverRecord {
 }
 
 Table EquipmentShiftLog {
-  id int [pk, increment]
+  id int [pk]
   vehicle_id int [not null]
   operator_id int [not null]
   hub_id int [null]
@@ -341,7 +343,7 @@ Table EquipmentShiftLog {
 // ==========================================
 
 Table Image {
-  id int [pk, increment]
+  id int [pk]
   serial_id int [null]
   ref_id varchar(36) [null]
   name varchar(50) [null]
@@ -357,7 +359,7 @@ Table Image {
 }
 
 Table Product {
-  id int [pk, increment]
+  id int [pk]
   code varchar(20) [not null, unique]
   name nvarchar(100) [not null]
   name_slug nvarchar(100) [null]
