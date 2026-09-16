@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import { ArrowRightLeft, Check } from 'lucide-vue-next';
 
 const props = withDefaults(
   defineProps<{
@@ -20,6 +21,72 @@ const emit = defineEmits<{
 
 const activeTab = ref<'Hàm' | 'Công thức' | 'Biểu thức'>('Công thức');
 const customNumberInput = ref('');
+
+// Trạng thái chọn để hoán đổi (Swap)
+const selectedFormulaIndex = ref<number | null>(null);
+const selectedPaletteItem = ref<TokenItem | null>(null);
+const swapSuccessToast = ref('');
+let toastTimer: any = null;
+
+function showSwapSuccessToast(msg: string = 'Đã hoán đổi vị trí thành công!') {
+  swapSuccessToast.value = msg;
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    swapSuccessToast.value = '';
+  }, 2500);
+}
+
+function toggleSelectFormulaToken(index: number) {
+  if (selectedFormulaIndex.value === index) {
+    selectedFormulaIndex.value = null;
+    selectedPaletteItem.value = null;
+  } else {
+    selectedFormulaIndex.value = index;
+  }
+}
+
+function handlePaletteItemClick(item: TokenItem) {
+  if (selectedFormulaIndex.value !== null) {
+    // Nếu đang chọn 1 token trên công thức -> chọn phần tử này ở dưới để chuẩn bị SWAP
+    if (selectedPaletteItem.value?.value === item.value) {
+      selectedPaletteItem.value = null;
+    } else {
+      selectedPaletteItem.value = item;
+    }
+  } else {
+    // Chưa chọn token trên công thức -> Thêm vào cuối như thông thường
+    insertToken(item.value);
+  }
+}
+
+function executeSwap() {
+  if (selectedFormulaIndex.value === null || !selectedPaletteItem.value) return;
+
+  const targetIndex = selectedFormulaIndex.value;
+  const currentTokens = [...formulaTokens.value];
+  if (targetIndex < 0 || targetIndex >= currentTokens.length) return;
+
+  const oldTokenVal = currentTokens[targetIndex];
+  const rawVal = selectedPaletteItem.value.value.trim();
+  const mapped = legacyTokenMap[rawVal] || rawVal;
+
+  if (mapped.includes(' ')) {
+    const newTokens = tokenizeFormula(mapped);
+    currentTokens.splice(targetIndex, 1, ...newTokens);
+  } else {
+    currentTokens[targetIndex] = mapped;
+  }
+
+  formulaValue.value = currentTokens.join(' ');
+  selectedFormulaIndex.value = null;
+  selectedPaletteItem.value = null;
+  showSwapSuccessToast(`Đã đổi "${oldTokenVal}" thành "${mapped}" thành công!`);
+}
+
+function cancelSwapSelection() {
+  selectedFormulaIndex.value = null;
+  selectedPaletteItem.value = null;
+}
 
 const formulaValue = computed({
   get: () => props.modelValue,
@@ -253,6 +320,12 @@ function insertToken(token: string) {
 }
 
 function removeToken(index: number) {
+  if (selectedFormulaIndex.value === index) {
+    selectedFormulaIndex.value = null;
+    selectedPaletteItem.value = null;
+  } else if (selectedFormulaIndex.value !== null && selectedFormulaIndex.value > index) {
+    selectedFormulaIndex.value -= 1;
+  }
   const tokens = [...formulaTokens.value];
   tokens.splice(index, 1);
   formulaValue.value = tokens.join(' ');
@@ -261,18 +334,33 @@ function removeToken(index: number) {
 function undoLastToken() {
   const tokens = [...formulaTokens.value];
   if (tokens.length > 0) {
+    if (selectedFormulaIndex.value === tokens.length - 1) {
+      selectedFormulaIndex.value = null;
+      selectedPaletteItem.value = null;
+    }
     tokens.pop();
     formulaValue.value = tokens.join(' ');
   }
 }
 
 function clearFormula() {
+  selectedFormulaIndex.value = null;
+  selectedPaletteItem.value = null;
   formulaValue.value = '';
 }
 
 function insertCustomNumber() {
   const val = customNumberInput.value.trim();
   if (!val) return;
+  if (selectedFormulaIndex.value !== null) {
+    selectedPaletteItem.value = {
+      label: val,
+      value: val,
+      description: 'Số/giá trị tùy chỉnh',
+    };
+    customNumberInput.value = '';
+    return;
+  }
   insertToken(val);
   customNumberInput.value = '';
 }
@@ -352,19 +440,80 @@ function insertCustomNumber() {
               'token-function': token.endsWith('()'),
               'token-variable': token.startsWith('[') && token.endsWith(']'),
               'token-number': !isNaN(Number(token)),
+              'is-selected': selectedFormulaIndex === index,
             }"
+            :title="selectedFormulaIndex === index ? 'Đang chọn vị trí này (Bấm lại để bỏ chọn)' : 'Bấm để chọn vị trí này muốn sửa/hoán đổi'"
+            @click="toggleSelectFormulaToken(index)"
           >
             <span>{{ token }}</span>
             <button
               type="button"
               class="formula-token-remove"
               :title="`Xóa ${token}`"
-              @click="removeToken(index)"
+              @click.stop="removeToken(index)"
             >
               ×
             </button>
           </div>
         </div>
+
+        <!-- Thanh hỗ trợ Hoán đổi (Swap) vị trí giữa chừng công thức -->
+        <transition name="swap-fade">
+          <div v-if="selectedFormulaIndex !== null" class="swap-action-banner">
+            <div class="swap-meta-col">
+              <div class="swap-flow-row">
+                <div class="swap-pill-box pill-source">
+                  <span class="swap-pill-title">Vị trí #{{ selectedFormulaIndex + 1 }} (Trên công thức)</span>
+                  <span class="swap-token-val font-mono">{{ formulaTokens[selectedFormulaIndex] }}</span>
+                </div>
+
+                <div class="swap-direction-icon" :class="{ 'has-target': !!selectedPaletteItem }">
+                  <ArrowRightLeft :size="16" />
+                </div>
+
+                <div class="swap-pill-box pill-target" :class="{ 'is-waiting': !selectedPaletteItem }">
+                  <span class="swap-pill-title">Phần tử thay thế (Ở dưới danh mục)</span>
+                  <span v-if="selectedPaletteItem" class="swap-token-val font-mono text-emerald-700">
+                    {{ selectedPaletteItem.label || selectedPaletteItem.value }}
+                  </span>
+                  <span v-else class="swap-token-placeholder">
+                    👈 Bấm chọn 1 phần tử ở bên dưới...
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div class="swap-btn-col">
+              <button
+                v-if="selectedPaletteItem"
+                type="button"
+                class="btn-execute-swap"
+                title="Bấm để hoán đổi / thay thế phần tử đã chọn vào vị trí này"
+                @click="executeSwap"
+              >
+                <ArrowRightLeft :size="15" />
+                <span>Hoán Đổi (Swap)</span>
+              </button>
+
+              <button
+                type="button"
+                class="btn-cancel-selection"
+                title="Hủy thao tác hoán đổi"
+                @click="cancelSwapSelection"
+              >
+                ✕ Hủy chọn
+              </button>
+            </div>
+          </div>
+        </transition>
+
+        <!-- Thông báo toast khi swap thành công -->
+        <transition name="swap-fade">
+          <div v-if="swapSuccessToast" class="swap-toast-alert">
+            <Check :size="14" />
+            <span>{{ swapSuccessToast }}</span>
+          </div>
+        </transition>
       </div>
 
       <div class="token-panel">
@@ -380,9 +529,12 @@ function insertCustomNumber() {
               :key="`${group.title}-${item.label}`"
               type="button"
               class="token-button"
-              :class="{ 'token-button-sample': item.badge?.includes('Mẫu') }"
+              :class="{
+                'token-button-sample': item.badge?.includes('Mẫu'),
+                'is-palette-selected': selectedPaletteItem?.value === item.value,
+              }"
               :title="item.description"
-              @click="insertToken(item.value)"
+              @click="handlePaletteItemClick(item)"
             >
               <span class="token-button-label">{{ item.label }}</span>
               <span v-if="item.badge" class="token-badge">{{ item.badge }}</span>
@@ -569,11 +721,24 @@ function insertCustomNumber() {
   font-size: 0.85rem;
   box-shadow: 0 1px 3px rgba(249, 115, 22, 0.08);
   transition: all 0.15s ease;
-  cursor: default;
+  cursor: pointer;
+  user-select: none;
 }
 
 .formula-token:hover {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  border-color: #f59e0b;
+}
+
+.formula-token.is-selected {
+  outline: 2px solid #2563eb !important;
+  outline-offset: 2px;
+  border-color: #3b82f6 !important;
+  background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%) !important;
+  color: #1d4ed8 !important;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.25), 0 4px 12px rgba(59, 130, 246, 0.2) !important;
+  transform: translateY(-2px);
+  z-index: 3;
 }
 
 .formula-token.token-variable {
@@ -691,6 +856,14 @@ function insertCustomNumber() {
   transform: translateY(-1px);
 }
 
+.token-button.is-palette-selected {
+  border-color: #10b981 !important;
+  background: #ecfdf5 !important;
+  color: #047857 !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25), 0 4px 12px rgba(16, 185, 129, 0.15) !important;
+  transform: translateY(-1px);
+}
+
 .token-button.token-button-sample {
   background: linear-gradient(180deg, #f0fdf4 0%, #dcfce7 100%);
   border-color: #86efac;
@@ -722,5 +895,166 @@ function insertCustomNumber() {
 .token-button-sample .token-badge {
   background: #bbf7d0;
   color: #14532d;
+}
+
+/* Swap Action Banner Styling */
+.swap-action-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  background: linear-gradient(135deg, #f8fafc 0%, #f0fdf4 100%);
+  border: 1.5px solid #86efac;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-top: 10px;
+  box-shadow: 0 3px 10px rgba(16, 185, 129, 0.08);
+  flex-wrap: wrap;
+}
+
+.swap-meta-col {
+  flex: 1;
+  min-width: 280px;
+}
+
+.swap-flow-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.swap-pill-box {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.swap-pill-title {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.swap-token-val {
+  display: inline-block;
+  font-weight: 800;
+  font-size: 0.85rem;
+  color: #1e40af;
+  background: #ffffff;
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid #bfdbfe;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.swap-token-placeholder {
+  font-size: 0.8125rem;
+  font-style: italic;
+  color: #059669;
+  font-weight: 600;
+  background: #ecfdf5;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px dashed #6ee7b7;
+}
+
+.swap-direction-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.swap-direction-icon.has-target {
+  border-color: #10b981;
+  color: #059669;
+  background: #dcfce7;
+  transform: scale(1.08);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+}
+
+.swap-btn-col {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-execute-swap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+  color: #ffffff;
+  border: none;
+  font-weight: 800;
+  font-size: 0.8125rem;
+  padding: 8px 16px;
+  border-radius: 8px;
+  box-shadow: 0 3px 8px rgba(16, 185, 129, 0.3);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-execute-swap:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 14px rgba(16, 185, 129, 0.45);
+  background: linear-gradient(135deg, #047857 0%, #059669 100%);
+}
+
+.btn-cancel-selection {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #64748b;
+  font-weight: 700;
+  font-size: 0.75rem;
+  padding: 7px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-cancel-selection:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+/* Toast alert */
+.swap-toast-alert {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 8px;
+  margin-top: 8px;
+}
+
+/* Transitions */
+.swap-fade-enter-active,
+.swap-fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.swap-fade-enter-from,
+.swap-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
 }
 </style>
