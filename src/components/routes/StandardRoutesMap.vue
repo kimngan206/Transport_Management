@@ -133,7 +133,7 @@ function addDestination() {
 
   newDestinations.value.push({
     hubId: nextHub.id,
-    distanceKm: estKm,
+    distanceKm: Number(estKm.toFixed(1)),
   });
 
   recalculateRouteInfo();
@@ -158,8 +158,8 @@ function recalculateRouteInfo() {
     const currHub = ECOTECH_HUBS.find((h) => h.id === d.hubId);
     if (currHub) {
       const legKm = getHubRoadDistanceKm(runningHub.code, currHub.code) || calculateHaversineKm(runningHub.lat, runningHub.lng, currHub.lat, currHub.lng);
-      d.distanceKm = legKm;
-      totalKm += legKm;
+      d.distanceKm = Number(legKm.toFixed(1));
+      totalKm += d.distanceKm;
       runningHub = currHub;
     }
   });
@@ -167,7 +167,7 @@ function recalculateRouteInfo() {
   if (newIsRoundTrip.value && destHubs.length > 0) {
     const lastHub = destHubs[destHubs.length - 1];
     const returnKm = getHubRoadDistanceKm(lastHub.code, fromHub.code) || calculateHaversineKm(lastHub.lat, lastHub.lng, fromHub.lat, fromHub.lng);
-    totalKm += returnKm;
+    totalKm += Number(returnKm.toFixed(1));
   }
 
   newTotalDistanceKm.value = Number(totalKm.toFixed(1));
@@ -1025,8 +1025,8 @@ onUnmounted(() => {
                       <input
                         v-model.number="dest.distanceKm"
                         type="number"
-                        step="0.5"
-                        min="0.5"
+                        step="0.1"
+                        min="0.1"
                         class="form-input text-end"
                         @input="onLegDistanceChange"
                       />
@@ -1111,7 +1111,7 @@ onUnmounted(() => {
                     <input
                       v-model.number="newTotalDistanceKm"
                       type="number"
-                      step="0.5"
+                      step="0.1"
                       class="form-input summary-distance-input text-end"
                     />
                     <span class="unit-tag font-bold">km</span>
@@ -1739,14 +1739,34 @@ onUnmounted(() => {
   position: relative;
   display: flex;
   align-items: center;
+  width: 100%;
+}
+.input-with-hint .form-input,
+.input-with-hint input {
+  width: 100%;
+  padding-right: 46px !important;
+}
+.input-with-hint input[type="number"]::-webkit-outer-spin-button,
+.input-with-hint input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.input-with-hint input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
 }
 .unit-tag {
   position: absolute;
-  right: 12px;
+  right: 8px;
   font-size: 0.75rem;
   font-weight: 700;
-  color: #94a3b8;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 2px 6px;
+  border-radius: 4px;
   pointer-events: none;
+  user-select: none;
+  line-height: 1.2;
 }
 .text-end { text-align: right; }
 .font-bold { font-weight: 700; }
@@ -1944,7 +1964,7 @@ onUnmounted(() => {
 .dest-fields-grid {
   flex: 1;
   display: grid;
-  grid-template-columns: 1fr 160px auto;
+  grid-template-columns: 1fr 175px auto;
   gap: 16px;
   align-items: flex-end;
 }

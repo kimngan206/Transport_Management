@@ -2266,7 +2266,7 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
               <th>Tài Xế Bàn Giao (Cũ)</th>
               <th>Tài Xế Tiếp Nhận (Mới)</th>
               <th>Lý Do Bàn Giao</th>
-              <th>Thời Điểm Bàn Giao</th>
+              <th>Ngày Bàn Giao</th>
               <th>ODO Bàn Giao</th>
               <th>Nhiên Liệu</th>
               <th>Checklist Hiện Trạng</th>
@@ -3072,11 +3072,11 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
 
             <div class="grid-2">
               <div class="form-group">
-                <label class="form-label">Thời điểm bắt đầu mượn <span class="required">*</span></label>
+                <label class="form-label">Ngày bắt đầu mượn <span class="required">*</span></label>
                 <input v-model="newHandoverBorrowTime" type="datetime-local" class="form-input" />
               </div>
               <div class="form-group">
-                <label class="form-label">Thời điểm dự kiến hoàn trả <span class="required">*</span></label>
+                <label class="form-label">Ngày dự kiến hoàn trả <span class="required">*</span></label>
                 <input v-model="newHandoverReturnTime" type="datetime-local" class="form-input" />
               </div>
             </div>
@@ -3179,7 +3179,7 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
 
             <div class="grid-2">
               <div class="form-group">
-                <label class="form-label">Chỉ số ODO tại thời điểm điều chuyển (km)</label>
+                <label class="form-label">Chỉ số ODO tại ngày điều chuyển (km)</label>
                 <input v-model.number="newHandoverOdo" type="number" class="form-input" />
               </div>
               <div class="form-group">
@@ -3243,7 +3243,7 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
                 </select>
               </div>
               <div class="form-group">
-                <label class="form-label">Thời điểm bàn giao xe <span class="required">*</span></label>
+                <label class="form-label">Ngày bàn giao xe <span class="required">*</span></label>
                 <input v-model="newHandoverBorrowTime" type="datetime-local" class="form-input" />
               </div>
             </div>
@@ -3307,7 +3307,7 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
               </div>
             </div>
 
-            <!-- Bảng Checklist kiểm tra hiện trạng xe -->
+            <!-- Bảng Checklist kiểm tra hiện trạng xe (Đã comment tạm ẩn theo yêu cầu)
             <div class="form-group">
               <label class="form-label font-bold">
                 Bảng checklist kiểm tra hiện trạng kỹ thuật xe (6 tiêu chí)
@@ -3369,6 +3369,7 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
                 </label>
               </div>
             </div>
+            -->
 
             <div class="form-group">
               <label class="form-label">Ghi chú chi tiết vết trầy xước / tình trạng phụ tùng</label>
@@ -3485,7 +3486,7 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
               <Clock :size="20" />
             </div>
             <div class="stat-info">
-              <span class="stat-label">Thời Điểm Tạo</span>
+              <span class="stat-label">Ngày Tạo</span>
               <span class="stat-val stat-val-sm">{{ viewingHandover.borrowStartAt || viewingHandover.createdAt || '—' }}</span>
             </div>
           </div>
@@ -3534,11 +3535,11 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
 
           <div class="grid-2 mb-4">
             <div class="card-inner p-3 rounded-lg border border-slate-200 bg-white">
-              <div class="text-xs text-slate-500 font-semibold mb-1">Thời điểm dự kiến hoàn trả</div>
+              <div class="text-xs text-slate-500 font-semibold mb-1">Ngày dự kiến hoàn trả</div>
               <div class="text-sm font-bold text-slate-800">{{ viewingHandover.expectedReturnAt ? viewingHandover.expectedReturnAt.slice(0, 10) : 'Không xác định' }}</div>
             </div>
             <div class="card-inner p-3 rounded-lg border border-slate-200 bg-white">
-              <div class="text-xs text-slate-500 font-semibold mb-1">Thời điểm hoàn trả thực tế</div>
+              <div class="text-xs text-slate-500 font-semibold mb-1">Ngày hoàn trả thực tế</div>
               <div class="text-sm font-bold" :class="viewingHandover.actualReturnAt ? 'text-emerald-700' : 'text-slate-500 italic'">
                 {{ viewingHandover.actualReturnAt ? viewingHandover.actualReturnAt.slice(0, 10) : 'Đang mượn xe' }}
               </div>
@@ -3792,7 +3793,7 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
 
           <div class="grid-2">
             <div class="form-group">
-              <label class="form-label">Thời điểm hoàn trả thực tế <span class="required">*</span></label>
+              <label class="form-label">Ngày hoàn trả thực tế <span class="required">*</span></label>
               <input v-model="returnHandoverActualTime" type="datetime-local" class="form-input" />
             </div>
 
