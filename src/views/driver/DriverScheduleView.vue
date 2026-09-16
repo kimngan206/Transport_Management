@@ -334,13 +334,15 @@ const finishedTrips = computed(() =>
         }"
       >
         <div class="trip-card-header">
-          <div class="trip-code-box">
+          <div class="trip-header-top">
             <span class="trip-code">{{ trip.tripCode }}</span>
-            <span class="badge-trip-day-seq">{{ getTripDaySequence(trip, dispatchStore.trips).fullLabel }}</span>
+            <span class="veh-plate-badge">{{ trip.vehiclePlate }} ({{ trip.vehicleType }})</span>
+          </div>
+          <div class="trip-header-badges">
             <StatusBadge :status="trip.status" />
+            <span class="badge-trip-day-seq">{{ getTripDaySequence(trip, dispatchStore.trips).fullLabel }}</span>
             <span v-if="trip.replacementInfo?.isRescueTrip" class="badge-rescue-mini">🚨 Xe Cứu Viện</span>
           </div>
-          <span class="veh-plate-badge">{{ trip.vehiclePlate }} ({{ trip.vehicleType }})</span>
         </div>
 
         <!-- Thanh tiến trình vòng đời chuyến xe 4 bước -->
@@ -824,27 +826,43 @@ const finishedTrips = computed(() =>
 }
 .trip-card-header {
   display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
+}
+.trip-header-top {
+  display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 10px;
-}
-.trip-code-box {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 .trip-code {
   font-weight: 800;
-  font-size: 1rem;
+  font-size: 1.05rem;
+  white-space: nowrap;
+  letter-spacing: -0.2px;
+  color: var(--text-heading, #0f172a);
 }
 .veh-plate-badge {
+  display: inline-flex;
+  align-items: center;
   background: #0f172a;
   color: white;
-  padding: 3px 8px;
+  padding: 3.5px 10px;
   border-radius: 6px;
   font-size: 0.75rem;
   font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+.trip-header-badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 /* Lifecycle Stepper */
@@ -1186,13 +1204,17 @@ const finishedTrips = computed(() =>
   box-shadow: 0 4px 12px rgba(239, 68, 68, 0.12) !important;
 }
 .badge-rescue-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   background: #ef4444;
   color: #ffffff;
   font-size: 0.6875rem;
   font-weight: 800;
-  padding: 2px 6px;
+  padding: 2.5px 8px;
   border-radius: 4px;
   letter-spacing: 0.2px;
+  white-space: nowrap;
 }
 .rescue-card-box {
   background: #fff5f5;
