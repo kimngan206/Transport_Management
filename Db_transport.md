@@ -86,7 +86,7 @@ Table StandardRoute {
   end_hub_id int [null]
   standard_distance_km decimal(10,2) [not null, default: 0.00]
   stroke_color varchar(20) [null, default: '#28a745']
-  waypoints_json nvarchar(max) [null]
+  waypoints_json nvarchar(max) [null] [{id, km(0-1)}, {id, km(1-2)}]
   description nvarchar(255) [null]
   Note: 'Tuyến đường quy chuẩn thu gom & công tác'
 }
@@ -94,7 +94,7 @@ Table StandardRoute {
 // ==========================================
 // 3. NHÓM PHƯƠNG TIỆN, ĐỊNH MỨC & BẢO DƯỠNG
 // ==========================================
-
+// 
 Table VehicleCategory {
   id int [pk]
   code varchar(20) [not null, unique]
@@ -218,6 +218,7 @@ Table TransportRequest {
   Note: 'Yêu cầu đặt xe vận chuyển mủ / công tác / máy đào'
 }
 
+// TransportMaterialRoute
 Table HaulageTrip {
   id int [pk]
   trip_code varchar(30) [not null, unique]
@@ -234,12 +235,14 @@ Table HaulageTrip {
   start_odo decimal(10,2) [null]
   end_odo decimal(10,2) [null]
   total_distance_km decimal(10,2) [not null, default: 0.00]
+  // lưu các bảng mủ -> bỏ các field này đi
   weight_latex_1_kg decimal(10,2) [null, default: 0.00]
   weight_latex_2_kg decimal(10,2) [null, default: 0.00]
   weight_latex_3_kg decimal(10,2) [null, default: 0.00]
   weight_latex_tap_kg decimal(10,2) [null, default: 0.00]
   total_weight_tons decimal(10,2) [null, default: 0.00]
-  calculated_fuel_liters decimal(10,2) [null]
+  
+  //calculated_fuel_liters decimal(10,2) [null]
   actual_fuel_supplied_liters decimal(10,2) [null]
   fuel_variance_liters decimal(10,2) [null]
   status varchar(30) [not null, default: 'ASSIGNED'] // ASSIGNED, ACCEPTED, INPROGRESS, ARRIVED, COMPLETED, CANCELLED
@@ -270,7 +273,7 @@ Table TripExpense {
   recorded_at datetime2 [not null]
   Note: 'Chi phí phát sinh trên chuyến đi'
 }
-
+//delete
 Table TripDispatchSetting {
   id int [pk]
   vehicle_id int [unique, null]
@@ -295,8 +298,8 @@ Table VehicleHandoverRecord {
   replacing_vehicle_id int [null]
   from_team nvarchar(100) [null]
   to_team nvarchar(100) [null]
-  from_hub_id int [null]
-  to_hub_id int [null]
+  from_factory_id int [null]
+  to_factory_id int [null]
   from_manager_name nvarchar(100) [null]
   to_manager_name nvarchar(100) [null]
   decision_number varchar(50) [null]
@@ -315,7 +318,7 @@ Table VehicleHandoverRecord {
   condition_notes nvarchar(500) [null]
   handover_image_url varchar(500) [null]
   note nvarchar(500) [null]
-  status varchar(20) [not null, default: 'BORROWING'] // BORROWING, RETURNED, OVERDUE, CANCELLED
+  //status varchar(20) [not null, default: 'BORROWING'] // BORROWING, RETURNED, OVERDUE, CANCELLED
   created_at datetime2 [not null]
   created_by int [not null]
   updated_at datetime2 [null]
