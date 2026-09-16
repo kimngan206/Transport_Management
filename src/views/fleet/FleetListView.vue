@@ -50,6 +50,7 @@ import {
   Gauge,
   Fuel,
   User,
+  Sparkles,
 } from 'lucide-vue-next';
 
 const route = useRoute();
@@ -597,6 +598,81 @@ const newVehIsExternal = ref(false);
 const showVehFormulaModal = ref(false);
 const vehFormulaDraft = ref('');
 
+function getDefaultFormulaForVehicleType(type?: string, model?: string): string {
+  const t = type || newVehType.value;
+  const m = (model !== undefined ? model : newVehModel.value || '').toLowerCase();
+
+  // 1. Tìm category phù hợp trong fleetStore.vehicleCategories
+  let matchedCat: VehicleCategory | undefined = undefined;
+
+  if (t === 'LatexTruck') {
+    if (m.includes('bồn') || m.includes('téc')) {
+      matchedCat = fleetStore.vehicleCategories.find(c => c.code === 'TANKER_LATEX');
+    } else if (m.includes('kéo') || m.includes('moóc')) {
+      matchedCat = fleetStore.vehicleCategories.find(c => c.code === 'TRACTOR_TRAILER');
+    } else {
+      matchedCat = fleetStore.vehicleCategories.find(c => c.code === 'TRUCK_LATEX');
+    }
+  } else if (t === 'PassengerCar') {
+    if (m.includes('điện') || m.includes('vinfast') || m.includes('vf')) {
+      matchedCat = fleetStore.vehicleCategories.find(c => c.code === 'VINFAST_ELECTRIC');
+    } else {
+      matchedCat = fleetStore.vehicleCategories.find(c => c.code === 'PICKUP_WORK');
+    }
+  } else if (t === 'MillingMachine') {
+    matchedCat = fleetStore.vehicleCategories.find(c => c.vehicleTypeCode === 'MillingMachine');
+  }
+
+  if (!matchedCat) {
+    matchedCat = fleetStore.vehicleCategories.find(c => c.vehicleTypeCode === t);
+  }
+
+  // 2. Nếu category đã có cấu hình fuelFormulaText
+  if (matchedCat && matchedCat.fuelFormulaText && matchedCat.fuelFormulaText.trim()) {
+    return matchedCat.fuelFormulaText.trim();
+  }
+
+  // 3. Fallback theo chuẩn kỹ thuật từng loại xe
+  if (t === 'LatexTruck') {
+    return '( [Cự ly chuẩn] * [Định mức không tải (NLP)] ) + ( ( [Tổng tải trọng hàng] / 1000 ) * [Cự ly chuẩn] * [Định mức có tải (NLC)] )';
+  } else if (t === 'MillingMachine') {
+    return '( [Giờ máy kết thúc] - [Giờ máy bắt đầu] ) * [Định mức theo giờ máy]';
+  } else {
+    if (m.includes('điện') || m.includes('vinfast') || m.includes('vf')) {
+      return '[Cự ly chuẩn] * [Định mức điện / km]';
+    }
+    return '[Cự ly chuẩn] * [Định mức không tải (NLP)]';
+  }
+}
+
+function applyDefaultFormulaForVehicleType() {
+  const defFormula = getDefaultFormulaForVehicleType();
+  newVehFormulaText.value = defFormula;
+  const typeLabel = getVehicleTypeLabel(newVehType.value);
+  dialog.showSuccess(`Đã áp dụng công thức mặc định cho ${typeLabel}!`, 'Áp Dụng Thành Công');
+}
+
+function onVehicleTypeChange() {
+  if (!editingVehicle.value) {
+    if (newVehType.value === 'LatexTruck') {
+      newVehCapacity.value = 5.0;
+      newVehEmptyQuota.value = 0.25;
+      newVehLoadedQuota.value = 0.02;
+    } else if (newVehType.value === 'MillingMachine') {
+      newVehCapacity.value = 20.0;
+      newVehEmptyQuota.value = 14.5;
+      newVehLoadedQuota.value = 0;
+    } else {
+      newVehCapacity.value = 0.8;
+      newVehSeats.value = 5;
+      newVehEmptyQuota.value = 0.10;
+      newVehLoadedQuota.value = 0.005;
+    }
+    // Cập nhật công thức mặc định cho loại xe mới chọn
+    newVehFormulaText.value = getDefaultFormulaForVehicleType();
+  }
+}
+
 function openAddVehicleModal() {
   editingVehicle.value = null;
   newVehPlate.value = '';
@@ -606,7 +682,7 @@ function openAddVehicleModal() {
   newVehSeats.value = undefined;
   newVehEmptyQuota.value = 0.25;
   newVehLoadedQuota.value = 0.02;
-  newVehFormulaText.value = '';
+  newVehFormulaText.value = getDefaultFormulaForVehicleType('LatexTruck');
   newVehOdo.value = 10000;
   newVehDriverId.value = '';
   newVehDriverName.value = '';
@@ -2320,7 +2396,7 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
             </div>
             <div class="form-group">
               <label class="form-label">Loại xe</label>
-              <select v-model="newVehType" class="form-select">
+              <select v-model="newVehType" class="form-select" @change="onVehicleTypeChange">
                 <option
                   v-for="cat in fleetStore.vehicleCategories.filter((c) => c.isActive)"
                   :key="cat.id"
@@ -2489,18 +2565,76 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
             </div>
           </div>
 
-          <div class="form-group">
-            <label class="form-label">Công thức hao phí / tiêu hao theo mong muốn</label>
-            <div class="formula-action-row">
-              <button type="button" class="btn btn-secondary btn-small" @click="openVehicleFormulaEditor">
-                Sửa công thức
-              </button>
+          <div class="form-group vehicle-formula-group">
+            <div class="formula-group-header">
+              <label class="form-label mb-0">Công thức hao phí / tiêu hao theo mong muốn</label>
+              <div class="formula-action-row">
+                <!-- Nút áp dụng công thức mặc định theo loại xe -->
+                <button
+                  type="button"
+                  class="btn btn-outline-primary btn-small btn-apply-default"
+                  :title="`Áp dụng công thức mặc định của ${getVehicleTypeLabel(newVehType)}`"
+                  @click="applyDefaultFormulaForVehicleType"
+                >
+                  <Sparkles :size="13" />
+                  <span>Dùng công thức mặc định theo loại xe</span>
+                </button>
+                <button type="button" class="btn btn-secondary btn-small" @click="openVehicleFormulaEditor">
+                  <Edit2 :size="13" />
+                  <span>Sửa công thức</span>
+                </button>
+                <button
+                  v-if="newVehFormulaText"
+                  type="button"
+                  class="btn btn-outline-danger btn-small"
+                  title="Xóa công thức"
+                  @click="newVehFormulaText = ''"
+                >
+                  <X :size="13" />
+                </button>
+              </div>
             </div>
-            <div v-if="newVehFormulaText" class="formula-preview-box">
-              {{ newVehFormulaText }}
+
+            <!-- Khối hiển thị công thức đã chọn -->
+            <div v-if="newVehFormulaText" class="formula-preview-box active">
+              <div class="formula-preview-header">
+                <span class="formula-preview-code">{{ newVehFormulaText }}</span>
+                <span
+                  v-if="newVehFormulaText.trim() === getDefaultFormulaForVehicleType().trim()"
+                  class="badge-formula-status is-default"
+                >
+                  <Check :size="11" />
+                  <span>Mặc định theo {{ getVehicleTypeShortName(newVehType) }}</span>
+                </span>
+                <span v-else class="badge-formula-status is-custom">
+                  Tùy chỉnh riêng
+                </span>
+              </div>
             </div>
-            <div v-else class="formula-preview-box empty">
-              Chưa có công thức
+            <div v-else class="formula-preview-box empty" @click="applyDefaultFormulaForVehicleType" title="Nhấn để áp dụng công thức mặc định">
+              <span class="empty-prompt-text">Chưa có công thức.</span>
+              <span class="empty-action-hint">👉 Bấm vào đây để chọn nhanh công thức mặc định theo {{ getVehicleTypeShortName(newVehType) }}</span>
+            </div>
+
+            <!-- Khối thông tin gợi ý công thức chuẩn theo loại xe -->
+            <div class="default-formula-callout">
+              <div class="callout-header">
+                <span class="callout-title">
+                  💡 Công thức mặc định theo <strong>{{ getVehicleTypeLabel(newVehType) }}</strong>:
+                </span>
+                <button
+                  v-if="newVehFormulaText.trim() !== getDefaultFormulaForVehicleType().trim()"
+                  type="button"
+                  class="btn-callout-apply"
+                  @click="applyDefaultFormulaForVehicleType"
+                >
+                  Áp dụng ngay
+                </button>
+                <span v-else class="text-xs text-success font-bold flex items-center gap-1">
+                  <CheckCircle2 :size="12" /> Đang áp dụng
+                </span>
+              </div>
+              <code class="callout-formula-text">{{ getDefaultFormulaForVehicleType() }}</code>
             </div>
           </div>
 
@@ -4021,7 +4155,35 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
 .formula-action-row {
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.formula-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 8px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.btn-apply-default {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #f0fdf4;
+  color: #15803d;
+  border-color: #86efac;
+  font-weight: 700;
+  transition: all 0.15s ease;
+}
+
+.btn-apply-default:hover {
+  background: #dcfce7;
+  border-color: #4ade80;
+  color: #166534;
+  transform: translateY(-1px);
 }
 
 .formula-preview-box {
@@ -4036,9 +4198,118 @@ function truncateText(text: string | null | undefined, maxWords: number = 5): st
   word-break: break-word;
 }
 
+.formula-preview-box.active {
+  background: #fffdfa;
+  border: 1.5px solid #f4b067;
+}
+
+.formula-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.formula-preview-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #7c2d12;
+  flex: 1;
+}
+
+.badge-formula-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.badge-formula-status.is-default {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.badge-formula-status.is-custom {
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+}
+
 .formula-preview-box.empty {
   color: #a16207;
   font-style: italic;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transition: all 0.15s ease;
+}
+
+.formula-preview-box.empty:hover {
+  background: #fff7ed;
+  border-color: #f59e0b;
+}
+
+.empty-action-hint {
+  font-size: 0.78rem;
+  color: #d97706;
+  font-weight: 700;
+  font-style: normal;
+}
+
+/* Callout box */
+.default-formula-callout {
+  margin-top: 8px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.callout-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.callout-title {
+  font-size: 0.75rem;
+  color: #475569;
+}
+
+.btn-callout-apply {
+  background: #ffffff;
+  border: 1px solid #0284c7;
+  color: #0284c7;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-callout-apply:hover {
+  background: #0284c7;
+  color: #ffffff;
+}
+
+.callout-formula-text {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.75rem;
+  color: #64748b;
+  word-break: break-all;
+  line-height: 1.4;
 }
 
 .formula-modal-content {

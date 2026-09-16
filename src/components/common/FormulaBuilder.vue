@@ -28,6 +28,40 @@ const selectedPaletteItem = ref<TokenItem | null>(null);
 const swapSuccessToast = ref('');
 let toastTimer: any = null;
 
+// Quản lý lịch sử Hoàn tác (Undo) và Làm lại (Redo) thực sự
+const historyStack = ref<string[]>([]);
+const redoStack = ref<string[]>([]);
+
+function recordHistory() {
+  historyStack.value.push(formulaValue.value);
+  if (historyStack.value.length > 50) {
+    historyStack.value.shift();
+  }
+  redoStack.value = [];
+}
+
+function undo() {
+  if (historyStack.value.length === 0) return;
+  const previousState = historyStack.value.pop()!;
+  redoStack.value.push(formulaValue.value);
+  formulaValue.value = previousState;
+
+  selectedFormulaIndex.value = null;
+  selectedPaletteItem.value = null;
+  showSwapSuccessToast('Đã hoàn tác thao tác trước!');
+}
+
+function redo() {
+  if (redoStack.value.length === 0) return;
+  const nextState = redoStack.value.pop()!;
+  historyStack.value.push(formulaValue.value);
+  formulaValue.value = nextState;
+
+  selectedFormulaIndex.value = null;
+  selectedPaletteItem.value = null;
+  showSwapSuccessToast('Đã làm lại thao tác!');
+}
+
 function showSwapSuccessToast(msg: string = 'Đã hoán đổi vị trí thành công!') {
   swapSuccessToast.value = msg;
   if (toastTimer) clearTimeout(toastTimer);
@@ -65,6 +99,8 @@ function executeSwap() {
   const targetIndex = selectedFormulaIndex.value;
   const currentTokens = [...formulaTokens.value];
   if (targetIndex < 0 || targetIndex >= currentTokens.length) return;
+
+  recordHistory();
 
   const oldTokenVal = currentTokens[targetIndex];
   const rawVal = selectedPaletteItem.value.value.trim();
@@ -305,6 +341,8 @@ function insertToken(token: string) {
   const normalized = token.trim();
   if (!normalized) return;
 
+  recordHistory();
+
   // Nếu là công thức mẫu nhiều phần tử
   if (normalized.includes(' ')) {
     const newTokens = tokenizeFormula(normalized);
@@ -320,6 +358,7 @@ function insertToken(token: string) {
 }
 
 function removeToken(index: number) {
+  recordHistory();
   if (selectedFormulaIndex.value === index) {
     selectedFormulaIndex.value = null;
     selectedPaletteItem.value = null;
@@ -331,19 +370,9 @@ function removeToken(index: number) {
   formulaValue.value = tokens.join(' ');
 }
 
-function undoLastToken() {
-  const tokens = [...formulaTokens.value];
-  if (tokens.length > 0) {
-    if (selectedFormulaIndex.value === tokens.length - 1) {
-      selectedFormulaIndex.value = null;
-      selectedPaletteItem.value = null;
-    }
-    tokens.pop();
-    formulaValue.value = tokens.join(' ');
-  }
-}
-
 function clearFormula() {
+  if (!formulaValue.value) return;
+  recordHistory();
   selectedFormulaIndex.value = null;
   selectedPaletteItem.value = null;
   formulaValue.value = '';
@@ -404,17 +433,28 @@ function insertCustomNumber() {
         <button
           type="button"
           class="clear-button btn-undo"
-          title="Xóa phần tử vừa thêm cuối cùng"
-          :disabled="formulaTokens.length === 0"
-          @click="undoLastToken"
+          title="Hoàn tác thao tác vừa thực hiện"
+          :disabled="historyStack.length === 0"
+          @click="undo"
         >
           ↩ Hoàn tác
+        </button>
+
+        <button
+          v-if="redoStack.length > 0"
+          type="button"
+          class="clear-button btn-redo"
+          title="Làm lại thao tác vừa hoàn tác"
+          @click="redo"
+        >
+          ↪ Làm lại
         </button>
 
         <button
           type="button"
           class="clear-button btn-clear-all"
           title="Xóa toàn bộ công thức"
+          :disabled="!formulaValue"
           @click="clearFormula"
         >
           Xóa hết
