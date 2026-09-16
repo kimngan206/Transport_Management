@@ -560,7 +560,7 @@ function insertCustomNumber() {
   justify-content: center;
   gap: 6px;
   min-height: 32px;
-  padding: 5px 18px 5px 10px;
+  padding: 5px 12px;
   border-radius: 8px;
   border: 1px solid #f4b067;
   background: linear-gradient(180deg, #fff 0%, #fff4e8 100%);
@@ -568,6 +568,12 @@ function insertCustomNumber() {
   font-weight: 700;
   font-size: 0.85rem;
   box-shadow: 0 1px 3px rgba(249, 115, 22, 0.08);
+  transition: all 0.15s ease;
+  cursor: default;
+}
+
+.formula-token:hover {
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
 }
 
 .formula-token.token-variable {
@@ -582,7 +588,7 @@ function insertCustomNumber() {
   color: #374151;
   font-weight: 800;
   min-width: 28px;
-  padding: 5px 14px 5px 8px;
+  padding: 5px 10px;
 }
 
 .formula-token.token-function {
@@ -599,28 +605,42 @@ function insertCustomNumber() {
 
 .formula-token-remove {
   position: absolute;
-  top: -5px;
-  right: -5px;
+  top: -6px;
+  right: -6px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 15px;
-  height: 15px;
-  border: 1px solid rgba(239, 68, 68, 0.7);
+  width: 16px;
+  height: 16px;
+  border: 1.5px solid #ffffff;
   border-radius: 50%;
   background: #ef4444;
   color: #fff;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 700;
   line-height: 1;
   cursor: pointer;
   padding: 0;
-  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.25);
-  transition: transform 0.1s ease;
+  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.35);
+  opacity: 0;
+  visibility: hidden;
+  transform: scale(0.6);
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease, background 0.15s ease;
+  z-index: 2;
+}
+
+.formula-token:hover .formula-token-remove,
+.formula-token:focus-within .formula-token-remove {
+  opacity: 1;
+  visibility: visible;
+  transform: scale(1);
+  pointer-events: auto;
 }
 
 .formula-token-remove:hover {
-  transform: scale(1.15);
+  transform: scale(1.2) !important;
+  background: #dc2626;
 }
 
 .token-panel {
