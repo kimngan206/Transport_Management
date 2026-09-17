@@ -424,6 +424,16 @@ function getInitials(name: string): string {
               <td class="col-payload">
                 <div v-if="r.estimatedWeightKg" class="payload-latex">
                   <strong>{{ r.estimatedWeightKg.toLocaleString() }}</strong> <span class="payload-unit">kg mủ</span>
+                  <div v-if="r.rubberItems && r.rubberItems.length > 0" class="rubber-mini-pills">
+                    <span
+                      v-for="item in r.rubberItems"
+                      :key="item.id"
+                      class="mini-rubber-chip"
+                      :title="item.type + ': ' + item.weightKg.toLocaleString() + ' kg' + (item.note ? ' (' + item.note + ')' : '')"
+                    >
+                      {{ item.type.replace('Mủ ', '') }}: {{ item.weightKg >= 1000 ? (item.weightKg / 1000).toFixed(1) + 't' : item.weightKg + 'k' }}
+                    </span>
+                  </div>
                 </div>
                 <div v-else-if="r.operatingHours" class="payload-hours">
                   <strong>{{ r.operatingHours }}</strong> <span class="payload-unit">giờ máy</span>
@@ -1223,5 +1233,22 @@ function getInitials(name: string): string {
   .filter-controls-right {
     flex-direction: column;
   }
+}
+
+.rubber-mini-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 3px;
+}
+.mini-rubber-chip {
+  display: inline-block;
+  font-size: 0.6875rem;
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  padding: 1px 4px;
+  border-radius: 4px;
+  line-height: 1.2;
 }
 </style>

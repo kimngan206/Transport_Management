@@ -165,6 +165,13 @@ export type RequestStatus =
   | 'COMPLETED'
   | 'CANCELLED';
 
+export interface RubberWeightItem {
+  id: string;
+  type: string; // 'Mủ chén' | 'Mủ dây' | 'Mủ đông' | 'Mủ nước' | string
+  weightKg: number; // Khối lượng từng loại (kg)
+  note?: string; // Ghi chú quy cách thu gom
+}
+
 export interface TransportRequest {
   id: number;
   requestCode: string;
@@ -182,6 +189,7 @@ export interface TransportRequest {
   purpose: string;
   passengersCount?: number;
   estimatedWeightKg?: number; // Khối lượng mủ / hàng dự kiến (kg)
+  rubberItems?: RubberWeightItem[]; // Danh sách chi tiết các loại mủ thu gom (Mủ chén, mủ dây, mủ đông...)
   operatingHours?: number; // Số giờ máy dự kiến (đối với xe cơ giới / xúc đào)
   requestedVehicleId?: number; // Yêu cầu đích danh xe cụ thể (ID)
   requestedVehiclePlate?: string; // Yêu cầu đích danh xe cụ thể (Biển số)

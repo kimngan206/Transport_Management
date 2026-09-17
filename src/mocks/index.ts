@@ -558,6 +558,11 @@ export const initialRequests: TransportRequest[] = [
     standardRouteId: 1,
     purpose: 'Thu gom mủ nước cạo ngày lẻ tại Đội 1',
     estimatedWeightKg: 2800,
+    rubberItems: [
+      { id: '1-1', type: 'Mủ chén', weightKg: 1800, note: 'Thu gom cạo sáng lô B' },
+      { id: '1-2', type: 'Mủ dây', weightKg: 300, note: 'Mủ dây cạo' },
+      { id: '1-3', type: 'Mủ đông', weightKg: 700, note: 'Mủ đông bồn trung tâm' },
+    ],
     status: 'DISPATCHED',
     assignedTripId: 1002, // Con của Chuyến TRIP-260907-001 (id: 1002)
     approvedById: 3,
@@ -588,6 +593,10 @@ export const initialRequests: TransportRequest[] = [
     standardRouteId: 1,
     purpose: 'Thu gom mủ chén và mủ dây lô A2 Đội 1',
     estimatedWeightKg: 2000,
+    rubberItems: [
+      { id: '2-1', type: 'Mủ chén', weightKg: 1500, note: 'Mủ chén lô A2' },
+      { id: '2-2', type: 'Mủ dây', weightKg: 500, note: 'Mủ dây lô A2' },
+    ],
     status: 'DISPATCHED',
     assignedTripId: 1002, // Con của Chuyến TRIP-260907-001 (id: 1002)
     approvedById: 3,

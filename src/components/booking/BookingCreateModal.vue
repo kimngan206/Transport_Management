@@ -7,7 +7,7 @@ import { useFleetStore } from '@/stores/fleet';
 import { mockStorage } from '@/services/mockStorage';
 import { getFreshHubs } from '@/mocks/mapData';
 import type { HubLocation } from '@/types/map';
-import type { VehicleType, TransportRequest } from '@/types';
+import type { VehicleType, TransportRequest, RubberWeightItem } from '@/types';
 import {
   X,
   Check,
@@ -15,6 +15,9 @@ import {
   CheckCircle2,
   Trees,
   Building2,
+  Plus,
+  Trash2,
+  Scale,
 } from 'lucide-vue-next';
 
 const props = withDefaults(
@@ -172,7 +175,94 @@ function getHubTypePrefix(type: string): string {
   if (type === 'farm') return '🌳 Đội NT';
   return '📍 Điểm trạm';
 }
-const estimatedWeightKg = ref<number>(props.editingRequest?.estimatedWeightKg || 2500);
+// Danh mục phân loại mủ cao su
+const rubberTypeOptions = ['Mủ chén', 'Mủ dây', 'Mủ đông', 'Mủ nước (tươi)', 'Mủ tạp / đất'];
+
+const defaultRubberItems: RubberWeightItem[] = [
+  { id: '1', type: 'Mủ chén', weightKg: 1500, note: 'Thu gom ca sáng' },
+  { id: '2', type: 'Mủ dây', weightKg: 300, note: 'Gom theo đường cạo' },
+  { id: '3', type: 'Mủ đông', weightKg: 700, note: 'Mủ đông bồn / khối' },
+];
+
+const rubberItems = ref<RubberWeightItem[]>(
+  props.editingRequest?.rubberItems && props.editingRequest.rubberItems.length > 0
+    ? JSON.parse(JSON.stringify(props.editingRequest.rubberItems))
+    : (props.editingRequest?.estimatedWeightKg
+        ? [{ id: '1', type: 'Mủ chén', weightKg: props.editingRequest.estimatedWeightKg, note: 'Khối lượng ban đầu' }]
+        : JSON.parse(JSON.stringify(defaultRubberItems)))
+);
+
+// Tính tổng khối lượng mủ từ các dòng trong bảng
+const totalRubberWeightKg = computed(() => {
+  return rubberItems.value.reduce((sum, item) => sum + (Number(item.weightKg) || 0), 0);
+});
+
+const estimatedWeightKg = ref<number>(
+  props.editingRequest?.estimatedWeightKg || totalRubberWeightKg.value || 2500
+);
+
+// Tự động đồng bộ estimatedWeightKg với totalRubberWeightKg khi chọn xe chở mủ
+watch(
+  totalRubberWeightKg,
+  (newVal) => {
+    if (vehicleType.value === 'LatexTruck') {
+      estimatedWeightKg.value = newVal;
+    }
+  },
+  { immediate: true }
+);
+
+function addRubberRow() {
+  const newId = String(Date.now() + Math.floor(Math.random() * 1000));
+  const existingTypes = rubberItems.value.map((i) => i.type);
+  const nextType = rubberTypeOptions.find((t) => !existingTypes.includes(t)) || 'Mủ chén';
+  rubberItems.value.push({
+    id: newId,
+    type: nextType,
+    weightKg: 500,
+    note: '',
+  });
+}
+
+function removeRubberRow(index: number) {
+  if (rubberItems.value.length > 1) {
+    rubberItems.value.splice(index, 1);
+  }
+}
+
+function applyRubberPreset(preset: 'standard_all' | 'cup_only' | 'cup_coag' | 'liquid') {
+  if (preset === 'standard_all') {
+    rubberItems.value = [
+      { id: '1', type: 'Mủ chén', weightKg: 1500, note: 'Mủ đông chén thu gom' },
+      { id: '2', type: 'Mủ dây', weightKg: 300, note: 'Mủ dây đường cạo' },
+      { id: '3', type: 'Mủ đông', weightKg: 700, note: 'Mủ đông lưu kho' },
+    ];
+  } else if (preset === 'cup_only') {
+    rubberItems.value = [
+      { id: '1', type: 'Mủ chén', weightKg: 2000, note: 'Mủ chén cạo ngày lẻ' },
+    ];
+  } else if (preset === 'cup_coag') {
+    rubberItems.value = [
+      { id: '1', type: 'Mủ chén', weightKg: 2500, note: 'Mủ chén Đội' },
+      { id: '2', type: 'Mủ đông', weightKg: 1500, note: 'Mủ đông tập kết' },
+    ];
+  } else if (preset === 'liquid') {
+    rubberItems.value = [
+      { id: '1', type: 'Mủ nước (tươi)', weightKg: 7500, note: 'Mủ nước xe bồn chuyên dụng' },
+    ];
+  }
+}
+
+const selectedVehicleCapacityTons = computed(() => {
+  const veh = fleetStore.vehicles.find((v) => v.id === requestedVehicleId.value);
+  return veh ? veh.capacityTons : 5;
+});
+
+const isOverCapacity = computed(() => {
+  if (vehicleType.value !== 'LatexTruck') return false;
+  return totalRubberWeightKg.value > selectedVehicleCapacityTons.value * 1000;
+});
+
 const passengersCount = ref<number>(props.editingRequest?.passengersCount || 3);
 
 // Helper default times (tự động tìm khung giờ trống hợp lệ: sau hiện tại ít nhất 30 phút và không trùng các chuyến đã duyệt)
@@ -219,6 +309,15 @@ function populateFormFromRequest(request: TransportRequest) {
   requestedVehicleId.value = request.requestedVehicleId;
   purpose.value = request.purpose || '';
   estimatedWeightKg.value = request.estimatedWeightKg || 2500;
+  if (request.rubberItems && request.rubberItems.length > 0) {
+    rubberItems.value = JSON.parse(JSON.stringify(request.rubberItems));
+  } else if (request.estimatedWeightKg) {
+    rubberItems.value = [
+      { id: '1', type: 'Mủ chén', weightKg: request.estimatedWeightKg, note: '' },
+    ];
+  } else {
+    rubberItems.value = JSON.parse(JSON.stringify(defaultRubberItems));
+  }
   passengersCount.value = request.passengersCount || 3;
   operatingHours.value = request.operatingHours || 4;
   pickupTime.value = request.pickupTime ? request.pickupTime.replace(' ', 'T') : '';
@@ -328,6 +427,13 @@ function handleSubmit() {
     return;
   }
 
+  if (vehicleType.value === 'LatexTruck') {
+    if (totalRubberWeightKg.value <= 0) {
+      dialog.showWarning('Vui lòng nhập khối lượng mủ dự kiến trong bảng hợp lệ (phải lớn hơn 0 kg)!', 'Khối Lượng Mủ Không Hợp Lệ', 'Kiểm tra lại');
+      return;
+    }
+  }
+
   const fromLoc = isTeamModule.value
     ? `${selectedTeam.value} (${selectedClusterLabel.value})`
     : (locations.value[0] || 'Nhà Máy Chế Biến ECOTECH 2A');
@@ -357,7 +463,8 @@ function handleSubmit() {
     fromLocation: fromLoc,
     toLocation: toLoc,
     purpose: purpose.value,
-    estimatedWeightKg: vehicleType.value === 'LatexTruck' ? Number(estimatedWeightKg.value) : undefined,
+    estimatedWeightKg: vehicleType.value === 'LatexTruck' ? Number(totalRubberWeightKg.value) : undefined,
+    rubberItems: vehicleType.value === 'LatexTruck' ? JSON.parse(JSON.stringify(rubberItems.value)) : undefined,
     operatingHours: vehicleType.value === 'MillingMachine' ? Number(operatingHours.value) : undefined,
     passengersCount: vehicleType.value === 'PassengerCar' ? Number(passengersCount.value) : undefined,
     pickupTime: vehicleType.value === 'PassengerCar' ? (pickupTime.value ? pickupTime.value.replace('T', ' ') : startTime.value.replace('T', ' ')) : undefined,
@@ -581,18 +688,122 @@ function handleSubmit() {
           <span>{{ conflictStatus.message }}</span>
         </div>
 
-        <!-- Tùy biến theo loại xe: Xe chuyên dùng chở mủ -->
-        <div v-if="vehicleType === 'LatexTruck'" class="form-group vehicle-detail-box">
-          <label class="form-label">Khối lượng mủ dự kiến (kg) <span class="required">*</span></label>
-          <input v-model.number="estimatedWeightKg" type="number" step="100" min="100" class="form-input" />
-          <div class="quick-chips-row">
-            <span class="quick-chip-label">Chọn nhanh:</span>
-            <button type="button" class="btn-micro-chip" @click="estimatedWeightKg = 1500">+ 1.500 kg (Mủ chén)</button>
-            <button type="button" class="btn-micro-chip" @click="estimatedWeightKg = 2500">+ 2.500 kg (Xe 5 tấn)</button>
-            <button type="button" class="btn-micro-chip" @click="estimatedWeightKg = 5000">+ 5.000 kg (Đầy thùng)</button>
-            <button type="button" class="btn-micro-chip" @click="estimatedWeightKg = 7500">+ 7.500 kg (Xe bồn)</button>
+        <!-- Tùy biến theo loại xe: Xe chuyên dùng chở mủ (Bảng kê chi tiết loại mủ: Mủ chén, Mủ dây, Mủ đông...) -->
+        <div v-if="vehicleType === 'LatexTruck'" class="form-group vehicle-detail-box latex-breakdown-box">
+          <div class="latex-header-row">
+            <div>
+              <label class="form-label mb-0 flex items-center gap-1.5 font-bold">
+                <Scale :size="16" class="text-success" />
+                <span>Bảng kê chi tiết loại mủ & khối lượng dự kiến</span>
+                <span class="required">*</span>
+              </label>
+              <div class="latex-subtitle text-xs text-muted mt-0.5">
+                Nhập khối lượng theo từng loại (Mủ chén, Mủ dây, Mủ đông...) để điều phối xếp xe và tính định mức dầu (Lít/tấn.km)
+              </div>
+            </div>
+            <button type="button" class="btn-add-item" @click="addRubberRow">
+              <Plus :size="14" />
+              <span>Thêm loại mủ</span>
+            </button>
           </div>
-          <span class="form-hint">Khối lượng mủ dùng để kiểm tra sức chứa khi điều phối ghép chuyến và tính định mức dầu (Lít/tấn.km).</span>
+
+          <!-- Bảng phân loại mủ -->
+          <div class="table-responsive latex-table-wrap">
+            <table class="latex-table">
+              <thead>
+                <tr>
+                  <th style="width: 32%;">Loại mủ <span class="required">*</span></th>
+                  <th style="width: 28%;">Khối lượng (kg) <span class="required">*</span></th>
+                  <th style="width: 30%;">Quy cách / Ghi chú</th>
+                  <th style="width: 10%; text-align: center;">Xóa</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(item, idx) in rubberItems" :key="item.id">
+                  <td>
+                    <select v-model="item.type" class="form-select table-select">
+                      <option v-for="opt in rubberTypeOptions" :key="opt" :value="opt">
+                        {{ opt }}
+                      </option>
+                    </select>
+                  </td>
+                  <td>
+                    <div class="input-with-unit">
+                      <input
+                        v-model.number="item.weightKg"
+                        type="number"
+                        min="0"
+                        step="50"
+                        class="form-input table-input"
+                        placeholder="0"
+                      />
+                      <span class="unit-tag">kg</span>
+                    </div>
+                  </td>
+                  <td>
+                    <input
+                      v-model="item.note"
+                      type="text"
+                      class="form-input table-input"
+                      placeholder="VD: Thu gom sáng, lưu kho..."
+                    />
+                  </td>
+                  <td class="text-center">
+                    <button
+                      type="button"
+                      class="btn-table-del"
+                      :disabled="rubberItems.length <= 1"
+                      :title="rubberItems.length <= 1 ? 'Cần ít nhất 1 loại mủ' : 'Xóa loại mủ này'"
+                      @click="removeRubberRow(idx)"
+                    >
+                      <Trash2 :size="14" />
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr class="total-row">
+                  <td class="total-label font-bold">
+                    Tổng khối lượng mủ:
+                  </td>
+                  <td colspan="3">
+                    <div class="total-highlight-box">
+                      <div class="total-sum">
+                        <strong class="total-number">{{ totalRubberWeightKg.toLocaleString() }}</strong>
+                        <span class="total-unit">kg</span>
+                        <span class="total-ton-equiv">({{ (totalRubberWeightKg / 1000).toFixed(2) }} tấn)</span>
+                      </div>
+                      <div v-if="isOverCapacity" class="capacity-warning-badge">
+                        <AlertCircle :size="13" />
+                        <span>Vượt tải định mức xe ({{ selectedVehicleCapacityTons }} tấn)</span>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+
+          <!-- Mẫu chọn nhanh -->
+          <div class="quick-presets-row">
+            <span class="quick-chip-label">Mẫu nhanh:</span>
+            <button type="button" class="btn-micro-chip" @click="applyRubberPreset('standard_all')">
+              📋 Đủ 3 loại (Chén 1.5t + Dây 300kg + Đông 700kg = 2.5t)
+            </button>
+            <button type="button" class="btn-micro-chip" @click="applyRubberPreset('cup_only')">
+              🥣 Chỉ mủ chén (2.000 kg)
+            </button>
+            <button type="button" class="btn-micro-chip" @click="applyRubberPreset('cup_coag')">
+              📦 Mủ chén + Mủ đông (4.000 kg)
+            </button>
+            <button type="button" class="btn-micro-chip" @click="applyRubberPreset('liquid')">
+              🚛 Mủ nước xe bồn (7.500 kg)
+            </button>
+          </div>
+
+          <span class="form-hint">
+            Khối lượng mủ dùng để kiểm tra sức chứa khi điều phối ghép chuyến và tính định mức dầu (Lít/tấn.km).
+          </span>
         </div>
 
         <!-- Tùy biến theo loại xe: Xe cơ giới nông trường -->
@@ -1110,5 +1321,181 @@ function handleSubmit() {
 }
 .flow-arrow {
   color: #94a3b8;
+}
+
+/* Latex Breakdown Table */
+.latex-breakdown-box {
+  background: #f8fafc;
+  border: 1.5px solid #cbd5e1;
+  border-radius: var(--radius-md, 8px);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+.latex-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+  gap: 12px;
+}
+.latex-subtitle {
+  color: #64748b;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+.btn-add-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #ecfdf5;
+  border: 1px solid #10b981;
+  color: #047857;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.btn-add-item:hover {
+  background: #10b981;
+  color: #ffffff;
+  box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
+}
+.latex-table-wrap {
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+.latex-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+.latex-table th {
+  background: #f1f5f9;
+  color: #475569;
+  font-weight: 700;
+  padding: 8px 10px;
+  border-bottom: 1px solid #cbd5e1;
+  text-align: left;
+  font-size: 0.78125rem;
+}
+.latex-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+.table-select {
+  padding: 6px 8px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #0f172a;
+  border-color: #cbd5e1;
+  background-color: #ffffff;
+}
+.table-input {
+  padding: 6px 8px;
+  font-size: 0.8125rem;
+  border-color: #cbd5e1;
+}
+.input-with-unit {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.input-with-unit .table-input {
+  padding-right: 32px;
+  text-align: right;
+  font-weight: 700;
+  color: #15803d;
+}
+.unit-tag {
+  position: absolute;
+  right: 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+  pointer-events: none;
+}
+.btn-table-del {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  padding: 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-table-del:hover:not(:disabled) {
+  background: #fee2e2;
+  color: #dc2626;
+}
+.btn-table-del:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+.total-row {
+  background: #f8fafc;
+  border-top: 2px solid #cbd5e1;
+}
+.total-label {
+  color: #1e293b;
+  font-size: 0.8125rem;
+  padding-left: 12px;
+}
+.total-highlight-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.total-sum {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+.total-number {
+  font-size: 1.125rem;
+  color: #15803d;
+  font-weight: 800;
+}
+.total-unit {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #166534;
+}
+.total-ton-equiv {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #475569;
+  margin-left: 4px;
+}
+.capacity-warning-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  font-size: 0.71875rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 9999px;
+}
+.quick-presets-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  margin-bottom: 6px;
 }
 </style>

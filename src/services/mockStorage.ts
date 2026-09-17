@@ -502,6 +502,26 @@ export const mockStorage = {
         else r.teamName = 'Đội 1';
         modified = true;
       }
+
+      // Tự động khởi tạo cơ cấu phân loại mủ (Mủ chén, mủ dây, mủ đông) cho các yêu cầu chở mủ
+      if (r.vehicleType === 'LatexTruck' && (!r.rubberItems || r.rubberItems.length === 0) && r.estimatedWeightKg) {
+        const total = r.estimatedWeightKg;
+        if (total >= 7000) {
+          r.rubberItems = [
+            { id: `${r.id}-1`, type: 'Mủ nước (tươi)', weightKg: total, note: 'Vận chuyển xe bồn' },
+          ];
+        } else {
+          const cup = Math.round(total * 0.6 / 50) * 50;
+          const wire = Math.round(total * 0.15 / 50) * 50;
+          const coag = total - cup - wire;
+          r.rubberItems = [
+            { id: `${r.id}-1`, type: 'Mủ chén', weightKg: cup, note: 'Thu gom tại vườn cây' },
+            { id: `${r.id}-2`, type: 'Mủ dây', weightKg: wire, note: 'Mủ dây đường cạo' },
+            { id: `${r.id}-3`, type: 'Mủ đông', weightKg: coag, note: 'Mủ đông tập kết' },
+          ];
+        }
+        modified = true;
+      }
     });
     if (modified) {
       saveToStorage(STORAGE_KEYS.REQUESTS, res);

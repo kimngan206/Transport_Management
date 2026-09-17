@@ -66,6 +66,14 @@ function handleCancel() {
     dialog.showWarning(res.message || 'Không thể hủy yêu cầu!', 'Không Thể Hủy Yêu Cầu', 'Thực hiện lại');
   }
 }
+
+function getRubberTypeClass(type: string): string {
+  if (type.includes('chén')) return 'tag-cup';
+  if (type.includes('dây')) return 'tag-wire';
+  if (type.includes('đông')) return 'tag-coag';
+  if (type.includes('nước')) return 'tag-liquid';
+  return 'tag-default';
+}
 </script>
 
 <template>
@@ -85,18 +93,26 @@ function handleCancel() {
         <!-- Thông tin cơ bản -->
         <div class="detail-grid">
           <div class="detail-item">
-            <span class="detail-label">Người yêu cầu</span>
+            <span class="detail-label">Người đặt</span>
+            <span class="detail-val font-medium">{{ request.requesterName }}</span>
+          </div>
+
+          <div class="detail-item">
+            <span class="detail-label">Đơn vị / Đội</span>
             <span class="detail-val">
-              {{ request.requesterName }} ({{ request.departmentName }})
-              <span v-if="request.teamName" class="badge-team-tag">
-                {{ request.teamName }}
-              </span>
+              {{ request.departmentName }}
+              <span v-if="request.teamName" class="badge-team-tag">{{ request.teamName }}</span>
             </span>
           </div>
 
           <div class="detail-item">
-            <span class="detail-label">Thời gian</span>
-            <span class="detail-val">{{ request.startTime }} ➔ {{ request.endTime.slice(11) }}</span>
+            <span class="detail-label">Thời gian bắt đầu</span>
+            <span class="detail-val">{{ request.startTime }}</span>
+          </div>
+
+          <div class="detail-item">
+            <span class="detail-label">Thời gian kết thúc</span>
+            <span class="detail-val">{{ request.endTime }}</span>
           </div>
 
           <div class="detail-item">
@@ -118,6 +134,49 @@ function handleCancel() {
               <strong v-if="request.operatingHours"> ({{ request.operatingHours }} giờ máy)</strong>
               <strong v-if="request.passengersCount"> ({{ request.passengersCount }} người)</strong>
             </span>
+          </div>
+          
+          <!-- Bảng kê chi tiết loại mủ thu gom -->
+          <div v-if="request.rubberItems && request.rubberItems.length > 0" class="detail-item full-width">
+            <span class="detail-label">Bảng phân loại & khối lượng mủ thu gom:</span>
+            <div class="rubber-detail-table-card">
+              <table class="rubber-mini-table">
+                <thead>
+                  <tr>
+                    <th>Loại mủ</th>
+                    <th class="text-right">Khối lượng</th>
+                    <th class="text-right">Tỷ trọng</th>
+                    <th>Quy cách / Ghi chú</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="item in request.rubberItems" :key="item.id">
+                    <td>
+                      <span class="rubber-tag" :class="getRubberTypeClass(item.type)">
+                        {{ item.type }}
+                      </span>
+                    </td>
+                    <td class="text-right font-bold text-success">
+                      {{ item.weightKg.toLocaleString() }} kg
+                    </td>
+                    <td class="text-right text-xs text-muted">
+                      {{ request.estimatedWeightKg ? Math.round((item.weightKg / request.estimatedWeightKg) * 100) : 0 }}%
+                    </td>
+                    <td class="text-secondary text-xs">{{ item.note || '—' }}</td>
+                  </tr>
+                </tbody>
+                <tfoot>
+                  <tr class="total-detail-row">
+                    <td><strong>Tổng cộng</strong></td>
+                    <td class="text-right text-success font-bold">
+                      {{ (request.estimatedWeightKg || 0).toLocaleString() }} kg
+                    </td>
+                    <td class="text-right text-xs font-bold">100%</td>
+                    <td class="text-xs text-muted font-medium">≈ {{ (((request.estimatedWeightKg || 0)) / 1000).toFixed(2) }} tấn</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
           </div>
           
           <div v-if="request.vehicleType === 'PassengerCar'" class="detail-item full-width mt-1 p-2 bg-light rounded border">
@@ -455,5 +514,71 @@ function handleCancel() {
   border-radius: 9999px;
   margin-left: 6px;
   vertical-align: middle;
+}
+
+/* Rubber breakdown table in detail */
+.rubber-detail-table-card {
+  margin-top: 6px;
+  background: #ffffff;
+  border: 1.5px solid #e2e8f0;
+  border-radius: var(--radius-sm, 6px);
+  overflow: hidden;
+}
+.rubber-mini-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+.rubber-mini-table th {
+  background: #f8fafc;
+  color: #475569;
+  font-weight: 700;
+  padding: 7px 10px;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+  font-size: 0.75rem;
+}
+.rubber-mini-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+.total-detail-row {
+  background: #f8fafc;
+  border-top: 2px solid #e2e8f0;
+}
+.rubber-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+.rubber-tag.tag-cup {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+.rubber-tag.tag-wire {
+  background: #fffbeb;
+  color: #b45309;
+  border-color: #fde68a;
+}
+.rubber-tag.tag-coag {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+.rubber-tag.tag-liquid {
+  background: #faf5ff;
+  color: #7e22ce;
+  border-color: #e9d5ff;
+}
+.rubber-tag.tag-default {
+  background: #f1f5f9;
+  color: #475569;
+  border-color: #cbd5e1;
 }
 </style>
